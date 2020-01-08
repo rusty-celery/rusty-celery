@@ -1,0 +1,42 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Install Rust Stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+        override: true
+
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --verbose
+
+    - name: Lin with RustFmt
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: -- --check
+
+    - name: Lint with Clippy
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all-targets --all-features -- -D warnings
+
+    - name: Run Tests
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --verbose
