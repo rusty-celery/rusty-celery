@@ -1,15 +1,11 @@
+.PHONY : build
+build :
+	cargo build
+
 .PHONY : setup
 setup :
 	rustup component add rustfmt
 	rustup component add clippy
-
-#
-# Cargo helpers.
-#
-
-.PHONY : build
-build :
-	cargo build
 
 .PHONY : release
 release :
@@ -22,7 +18,10 @@ format :
 .PHONY : lint
 lint :
 	cargo fmt -- --check
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --all-targets --all-features -- \
+			-D warnings \
+			-A clippy::let_and_return \
+			-A clippy::redundant_clone
 
 .PHONY : test
 test :
