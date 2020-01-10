@@ -41,7 +41,7 @@ impl Default for CeleryBuilder {
                     auto_delete: false,
                     nowait: false,
                 },
-                prefetch_count: Some(100),
+                prefetch_count: Some(1),
 
                 task_timeout: None,
                 task_max_retries: None,

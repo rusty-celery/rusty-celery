@@ -1,3 +1,5 @@
+//! Defines the celery protocol.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

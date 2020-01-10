@@ -13,10 +13,13 @@ pub struct Error {
 pub enum ErrorKind {
     #[fail(display = "Task named '{}' already exists", _0)]
     TaskAlreadyExists(String),
+
     #[fail(display = "{}", _0)]
     BrokerError(lapin::Error),
+
     #[fail(display = "{}", _0)]
     SerializationError(serde_json::Error),
+
     #[fail(display = "Broker not specified")]
     BrokerNotSpecified,
 }
