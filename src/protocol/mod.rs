@@ -20,9 +20,9 @@ pub(crate) struct TaskPayloadBodyEmbed {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
-    use failure::Error;
 
     use super::*;
+    use crate::error::Error;
     use crate::task::Task;
 
     #[derive(Serialize, Deserialize)]
@@ -32,6 +32,8 @@ mod tests {
 
     #[async_trait]
     impl Task for TestTask {
+        type Returns = ();
+
         async fn run(&mut self) -> Result<(), Error> {
             Ok(())
         }

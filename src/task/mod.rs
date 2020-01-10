@@ -1,16 +1,21 @@
 use async_trait::async_trait;
-use failure::Error;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
+
+/// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 #[async_trait]
 pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
-    async fn run(&mut self) -> Result<(), Error>;
+    type Returns: Send + Sync;
+
+    async fn run(&mut self) -> Result<Self::Returns, Error>;
 
     async fn on_failure(&mut self, err: Error) -> Result<(), Error> {
         Err(err)
     }
 
-    async fn on_success(&mut self) -> Result<(), Error> {
+    #[allow(unused_variables)]
+    async fn on_success(&mut self, returned: Self::Returns) -> Result<(), Error> {
         Ok(())
     }
 

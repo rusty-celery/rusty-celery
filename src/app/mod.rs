@@ -1,5 +1,3 @@
-use async_trait::async_trait;
-use failure::Error;
 use lapin::options::{BasicPublishOptions, QueueDeclareOptions};
 use lapin::types::FieldTable;
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
@@ -7,22 +5,9 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
+use crate::error::{Error, ErrorKind};
 use crate::protocol::TaskPayloadBody;
 use crate::task::Task;
-
-#[async_trait]
-pub trait TaskFactory {
-    async fn run(&self, body: Vec<u8>) -> Result<(), Error>;
-}
-
-async fn execute_task<T: Task + 'static>(body: Vec<u8>) -> Result<(), Error> {
-    let payload: TaskPayloadBody<T> = serde_json::from_slice(&body).unwrap();
-    let mut task = payload.1;
-    match task.run().await {
-        Ok(_) => task.on_success().await,
-        Err(e) => task.on_failure(e).await,
-    }
-}
 
 struct Config {
     // App level configurations.
@@ -67,14 +52,14 @@ impl Default for CeleryBuilder {
 
 impl CeleryBuilder {
     /// Set the broker URL.
-    pub fn broker(mut self, broker: String) -> Self {
-        self.config.broker = Some(broker);
+    pub fn broker(mut self, broker: &str) -> Self {
+        self.config.broker = Some(broker.into());
         self
     }
 
     /// Set the name of the default queue.
-    pub fn default_queue_name(mut self, queue_name: String) -> Self {
-        self.config.default_queue_name = queue_name;
+    pub fn default_queue_name(mut self, queue_name: &str) -> Self {
+        self.config.default_queue_name = queue_name.into();
         self
     }
 
@@ -109,7 +94,7 @@ impl CeleryBuilder {
     }
 
     /// Construct a `Celery` app with the current configuration .
-    pub async fn build(self, name: String) -> Result<Celery, Error> {
+    pub async fn build(self, name: &str) -> Result<Celery, Error> {
         let mut conn: Option<Connection> = None;
         let mut channel: Option<Channel> = None;
         let mut default_queue: Option<Queue> = None;
@@ -129,7 +114,7 @@ impl CeleryBuilder {
             );
         }
         Ok(Celery {
-            name,
+            name: name.into(),
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
             default_queue_options: self.config.default_queue_options,
@@ -147,6 +132,10 @@ impl CeleryBuilder {
     }
 }
 
+type TaskExecutionOutput = Result<(), Error>;
+type TaskExecutorResult = Pin<Box<dyn Future<Output = TaskExecutionOutput>>>;
+type TaskExecutor = Box<dyn Fn(Vec<u8>) -> TaskExecutorResult>;
+
 pub struct Celery {
     // App level configurations.
     pub name: String,
@@ -163,7 +152,7 @@ pub struct Celery {
     pub conn: Option<Connection>,
     channel: Option<Channel>,
     pub default_queue: Option<Queue>,
-    tasks: HashMap<String, Box<dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = Result<(), Error>>>>>>,
+    tasks: HashMap<String, TaskExecutor>,
 }
 
 impl Celery {
@@ -173,7 +162,7 @@ impl Celery {
     }
 
     /// Create a new `Celery` app with the given name.
-    pub async fn new(name: String) -> Result<Self, Error> {
+    pub async fn new(name: &str) -> Result<Self, Error> {
         Self::builder().build(name).await
     }
 
@@ -194,17 +183,36 @@ impl Celery {
         Ok(())
     }
 
-    pub fn register_task<T: Task + 'static>(&mut self, name: String) {
-        self.tasks.insert(name, Box::new(|body| Box::pin(execute_task::<T>(body))));
+    /// Register a task.
+    pub fn register_task<T: Task + 'static>(&mut self, name: &str) -> Result<(), Error> {
+        if self.tasks.contains_key(name) {
+            Err(ErrorKind::TaskAlreadyExists(name.into()).into())
+        } else {
+            self.tasks.insert(
+                name.into(),
+                Box::new(|body| Box::pin(Self::task_executer::<T>(body))),
+            );
+            Ok(())
+        }
     }
 
-    pub async fn execute_task(&self, task_name: String, body: Vec<u8>) -> Result<(), Error> {
-        (self.tasks[&task_name])(body).await
+    async fn task_executer<T: Task + 'static>(body: Vec<u8>) -> Result<(), Error> {
+        let payload: TaskPayloadBody<T> = serde_json::from_slice(&body).unwrap();
+        let mut task = payload.1;
+        match task.run().await {
+            Ok(returned) => task.on_success(returned).await,
+            Err(e) => task.on_failure(e).await,
+        }
+    }
+
+    pub async fn execute_task(&self, task_name: &str, body: Vec<u8>) -> Result<(), Error> {
+        (self.tasks[task_name])(body).await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -212,5 +220,23 @@ mod tests {
     #[derive(Serialize, Deserialize)]
     struct TestTask {
         a: i32,
+    }
+
+    #[async_trait]
+    impl Task for TestTask {
+        type Returns = ();
+
+        async fn run(&mut self) -> Result<(), Error> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_register_tasks() {
+        let mut celery = Celery::new("test_app").await.unwrap();
+        celery.register_task::<TestTask>("test_task").unwrap();
+        let payload = TaskPayloadBody::new(TestTask { a: 0 });
+        let body = serde_json::to_vec(&payload).unwrap();
+        celery.execute_task("test_task", body).await.unwrap();
     }
 }
