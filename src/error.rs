@@ -17,6 +17,8 @@ pub enum ErrorKind {
     BrokerError(lapin::Error),
     #[fail(display = "{}", _0)]
     SerializationError(serde_json::Error),
+    #[fail(display = "Broker not specified")]
+    BrokerNotSpecified,
 }
 
 impl Fail for Error {

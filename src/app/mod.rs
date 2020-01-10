@@ -1,4 +1,4 @@
-use lapin::options::{BasicPublishOptions, QueueDeclareOptions};
+use lapin::options::{BasicPublishOptions, BasicQosOptions, QueueDeclareOptions};
 use lapin::types::FieldTable;
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use std::collections::HashMap;
@@ -14,6 +14,7 @@ struct Config {
     broker: Option<String>,
     default_queue_name: String,
     default_queue_options: QueueDeclareOptions,
+    prefetch_count: Option<u16>,
 
     // Default task configurations.
     task_timeout: Option<usize>,
@@ -40,6 +41,7 @@ impl Default for CeleryBuilder {
                     auto_delete: false,
                     nowait: false,
                 },
+                prefetch_count: Some(100),
 
                 task_timeout: None,
                 task_max_retries: None,
@@ -69,6 +71,12 @@ impl CeleryBuilder {
         self
     }
 
+    /// Set a prefetch count for workers.
+    pub fn prefetch_count(mut self, prefetch_count: Option<u16>) -> Self {
+        self.config.prefetch_count = prefetch_count;
+        self
+    }
+
     /// Set a default timeout for tasks.
     pub fn task_timeout(mut self, task_timeout: usize) -> Self {
         self.config.task_timeout = Some(task_timeout);
@@ -95,40 +103,27 @@ impl CeleryBuilder {
 
     /// Construct a `Celery` app with the current configuration .
     pub async fn build(self, name: &str) -> Result<Celery, Error> {
-        let mut conn: Option<Connection> = None;
-        let mut channel: Option<Channel> = None;
-        let mut default_queue: Option<Queue> = None;
-        if let Some(ref broker) = self.config.broker {
-            conn = Some(Connection::connect(&broker, ConnectionProperties::default()).await?);
-            channel = Some(conn.as_ref().unwrap().create_channel().await?);
-            default_queue = Some(
-                channel
-                    .as_ref()
-                    .unwrap()
-                    .queue_declare(
-                        &self.config.default_queue_name,
-                        self.config.default_queue_options.clone(),
-                        FieldTable::default(),
-                    )
-                    .await?,
-            );
-        }
-        Ok(Celery {
+        let mut celery = Celery {
             name: name.into(),
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
             default_queue_options: self.config.default_queue_options,
+            prefetch_count: self.config.prefetch_count,
 
             task_timeout: self.config.task_timeout,
             task_max_retries: self.config.task_max_retries,
             task_min_retry_delay: self.config.task_min_retry_delay,
             task_max_retry_delay: self.config.task_max_retry_delay,
 
-            conn,
-            channel,
-            default_queue,
+            conn: None,
+            channel: None,
+            default_queue: None,
             tasks: HashMap::new(),
-        })
+        };
+        if celery.broker.is_some() {
+            celery.connect().await?;
+        }
+        Ok(celery)
     }
 }
 
@@ -142,6 +137,7 @@ pub struct Celery {
     pub broker: Option<String>,
     pub default_queue_name: String,
     pub default_queue_options: QueueDeclareOptions,
+    pub prefetch_count: Option<u16>,
 
     // Default task configurations.
     pub task_timeout: Option<usize>,
@@ -164,6 +160,44 @@ impl Celery {
     /// Create a new `Celery` app with the given name.
     pub async fn new(name: &str) -> Result<Self, Error> {
         Self::builder().build(name).await
+    }
+
+    /// Connect to the broker.
+    pub async fn connect(&mut self) -> Result<(), Error> {
+        if let Some(ref conn) = self.conn {
+            if conn.status().connected() {
+                return Ok(());
+            }
+        }
+        if let Some(ref broker) = self.broker {
+            let conn = Connection::connect(&broker, ConnectionProperties::default()).await?;
+
+            let channel = self.conn.as_ref().unwrap().create_channel().await?;
+            if let Some(prefetch_count) = self.prefetch_count {
+                channel
+                    .basic_qos(prefetch_count, BasicQosOptions::default())
+                    .await?;
+            }
+
+            let default_queue = self
+                .channel
+                .as_ref()
+                .unwrap()
+                .queue_declare(
+                    &self.default_queue_name,
+                    self.default_queue_options.clone(),
+                    FieldTable::default(),
+                )
+                .await?;
+
+            self.conn = Some(conn);
+            self.channel = Some(channel);
+            self.default_queue = Some(default_queue);
+
+            Ok(())
+        } else {
+            Err(ErrorKind::BrokerNotSpecified.into())
+        }
     }
 
     /// Send a task to a remote worker.
