@@ -11,8 +11,8 @@ A Rust implementation of the [Celery](https://github.com/celery/celery) protocol
 
 ## Features
 
-- Send tasks from Python to Rust or vice versa.
-- Use provided brokers and backends or implement your own.
-- Natural async / await interface.
-- Easily customizable with callbacks.
-- High performance and safe.
+- Send tasks from Python to Rust or vice versa :left_right_arrow:
+- Use provided brokers and backends or implement your own :wrench:
+- Natural async / await interface :sparkler:
+- Easily customizable with callbacks :telephone:
+- High performance and safe :fire: :fire:
