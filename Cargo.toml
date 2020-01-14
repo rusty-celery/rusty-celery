@@ -1,13 +1,13 @@
 [package]
 name = "celery"
-version = "0.1.0"
+version = "0.1.0-alpha"
 authors = ["epwalsh <epwalsh10@gmail.com>"]
 edition = "2018"
 keywords = ["celery", "amqp", "rabbitmq", "background-jobs"]
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/epwalsh/rusty-celery"
-homepage = "https://github.com/epwalsh/rusty-celery"
+repository = "https://github.com/structurely/rusty-celery"
+homepage = "https://github.com/structurely/rusty-celery"
 description = "Rust implementation of Celery"
 
 [lib]
