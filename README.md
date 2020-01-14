@@ -16,3 +16,7 @@ A Rust implementation of the [Celery](https://github.com/celery/celery) protocol
 - Natural async / await interface :sparkler:
 - Easily customizable with callbacks :telephone:
 - High performance and safe :fire: :fire:
+
+## Testimonials
+
+"The crate we've all been waiting for!" - You
