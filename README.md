@@ -15,8 +15,8 @@ A Rust implementation of the [Celery](https://github.com/celery/celery) protocol
 - Use provided brokers and backends or implement your own :wrench:
 - Natural async / await interface :sparkler:
 - Easily customizable with callbacks :telephone:
-- High performance and safe :fire: :fire:
+- High performance and safe :fire: :fire: :fire:
 
 ## Testimonials
 
-"The crate we've all been waiting for!" - You
+"The crate we've all been waiting for! :clap: :clap: :raised_hands:" - You
