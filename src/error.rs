@@ -22,6 +22,12 @@ pub enum ErrorKind {
 
     #[fail(display = "Broker not specified")]
     BrokerNotSpecified,
+
+    #[fail(display = "Failed to parse message ({})", _0)]
+    AMQPMessageParseError(String),
+
+    #[fail(display = "Unknown queue '{}'", _0)]
+    UnknownQueueError(String),
 }
 
 impl Fail for Error {

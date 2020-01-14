@@ -1,18 +1,58 @@
-//! Defines the celery protocol.
+//! Defines the [celery protocol](http://docs.celeryproject.org/en/latest/internals/protocol.html).
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
-pub(crate) struct TaskPayloadBody<T>(Vec<u8>, pub(crate) T, TaskPayloadBodyEmbed);
+use crate::Error;
 
-impl<T> TaskPayloadBody<T> {
-    pub(crate) fn new(task: T) -> Self {
-        Self(vec![], task, TaskPayloadBodyEmbed::default())
+#[derive(Debug)]
+pub struct Message {
+    pub properties: MessageProperties,
+    pub headers: MessageHeaders,
+    pub raw_data: Vec<u8>,
+}
+
+pub trait TryIntoMessage {
+    fn try_into_message(&self) -> Result<Message, Error>;
+}
+
+#[derive(Debug)]
+pub struct MessageProperties {
+    pub correlation_id: String,
+    pub content_type: String,
+    pub content_encoding: String,
+    pub reply_to: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct MessageHeaders {
+    pub id: String,
+    pub task: String,
+    pub lang: Option<String>,
+    pub root_id: Option<String>,
+    pub parent_id: Option<String>,
+    pub group: Option<String>,
+    pub meth: Option<String>,
+    pub shadow: Option<String>,
+    pub eta: Option<String>,
+    pub expires: Option<String>,
+    pub retries: Option<usize>,
+    pub timelimit: (Option<usize>, Option<usize>),
+    pub argsrepr: Option<String>,
+    pub kwargsrepr: Option<String>,
+    pub origin: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessageBody<T>(Vec<u8>, pub T, MessageBodyEmbed);
+
+impl<T> MessageBody<T> {
+    pub fn new(task: T) -> Self {
+        Self(vec![], task, MessageBodyEmbed::default())
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
-pub(crate) struct TaskPayloadBodyEmbed {
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct MessageBodyEmbed {
     callbacks: Option<String>,
     errbacks: Option<String>,
     chain: Option<String>,
@@ -43,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_serialize_body() {
-        let body = TaskPayloadBody::new(TestTask { a: 0 });
+        let body = MessageBody::new(TestTask { a: 0 });
         let serialized = serde_json::to_string(&body).unwrap();
         assert_eq!(
             serialized,

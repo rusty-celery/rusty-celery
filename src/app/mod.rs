@@ -1,20 +1,15 @@
-use lapin::options::{BasicPublishOptions, BasicQosOptions, QueueDeclareOptions};
-use lapin::types::FieldTable;
-use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
+use futures_util::stream::StreamExt;
+use log::{error};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::error::{Error, ErrorKind};
-use crate::protocol::TaskPayloadBody;
-use crate::task::Task;
+use crate::protocol::{MessageBody, TryIntoMessage};
+use crate::{Broker, Error, ErrorKind, Task};
 
 struct Config {
     // App level configurations.
-    broker: Option<String>,
     default_queue_name: String,
-    default_queue_options: QueueDeclareOptions,
-    prefetch_count: Option<u16>,
 
     // Default task configurations.
     task_timeout: Option<usize>,
@@ -32,16 +27,7 @@ impl Default for CeleryBuilder {
     fn default() -> Self {
         Self {
             config: Config {
-                broker: None,
                 default_queue_name: "celery".into(),
-                default_queue_options: QueueDeclareOptions {
-                    passive: false,
-                    durable: true,
-                    exclusive: false,
-                    auto_delete: false,
-                    nowait: false,
-                },
-                prefetch_count: Some(1),
 
                 task_timeout: None,
                 task_max_retries: None,
@@ -53,27 +39,9 @@ impl Default for CeleryBuilder {
 }
 
 impl CeleryBuilder {
-    /// Set the broker URL.
-    pub fn broker(mut self, broker: &str) -> Self {
-        self.config.broker = Some(broker.into());
-        self
-    }
-
     /// Set the name of the default queue.
     pub fn default_queue_name(mut self, queue_name: &str) -> Self {
         self.config.default_queue_name = queue_name.into();
-        self
-    }
-
-    /// Set configuration options for the default queue.
-    pub fn default_queue_options(mut self, options: &QueueDeclareOptions) -> Self {
-        self.config.default_queue_options = options.clone();
-        self
-    }
-
-    /// Set a prefetch count for workers.
-    pub fn prefetch_count(mut self, prefetch_count: Option<u16>) -> Self {
-        self.config.prefetch_count = prefetch_count;
         self
     }
 
@@ -102,28 +70,18 @@ impl CeleryBuilder {
     }
 
     /// Construct a `Celery` app with the current configuration .
-    pub async fn build(self, name: &str) -> Result<Celery, Error> {
-        let mut celery = Celery {
+    pub fn build<B: Broker>(self, name: &str, broker: B) -> Result<Celery<B>, Error> {
+        Ok(Celery {
             name: name.into(),
-            broker: self.config.broker,
+            broker: broker,
             default_queue_name: self.config.default_queue_name,
-            default_queue_options: self.config.default_queue_options,
-            prefetch_count: self.config.prefetch_count,
+            tasks: HashMap::new(),
 
             task_timeout: self.config.task_timeout,
             task_max_retries: self.config.task_max_retries,
             task_min_retry_delay: self.config.task_min_retry_delay,
             task_max_retry_delay: self.config.task_max_retry_delay,
-
-            conn: None,
-            channel: None,
-            default_queue: None,
-            tasks: HashMap::new(),
-        };
-        if celery.broker.is_some() {
-            celery.connect().await?;
-        }
-        Ok(celery)
+        })
     }
 }
 
@@ -131,90 +89,40 @@ type TaskExecutionOutput = Result<(), Error>;
 type TaskExecutorResult = Pin<Box<dyn Future<Output = TaskExecutionOutput>>>;
 type TaskExecutor = Box<dyn Fn(Vec<u8>) -> TaskExecutorResult>;
 
-pub struct Celery {
+pub struct Celery<B: Broker> {
     // App level configurations.
     pub name: String,
-    pub broker: Option<String>,
+    pub broker: B,
     pub default_queue_name: String,
-    pub default_queue_options: QueueDeclareOptions,
-    pub prefetch_count: Option<u16>,
+    tasks: HashMap<String, TaskExecutor>,
 
     // Default task configurations.
     pub task_timeout: Option<usize>,
     pub task_max_retries: Option<usize>,
     pub task_min_retry_delay: Option<usize>,
     pub task_max_retry_delay: Option<usize>,
-
-    pub conn: Option<Connection>,
-    channel: Option<Channel>,
-    pub default_queue: Option<Queue>,
-    tasks: HashMap<String, TaskExecutor>,
 }
 
-impl Celery {
+impl<B> Celery<B>
+where
+    B: Broker + 'static,
+{
     /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
     pub fn builder() -> CeleryBuilder {
         CeleryBuilder::default()
     }
 
     /// Create a new `Celery` app with the given name.
-    pub async fn new(name: &str) -> Result<Self, Error> {
-        Self::builder().build(name).await
-    }
-
-    /// Connect to the broker.
-    pub async fn connect(&mut self) -> Result<(), Error> {
-        if let Some(ref conn) = self.conn {
-            if conn.status().connected() {
-                return Ok(());
-            }
-        }
-        if let Some(ref broker) = self.broker {
-            let conn = Connection::connect(&broker, ConnectionProperties::default()).await?;
-
-            let channel = self.conn.as_ref().unwrap().create_channel().await?;
-            if let Some(prefetch_count) = self.prefetch_count {
-                channel
-                    .basic_qos(prefetch_count, BasicQosOptions::default())
-                    .await?;
-            }
-
-            let default_queue = self
-                .channel
-                .as_ref()
-                .unwrap()
-                .queue_declare(
-                    &self.default_queue_name,
-                    self.default_queue_options.clone(),
-                    FieldTable::default(),
-                )
-                .await?;
-
-            self.conn = Some(conn);
-            self.channel = Some(channel);
-            self.default_queue = Some(default_queue);
-
-            Ok(())
-        } else {
-            Err(ErrorKind::BrokerNotSpecified.into())
-        }
+    pub fn new(name: &str, broker: B) -> Result<Self, Error> {
+        Self::builder().build(name, broker)
     }
 
     /// Send a task to a remote worker.
     pub async fn send_task<T: Task>(&self, task: T) -> Result<(), Error> {
-        let payload = TaskPayloadBody::new(task);
-        self.channel
-            .as_ref()
-            .unwrap()
-            .basic_publish(
-                "",
-                &self.default_queue_name,
-                BasicPublishOptions::default(),
-                serde_json::to_vec(&payload)?,
-                BasicProperties::default(),
-            )
-            .await?;
-        Ok(())
+        let body = MessageBody::new(task);
+        self.broker
+            .send_task::<T>(body, &self.default_queue_name)
+            .await
     }
 
     /// Register a task.
@@ -231,7 +139,7 @@ impl Celery {
     }
 
     async fn task_executer<T: Task + 'static>(body: Vec<u8>) -> Result<(), Error> {
-        let payload: TaskPayloadBody<T> = serde_json::from_slice(&body).unwrap();
+        let payload: MessageBody<T> = serde_json::from_slice(&body).unwrap();
         let mut task = payload.1;
         match task.run().await {
             Ok(returned) => task.on_success(returned).await,
@@ -241,6 +149,39 @@ impl Celery {
 
     pub async fn execute_task(&self, task_name: &str, body: Vec<u8>) -> Result<(), Error> {
         (self.tasks[task_name])(body).await
+    }
+
+    async fn consume_delivery(
+        &self,
+        delivery_result: Result<B::Delivery, B::DeliveryError>,
+    ) -> Result<(), Error> {
+        match delivery_result {
+            Ok(delivery) => {
+                let message = delivery.try_into_message()?;
+                self.execute_task(&message.headers.task, message.raw_data)
+                    .await?;
+                self.broker.ack(delivery).await?;
+                Ok(())
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) -> () {
+        if let Err(e) = self.consume_delivery(delivery_result).await {
+            error!("{}", e);
+        }
+    }
+
+    pub async fn consume(&self) -> Result<(), Error> {
+        let consumer = self.broker.consume(&self.default_queue_name).await?;
+        consumer
+            .for_each_concurrent(
+                None, // limit of concurrent tasks.
+                |delivery_result| self.handle_delivery(delivery_result),
+            )
+            .await;
+        Ok(())
     }
 }
 
@@ -269,7 +210,7 @@ mod tests {
     async fn test_register_tasks() {
         let mut celery = Celery::new("test_app").await.unwrap();
         celery.register_task::<TestTask>("test_task").unwrap();
-        let payload = TaskPayloadBody::new(TestTask { a: 0 });
+        let payload = MessageBody::new(TestTask { a: 0 });
         let body = serde_json::to_vec(&payload).unwrap();
         celery.execute_task("test_task", body).await.unwrap();
     }
