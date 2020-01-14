@@ -7,7 +7,7 @@ use lapin::types::FieldTable;
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use std::collections::HashMap;
 
-use super::{Broker, BrokerBuilder};
+use super::Broker;
 use crate::protocol::{Message, MessageBody, MessageHeaders, MessageProperties, TryIntoMessage};
 use crate::{Error, ErrorKind, Task};
 
@@ -21,11 +21,8 @@ pub struct AMQPBrokerBuilder {
     config: Config,
 }
 
-#[async_trait]
-impl BrokerBuilder for AMQPBrokerBuilder {
-    type Broker = AMQPBroker;
-
-    fn new(broker_url: &str) -> Self {
+impl AMQPBrokerBuilder {
+    pub fn new(broker_url: &str) -> Self {
         Self {
             config: Config {
                 broker_url: broker_url.into(),
@@ -35,12 +32,12 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         }
     }
 
-    fn prefetch_count(mut self, prefetch_count: Option<u16>) -> Self {
+    pub fn prefetch_count(mut self, prefetch_count: Option<u16>) -> Self {
         self.config.prefetch_count = prefetch_count;
         self
     }
 
-    fn queue(mut self, name: &str) -> Self {
+    pub fn queue(mut self, name: &str) -> Self {
         self.config.queues.insert(
             name.into(),
             QueueDeclareOptions {
@@ -54,7 +51,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         self
     }
 
-    async fn build(self) -> Result<Self::Broker, Error> {
+    pub async fn build(self) -> Result<AMQPBroker, Error> {
         let conn =
             Connection::connect(&self.config.broker_url, ConnectionProperties::default()).await?;
         let channel = conn.create_channel().await?;
@@ -79,9 +76,14 @@ pub struct AMQPBroker {
     queues: HashMap<String, Queue>,
 }
 
+impl AMQPBroker {
+    pub fn builder(broker_url: &str) -> AMQPBrokerBuilder {
+        AMQPBrokerBuilder::new(broker_url)
+    }
+}
+
 #[async_trait]
 impl Broker for AMQPBroker {
-    type Builder = AMQPBrokerBuilder;
     type Delivery = lapin::message::Delivery;
     type DeliveryError = lapin::Error;
     type Consumer = lapin::Consumer;
@@ -121,10 +123,6 @@ impl Broker for AMQPBroker {
             )
             .await?;
         Ok(())
-    }
-
-    fn builder(broker_url: &str) -> Self::Builder {
-        AMQPBrokerBuilder::new(broker_url)
     }
 }
 

@@ -5,6 +5,6 @@ mod protocol;
 mod task;
 
 pub use app::Celery;
-pub use broker::{Broker, BrokerBuilder};
+pub use broker::{amqp, Broker};
 pub use error::{Error, ErrorKind};
 pub use task::Task;

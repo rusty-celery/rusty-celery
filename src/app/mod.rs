@@ -1,5 +1,5 @@
 use futures_util::stream::StreamExt;
-use log::{error};
+use log::error;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -73,7 +73,7 @@ impl CeleryBuilder {
     pub fn build<B: Broker>(self, name: &str, broker: B) -> Result<Celery<B>, Error> {
         Ok(Celery {
             name: name.into(),
-            broker: broker,
+            broker,
             default_queue_name: self.config.default_queue_name,
             tasks: HashMap::new(),
 
@@ -167,7 +167,7 @@ where
         }
     }
 
-    async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) -> () {
+    async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
         if let Err(e) = self.consume_delivery(delivery_result).await {
             error!("{}", e);
         }
@@ -182,36 +182,5 @@ where
             )
             .await;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use async_trait::async_trait;
-    use serde::{Deserialize, Serialize};
-
-    use super::*;
-
-    #[derive(Serialize, Deserialize)]
-    struct TestTask {
-        a: i32,
-    }
-
-    #[async_trait]
-    impl Task for TestTask {
-        type Returns = ();
-
-        async fn run(&mut self) -> Result<(), Error> {
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
-    async fn test_register_tasks() {
-        let mut celery = Celery::new("test_app").await.unwrap();
-        celery.register_task::<TestTask>("test_task").unwrap();
-        let payload = MessageBody::new(TestTask { a: 0 });
-        let body = serde_json::to_vec(&payload).unwrap();
-        celery.execute_task("test_task", body).await.unwrap();
     }
 }
