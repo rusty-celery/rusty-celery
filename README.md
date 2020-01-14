@@ -28,3 +28,19 @@ A Rust implementation of the [Celery](https://github.com/celery/celery) protocol
 ## Testimonials
 
 "The crate we've all been waiting for! :clap: :clap: :raised_hands:" - You
+
+## Examples
+
+The `./examples` directory contains a simple Celery app that is implemented in both Python and Rust using an AMQP broker. Before running the examples you'll need to set the environment variable `AMQP_ADDR` to your broker URL.
+
+Then send a task from Python to Rust by running
+
+```
+bash ./examples/python_to_rust.sh
+```
+
+Similary, send a task from Rust to Python by running
+
+```
+bash ./examples/rust_to_python.sh
+```

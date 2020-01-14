@@ -18,4 +18,11 @@ Cargo.lock
 #**/*.rs.bk
 
 # Contains some private env variables.
-examples.sh
+.env
+
+# Python junk.
+*.pyc
+*.pyo
+__pycache__
+.pytest_cache
+.mypy_cache

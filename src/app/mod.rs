@@ -1,5 +1,5 @@
 use futures_util::stream::StreamExt;
-use log::error;
+use log::{debug, error};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -157,8 +157,10 @@ where
         match delivery_result {
             Ok(delivery) => {
                 let message = delivery.try_into_message()?;
+                debug!("Handling message {:?}", message);
                 self.execute_task(&message.headers.task, message.raw_data)
                     .await?;
+                debug!("Acknowledging message");
                 self.broker.ack(delivery).await?;
                 Ok(())
             }
