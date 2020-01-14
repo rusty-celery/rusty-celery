@@ -4,7 +4,15 @@
     <br>
 <p>
 <p align="center">
-    <img alt="Build" src="https://github.com/structurely/rusty-celery/workflows/CI/badge.svg">
+    <a href="https://github.com/structurely/rusty-celery/actions">
+        <img alt="Build" src="https://github.com/structurely/rusty-celery/workflows/CI/badge.svg">
+    </a>
+    <a href="https://github.com/structurely/rusty-celery/blob/master/LICENSE">
+        <img alt="License" src="https://img.shields.io/github/license/structurely/rusty-celery.svg?color=blue&cachedrop">
+    </a>
+    <a href="https://crates.io/crates/celery">
+        <img alt="Crates" src="https://img.shields.io/crates/v/cached-path.svg">
+    </a>
 </p>
 
 A Rust implementation of the [Celery](https://github.com/celery/celery) protocol, fully compatable with Python workers and producers.
