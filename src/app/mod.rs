@@ -89,6 +89,7 @@ type TaskExecutionOutput = Result<(), Error>;
 type TaskExecutorResult = Pin<Box<dyn Future<Output = TaskExecutionOutput>>>;
 type TaskExecutor = Box<dyn Fn(Vec<u8>) -> TaskExecutorResult>;
 
+/// A `Celery` app is used to produce or consume tasks asyncronously.
 pub struct Celery<B: Broker> {
     // App level configurations.
     pub name: String,
@@ -118,10 +119,10 @@ where
     }
 
     /// Send a task to a remote worker.
-    pub async fn send_task<T: Task>(&self, task: T) -> Result<(), Error> {
+    pub async fn send_task<T: Task>(&self, task: T, queue: &str) -> Result<(), Error> {
         let body = MessageBody::new(task);
         self.broker
-            .send_task::<T>(body, &self.default_queue_name)
+            .send_task::<T>(body, queue)
             .await
     }
 
@@ -173,8 +174,9 @@ where
         }
     }
 
-    pub async fn consume(&self) -> Result<(), Error> {
-        let consumer = self.broker.consume(&self.default_queue_name).await?;
+    /// Consume tasks from the default queue.
+    pub async fn consume(&self, queue: &str) -> Result<(), Error> {
+        let consumer = self.broker.consume(queue).await?;
         consumer
             .for_each_concurrent(
                 None, // limit of concurrent tasks.
