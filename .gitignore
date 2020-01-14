@@ -16,3 +16,6 @@ Cargo.lock
 
 /target
 #**/*.rs.bk
+
+# Contains some private env variables.
+examples.sh

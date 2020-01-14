@@ -25,3 +25,10 @@ amq-protocol-types = "3.1"
 log = "0.4"
 env_logger = "0.7"
 futures-util = "0.3"
+
+[dev-dependencies]
+exitfailure = "0.5.1"
+structopt = "0.3"
+
+[[example]]
+name = "celery"

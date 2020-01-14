@@ -70,8 +70,8 @@ impl CeleryBuilder {
     }
 
     /// Construct a `Celery` app with the current configuration .
-    pub fn build<B: Broker>(self, name: &str, broker: B) -> Result<Celery<B>, Error> {
-        Ok(Celery {
+    pub fn build<B: Broker>(self, name: &str, broker: B) -> Celery<B> {
+        Celery {
             name: name.into(),
             broker,
             default_queue_name: self.config.default_queue_name,
@@ -81,7 +81,7 @@ impl CeleryBuilder {
             task_max_retries: self.config.task_max_retries,
             task_min_retry_delay: self.config.task_min_retry_delay,
             task_max_retry_delay: self.config.task_max_retry_delay,
-        })
+        }
     }
 }
 
@@ -114,16 +114,14 @@ where
     }
 
     /// Create a new `Celery` app with the given name.
-    pub fn new(name: &str, broker: B) -> Result<Self, Error> {
+    pub fn new(name: &str, broker: B) -> Self {
         Self::builder().build(name, broker)
     }
 
     /// Send a task to a remote worker.
     pub async fn send_task<T: Task>(&self, task: T, queue: &str) -> Result<(), Error> {
         let body = MessageBody::new(task);
-        self.broker
-            .send_task::<T>(body, queue)
-            .await
+        self.broker.send_task::<T>(body, queue).await
     }
 
     /// Register a task.
