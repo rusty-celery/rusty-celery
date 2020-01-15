@@ -1,4 +1,4 @@
-//! Defines the [celery protocol](http://docs.celeryproject.org/en/latest/internals/protocol.html).
+//! Defines the [Celery protocol](http://docs.celeryproject.org/en/latest/internals/protocol.html).
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

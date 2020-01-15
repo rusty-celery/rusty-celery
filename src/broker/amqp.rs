@@ -1,3 +1,5 @@
+//! AMQP broker.
+
 use amq_protocol_types::{AMQPValue, FieldArray};
 use async_trait::async_trait;
 use lapin::options::{

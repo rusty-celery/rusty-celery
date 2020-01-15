@@ -11,21 +11,23 @@ pub struct Error {
 /// Error kinds that can occur while using `celery`.
 #[derive(Debug, Fail)]
 pub enum ErrorKind {
+    /// You tried to register a task but a task by that name already exists.
     #[fail(display = "Task named '{}' already exists", _0)]
     TaskAlreadyExists(String),
 
+    /// Any type of error that can happen at the [`Broker`](trait.Broker.html) level.
     #[fail(display = "{}", _0)]
     BrokerError(lapin::Error),
 
+    /// An error occured while serializing or deserializing.
     #[fail(display = "{}", _0)]
     SerializationError(serde_json::Error),
 
-    #[fail(display = "Broker not specified")]
-    BrokerNotSpecified,
-
+    /// A consumed delivery was in an unknown format.
     #[fail(display = "Failed to parse message ({})", _0)]
     AMQPMessageParseError(String),
 
+    /// The queue you're attempting to use has not been defined.
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueueError(String),
 }
