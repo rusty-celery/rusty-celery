@@ -1,7 +1,7 @@
 mod app;
 mod broker;
 mod error;
-mod protocol;
+pub mod protocol;
 mod task;
 
 pub use app::Celery;

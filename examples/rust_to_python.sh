@@ -17,4 +17,4 @@ cd examples && celery \
     -Q celery \
     --without-heartbeat \
     -Ofair \
-    --loglevel=info
+    --loglevel=debug

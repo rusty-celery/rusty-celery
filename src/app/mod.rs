@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::protocol::{MessageBody, TryIntoMessage};
+use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
 
 struct Config {
@@ -121,7 +121,10 @@ where
     /// Send a task to a remote worker.
     pub async fn send_task<T: Task>(&self, task: T, queue: &str) -> Result<(), Error> {
         let body = MessageBody::new(task);
-        self.broker.send_task::<T>(body, queue).await
+        let data = serde_json::to_vec(&body)?;
+        let message = Message::builder(T::NAME, data).build();
+        debug!("Sending message {:?}", message);
+        self.broker.send(&message, queue).await
     }
 
     /// Register a task.
@@ -141,8 +144,14 @@ where
         let payload: MessageBody<T> = serde_json::from_slice(&body).unwrap();
         let mut task = payload.1;
         match task.run().await {
-            Ok(returned) => task.on_success(returned).await,
-            Err(e) => task.on_failure(e).await,
+            Ok(returned) => {
+                debug!("Task returned {:?}", returned);
+                task.on_success(returned).await
+            }
+            Err(e) => {
+                error!("Task failed {}", e);
+                task.on_failure(e).await
+            }
         }
     }
 
@@ -156,6 +165,7 @@ where
     ) -> Result<(), Error> {
         match delivery_result {
             Ok(delivery) => {
+                debug!("Handling delivery {:?}", delivery);
                 let message = delivery.try_into_message()?;
                 debug!("Handling message {:?}", message);
                 self.execute_task(&message.headers.task, message.raw_data)

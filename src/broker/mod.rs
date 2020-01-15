@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use futures_util::stream::{Stream, StreamExt};
 
-use crate::protocol::{MessageBody, TryIntoMessage};
-use crate::{Error, Task};
+use crate::protocol::{Message, TryIntoMessage};
+use crate::Error;
 
 #[async_trait]
 pub trait Broker {
-    type Delivery: TryIntoMessage + Clone;
+    type Delivery: TryIntoMessage + Clone + std::fmt::Debug;
     type DeliveryError: Into<Error>;
     type Consumer: IntoIterator<
             Item = Result<Self::Delivery, Self::DeliveryError>,
@@ -19,7 +19,7 @@ pub trait Broker {
 
     async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error>;
 
-    async fn send_task<T: Task>(&self, body: MessageBody<T>, queue: &str) -> Result<(), Error>;
+    async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;
 }
 
 pub mod amqp;

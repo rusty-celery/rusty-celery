@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use celery::amqp::AMQPBroker;
 use celery::{Celery, Error, Task};
 use exitfailure::ExitFailure;
-use log::info;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -14,6 +13,8 @@ struct AddTask {
 
 #[async_trait]
 impl Task for AddTask {
+    const NAME: &'static str = "add";
+
     type Returns = i32;
 
     async fn run(&mut self) -> Result<i32, Error> {
@@ -52,11 +53,11 @@ async fn main() -> Result<(), ExitFailure> {
 
     match opt {
         CeleryOpt::Consume => {
-            info!("Consuming tasks");
             celery.consume(queue).await?;
         }
         CeleryOpt::Produce => {
-            info!("Producing tasks");
+            let task = AddTask { x: 1, y: 2 };
+            celery.send_task(task, queue).await?;
         }
     };
 

@@ -6,7 +6,9 @@ use crate::error::Error;
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 #[async_trait]
 pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
-    type Returns: Send + Sync;
+    const NAME: &'static str;
+
+    type Returns: Send + Sync + std::fmt::Debug;
 
     async fn run(&mut self) -> Result<Self::Returns, Error>;
 

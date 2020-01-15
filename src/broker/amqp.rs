@@ -1,15 +1,16 @@
-use amq_protocol_types::AMQPValue;
+use amq_protocol_types::{AMQPValue, FieldArray};
 use async_trait::async_trait;
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
 use lapin::types::FieldTable;
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
+use log::debug;
 use std::collections::HashMap;
 
 use super::Broker;
-use crate::protocol::{Message, MessageBody, MessageHeaders, MessageProperties, TryIntoMessage};
-use crate::{Error, ErrorKind, Task};
+use crate::protocol::{Message, MessageHeaders, MessageProperties, TryIntoMessage};
+use crate::{Error, ErrorKind};
 
 struct Config {
     broker_url: String,
@@ -112,17 +113,118 @@ impl Broker for AMQPBroker {
             .map_err(|e| e.into())
     }
 
-    async fn send_task<T: Task>(&self, body: MessageBody<T>, queue: &str) -> Result<(), Error> {
+    async fn send(&self, message: &Message, queue: &str) -> Result<(), Error> {
+        let properties = message.delivery_properties();
+        debug!("properties: {:?}", properties);
         self.channel
             .basic_publish(
                 "",
                 queue,
                 BasicPublishOptions::default(),
-                serde_json::to_vec(&body)?,
-                BasicProperties::default(),
+                message.raw_data.clone(),
+                properties,
             )
             .await?;
+
         Ok(())
+    }
+}
+
+impl Message {
+    fn delivery_properties(&self) -> BasicProperties {
+        let mut properties = BasicProperties::default()
+            .with_correlation_id(self.properties.correlation_id.clone().into())
+            .with_content_type(self.properties.content_type.clone().into())
+            .with_content_encoding(self.properties.content_encoding.clone().into())
+            .with_headers(self.delivery_headers())
+            .with_priority(0)
+            .with_delivery_mode(2);
+        if let Some(ref reply_to) = self.properties.reply_to {
+            properties = properties.with_reply_to(reply_to.clone().into());
+        }
+        properties
+    }
+
+    fn delivery_headers(&self) -> FieldTable {
+        let mut headers = FieldTable::default();
+        headers.insert(
+            "id".into(),
+            AMQPValue::LongString(self.headers.id.clone().into()),
+        );
+        headers.insert(
+            "task".into(),
+            AMQPValue::LongString(self.headers.task.clone().into()),
+        );
+        if let Some(ref lang) = self.headers.lang {
+            headers.insert("lang".into(), AMQPValue::LongString(lang.clone().into()));
+        }
+        if let Some(ref root_id) = self.headers.root_id {
+            headers.insert(
+                "root_id".into(),
+                AMQPValue::LongString(root_id.clone().into()),
+            );
+        }
+        if let Some(ref parent_id) = self.headers.parent_id {
+            headers.insert(
+                "parent_id".into(),
+                AMQPValue::LongString(parent_id.clone().into()),
+            );
+        }
+        if let Some(ref group) = self.headers.group {
+            headers.insert("group".into(), AMQPValue::LongString(group.clone().into()));
+        }
+        if let Some(ref meth) = self.headers.meth {
+            headers.insert("meth".into(), AMQPValue::LongString(meth.clone().into()));
+        }
+        if let Some(ref shadow) = self.headers.shadow {
+            headers.insert(
+                "shadow".into(),
+                AMQPValue::LongString(shadow.clone().into()),
+            );
+        }
+        if let Some(ref eta) = self.headers.eta {
+            headers.insert("eta".into(), AMQPValue::LongString(eta.clone().into()));
+        }
+        if let Some(ref expires) = self.headers.expires {
+            headers.insert(
+                "expires".into(),
+                AMQPValue::LongString(expires.clone().into()),
+            );
+        }
+        if let Some(retries) = self.headers.retries {
+            headers.insert("retries".into(), AMQPValue::LongUInt(retries));
+        }
+        let mut timelimit = FieldArray::default();
+        if let Some(t) = self.headers.timelimit.0 {
+            timelimit.push(AMQPValue::LongUInt(t));
+        } else {
+            timelimit.push(AMQPValue::Void);
+        }
+        if let Some(t) = self.headers.timelimit.1 {
+            timelimit.push(AMQPValue::LongUInt(t));
+        } else {
+            timelimit.push(AMQPValue::Void);
+        }
+        headers.insert("timelimit".into(), AMQPValue::FieldArray(timelimit));
+        if let Some(ref argsrepr) = self.headers.argsrepr {
+            headers.insert(
+                "argsrepr".into(),
+                AMQPValue::LongString(argsrepr.clone().into()),
+            );
+        }
+        if let Some(ref kwargsrepr) = self.headers.kwargsrepr {
+            headers.insert(
+                "kwargsrepr".into(),
+                AMQPValue::LongString(kwargsrepr.clone().into()),
+            );
+        }
+        if let Some(ref origin) = self.headers.origin {
+            headers.insert(
+                "origin".into(),
+                AMQPValue::LongString(origin.clone().into()),
+            );
+        }
+        headers
     }
 }
 
@@ -186,7 +288,7 @@ impl TryIntoMessage for lapin::message::Delivery {
                     .ok_or_else::<Error, _>(|| {
                         ErrorKind::AMQPMessageParseError("invalid or missing 'task'".into()).into()
                     })?,
-                lang: headers.inner().get("task").and_then(|v| match v {
+                lang: headers.inner().get("lang").and_then(|v| match v {
                     AMQPValue::ShortString(s) => Some(s.to_string()),
                     AMQPValue::LongString(s) => Some(s.to_string()),
                     _ => None,
@@ -227,13 +329,13 @@ impl TryIntoMessage for lapin::message::Delivery {
                     _ => None,
                 }),
                 retries: headers.inner().get("retries").and_then(|v| match v {
-                    AMQPValue::ShortShortInt(n) => Some(*n as usize),
-                    AMQPValue::ShortShortUInt(n) => Some(*n as usize),
-                    AMQPValue::ShortInt(n) => Some(*n as usize),
-                    AMQPValue::ShortUInt(n) => Some(*n as usize),
-                    AMQPValue::LongInt(n) => Some(*n as usize),
-                    AMQPValue::LongUInt(n) => Some(*n as usize),
-                    AMQPValue::LongLongInt(n) => Some(*n as usize),
+                    AMQPValue::ShortShortInt(n) => Some(*n as u32),
+                    AMQPValue::ShortShortUInt(n) => Some(*n as u32),
+                    AMQPValue::ShortInt(n) => Some(*n as u32),
+                    AMQPValue::ShortUInt(n) => Some(*n as u32),
+                    AMQPValue::LongInt(n) => Some(*n as u32),
+                    AMQPValue::LongUInt(n) => Some(*n as u32),
+                    AMQPValue::LongLongInt(n) => Some(*n as u32),
                     _ => None,
                 }),
                 timelimit: headers
@@ -244,23 +346,23 @@ impl TryIntoMessage for lapin::message::Delivery {
                             let a = a.as_slice().to_vec();
                             if a.len() == 2 {
                                 let soft = match a[0] {
-                                    AMQPValue::ShortShortInt(n) => Some(n as usize),
-                                    AMQPValue::ShortShortUInt(n) => Some(n as usize),
-                                    AMQPValue::ShortInt(n) => Some(n as usize),
-                                    AMQPValue::ShortUInt(n) => Some(n as usize),
-                                    AMQPValue::LongInt(n) => Some(n as usize),
-                                    AMQPValue::LongUInt(n) => Some(n as usize),
-                                    AMQPValue::LongLongInt(n) => Some(n as usize),
+                                    AMQPValue::ShortShortInt(n) => Some(n as u32),
+                                    AMQPValue::ShortShortUInt(n) => Some(n as u32),
+                                    AMQPValue::ShortInt(n) => Some(n as u32),
+                                    AMQPValue::ShortUInt(n) => Some(n as u32),
+                                    AMQPValue::LongInt(n) => Some(n as u32),
+                                    AMQPValue::LongUInt(n) => Some(n as u32),
+                                    AMQPValue::LongLongInt(n) => Some(n as u32),
                                     _ => None,
                                 };
                                 let hard = match a[1] {
-                                    AMQPValue::ShortShortInt(n) => Some(n as usize),
-                                    AMQPValue::ShortShortUInt(n) => Some(n as usize),
-                                    AMQPValue::ShortInt(n) => Some(n as usize),
-                                    AMQPValue::ShortUInt(n) => Some(n as usize),
-                                    AMQPValue::LongInt(n) => Some(n as usize),
-                                    AMQPValue::LongUInt(n) => Some(n as usize),
-                                    AMQPValue::LongLongInt(n) => Some(n as usize),
+                                    AMQPValue::ShortShortInt(n) => Some(n as u32),
+                                    AMQPValue::ShortShortUInt(n) => Some(n as u32),
+                                    AMQPValue::ShortInt(n) => Some(n as u32),
+                                    AMQPValue::ShortUInt(n) => Some(n as u32),
+                                    AMQPValue::LongInt(n) => Some(n as u32),
+                                    AMQPValue::LongUInt(n) => Some(n as u32),
+                                    AMQPValue::LongLongInt(n) => Some(n as u32),
                                     _ => None,
                                 };
                                 Some((soft, hard))
