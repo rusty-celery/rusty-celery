@@ -44,3 +44,11 @@ Similary, send a task from Rust to Python by running
 ```
 bash ./examples/rust_to_python.sh
 ```
+
+## Missing features
+
+`rusty-celery` is still in the early stages and therefore there are several features of the Celery protocol that are still missing. To see what's currently missing search for issues with the label ["Protocol Feature"](https://github.com/structurely/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Protocol+Feature%22).
+
+## Contributing
+
+We welcome contributors! If you're interesting in contributing, a good place to start would be any issue marked with the label ["Status: Help Wanted"](https://github.com/structurely/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Status%3A+Help+Wanted%22).
