@@ -103,9 +103,16 @@ pub struct MessageHeaders {
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct MessageBody<T>(Vec<u8>, pub T, MessageBodyEmbed);
 
-impl<T> MessageBody<T> {
+impl<T> MessageBody<T>
+where
+    T: Serialize + for<'de> Deserialize<'de>,
+{
     pub fn new(task: T) -> Self {
         Self(vec![], task, MessageBodyEmbed::default())
+    }
+
+    pub fn from_raw_data(data: &[u8]) -> Result<Self, Error> {
+        Ok(serde_json::from_slice::<Self>(&data)?)
     }
 }
 
