@@ -10,6 +10,10 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
 
     type Returns: Send + Sync + std::fmt::Debug;
 
+    fn arg_names() -> Vec<String> {
+        vec![]
+    }
+
     async fn run(&mut self) -> Result<Self::Returns, Error>;
 
     async fn on_failure(&mut self, err: Error) -> Result<(), Error> {
@@ -36,4 +40,8 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     fn max_retry_delay(&self) -> usize {
         3600
     }
+}
+
+pub trait ArgsCompat {
+    fn args() -> Vec<String>;
 }

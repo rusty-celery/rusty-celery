@@ -1,9 +1,10 @@
 //! Defines the [celery protocol](http://docs.celeryproject.org/en/latest/internals/protocol.html).
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
-use crate::Error;
+use crate::{Error, Task};
 
 struct Config {
     correlation_id: String,
@@ -105,22 +106,52 @@ pub struct MessageBody<T>(Vec<u8>, pub T, MessageBodyEmbed);
 
 impl<T> MessageBody<T>
 where
-    T: Serialize + for<'de> Deserialize<'de>,
+    T: Task,
 {
     pub fn new(task: T) -> Self {
         Self(vec![], task, MessageBodyEmbed::default())
     }
 
     pub fn from_raw_data(data: &[u8]) -> Result<Self, Error> {
-        Ok(serde_json::from_slice::<Self>(&data)?)
+        let value: Value = serde_json::from_slice(&data)?;
+        if let Value::Array(ref vec) = value {
+            if let &[Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] = &vec[..] {
+                if !args.is_empty() {
+                    // Non-empty args, need to try to coerce them into kwargs.
+                    let mut kwargs = kwargs.clone();
+                    let embed = embed.clone();
+                    let arg_names = T::arg_names();
+                    for (i, arg) in args.iter().enumerate() {
+                        if let Some(arg_name) = arg_names.get(i) {
+                            kwargs.insert(arg_name.clone(), arg.clone());
+                        } else {
+                            break;
+                        }
+                    }
+                    return Ok(Self(
+                        vec![],
+                        serde_json::from_value::<T>(Value::Object(kwargs))?,
+                        serde_json::from_value::<MessageBodyEmbed>(Value::Object(embed))?,
+                    ));
+                }
+            }
+        }
+        Ok(serde_json::from_value::<Self>(value)?)
     }
 }
 
 #[derive(Eq, PartialEq, Debug, Default, Serialize, Deserialize)]
 pub struct MessageBodyEmbed {
+    #[serde(default)]
     callbacks: Option<String>,
+
+    #[serde(default)]
     errbacks: Option<String>,
+
+    #[serde(default)]
     chain: Option<String>,
+
+    #[serde(default)]
     chord: Option<String>,
 }
 
@@ -143,6 +174,10 @@ mod tests {
 
         type Returns = ();
 
+        fn arg_names() -> Vec<String> {
+            vec!["a".into()]
+        }
+
         async fn run(&mut self) -> Result<(), Error> {
             Ok(())
         }
@@ -156,5 +191,12 @@ mod tests {
             serialized,
             "[[],{\"a\":0},{\"callbacks\":null,\"errbacks\":null,\"chain\":null,\"chord\":null}]"
         );
+    }
+
+    #[test]
+    fn test_deserialize_body_with_args() {
+        let data = "[[1],{},{}]";
+        let body = MessageBody::<TestTask>::from_raw_data(data.as_bytes()).unwrap();
+        assert_eq!(body.1.a, 1);
     }
 }
