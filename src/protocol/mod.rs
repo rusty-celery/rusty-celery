@@ -115,7 +115,9 @@ where
     pub fn from_raw_data(data: &[u8]) -> Result<Self, Error> {
         let value: Value = serde_json::from_slice(&data)?;
         if let Value::Array(ref vec) = value {
-            if let &[Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] = &vec[..] {
+            if let [Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] =
+                vec[..]
+            {
                 if !args.is_empty() {
                     // Non-empty args, need to try to coerce them into kwargs.
                     let mut kwargs = kwargs.clone();
