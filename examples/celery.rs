@@ -17,6 +17,10 @@ impl Task for AddTask {
 
     type Returns = i32;
 
+    fn arg_names() -> Vec<String> {
+        vec!["x".into(), "y".into()]
+    }
+
     async fn run(&mut self) -> Result<i32, Error> {
         Ok(self.x + self.y)
     }

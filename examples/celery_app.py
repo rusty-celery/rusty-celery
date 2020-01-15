@@ -8,9 +8,9 @@ app.conf.update(result_backend=None, task_ignore_result=True)
 
 
 @app.task(name="add")
-def add(x=0, y=0):
+def add(x, y):
     return x + y
 
 
 if __name__ == "__main__":
-    add.apply_async(kwargs={"x": 1, "y": 2})
+    add.apply_async(args=[1, 2])

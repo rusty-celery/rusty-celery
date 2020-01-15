@@ -134,15 +134,15 @@ where
         } else {
             self.tasks.insert(
                 name.into(),
-                Box::new(|body| Box::pin(Self::task_executer::<T>(body))),
+                Box::new(|data| Box::pin(Self::task_executer::<T>(data))),
             );
             Ok(())
         }
     }
 
-    async fn task_executer<T: Task + 'static>(body: Vec<u8>) -> Result<(), Error> {
-        let payload: MessageBody<T> = serde_json::from_slice(&body).unwrap();
-        let mut task = payload.1;
+    async fn task_executer<T: Task + 'static>(data: Vec<u8>) -> Result<(), Error> {
+        let body = MessageBody::<T>::from_raw_data(&data)?;
+        let mut task = body.1;
         match task.run().await {
             Ok(returned) => {
                 debug!("Task returned {:?}", returned);
@@ -155,8 +155,8 @@ where
         }
     }
 
-    pub async fn execute_task(&self, task_name: &str, body: Vec<u8>) -> Result<(), Error> {
-        (self.tasks[task_name])(body).await
+    pub async fn execute_task(&self, task_name: &str, data: Vec<u8>) -> Result<(), Error> {
+        (self.tasks[task_name])(data).await
     }
 
     async fn consume_delivery(
