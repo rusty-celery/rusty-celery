@@ -14,7 +14,11 @@ description = "Rust implementation of Celery"
 name = "celery"
 path = "src/lib.rs"
 
+[[example]]
+name = "celery"
+
 [dependencies]
+celery-codegen = { version = "0.1.0-alpha.1", path = "./celery-codegen", optional = true }
 tokio = { version = "0.2", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
@@ -31,5 +35,6 @@ uuid = { version = "0.8", features = ["v4"]}
 exitfailure = "0.5.1"
 structopt = "0.3"
 
-[[example]]
-name = "celery"
+[features]
+default = ["codegen"]
+codegen = ["celery-codegen"]
