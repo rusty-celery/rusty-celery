@@ -4,6 +4,19 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
+///
+/// The recommended way to define a task is through the `task` procedural macro.
+///
+/// # Example
+///
+/// ```rust
+/// use celery::task;
+///
+/// #[task(name = "add")]
+/// fn add(x: i32, y: i32) -> i32 {
+///     x + y
+/// }
+/// ```
 #[async_trait]
 pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     const NAME: &'static str;

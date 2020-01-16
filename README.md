@@ -17,6 +17,8 @@
 
 A Rust implementation of the [Celery](https://github.com/celery/celery) protocol, fully compatable with Python workers and producers.
 
+Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batch-rs) especially for it's awesome macro implementation.
+
 ## Features
 
 - Send tasks from Python to Rust or vice versa :left_right_arrow:
