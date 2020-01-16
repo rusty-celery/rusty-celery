@@ -320,7 +320,7 @@ fn args2fields<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStrea
 
 impl ToTokens for Task {
     fn to_tokens(&self, dst: &mut TokenStream) {
-        let krate = quote!(::batch);
+        let krate = quote!(::celery);
         let export = quote!(#krate::export);
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
@@ -370,45 +370,10 @@ impl ToTokens for Task {
                     },
                     _ => acc,
                 });
-        let injected_fields = args2fields(&self.injected_args);
-        let injected_bindings = self
-            .injected_args
-            .iter()
-            .fold(TokenStream::new(), |acc, arg| match arg {
-                syn::FnArg::Captured(cap) => {
-                    let ident = match cap.pat {
-                        syn::Pat::Ident(ref pat) => &pat.ident,
-                        _ => return acc,
-                    };
-                    let ty = &cap.ty;
-                    quote! {
-                        #acc
-                        let #ident: #ty = _ctx.instantiate().unwrap();
-                    }
-                }
-                _ => acc,
-            });
-        let injected_args =
-            self.injected_args
-                .iter()
-                .fold(TokenStream::new(), |acc, arg| match arg {
-                    syn::FnArg::Captured(cap) => match cap.pat {
-                        syn::Pat::Ident(ref pat) => {
-                            let ident = &pat.ident;
-                            quote! {
-                                #acc
-                                #ident,
-                            }
-                        }
-                        _ => acc,
-                    },
-                    _ => acc,
-                });
         let inner_block = {
             let block = &self.inner_block;
             quote!(#block)
         };
-        let inner_invoke = quote!(self.run_now(#injected_args));
 
         let ret_ty = self
             .ret
@@ -428,33 +393,17 @@ impl ToTokens for Task {
             }
         };
 
-        let into_future = match self.ret {
-            Some(ref _ty) => quote!({
-                use #export::IntoFuture;
-                IntoFuture::into_future(#inner_invoke)
-            }),
-            None => quote!({
-                #inner_invoke;
-                #export::ok(())
-            }),
-        };
-
         let output = quote! {
             #wrapper_struct
 
             const #dummy_const: () = {
-                impl #wrapper {
-                    #vis fn run_now(self, #injected_fields) -> #ret_ty {
-                        #deserialized_bindings
-                        #inner_block
-                    }
-                }
+                use #export::async_trait;
 
                 #[async_trait]
                 impl #krate::Task for #wrapper {
                     const NAME: &'static str = #job_name;
 
-                    type Returns = ();
+                    type Returns = #ret_ty;
 
                     /// Performs the job.
                     ///
@@ -462,9 +411,9 @@ impl ToTokens for Task {
                     ///
                     /// The function will panic if any parameter marked as `injected` cannot be found
                     /// in the given `Factory`.
-                    async fn run(&self) -> Self::Returns {
-                        #injected_bindings
-                        #export::Box::new(#into_future)
+                    async fn run(&mut self) -> Result<Self::Returns, #krate::Error> {
+                        #deserialized_bindings
+                        Ok(#inner_block)
                     }
 
                     #timeout
