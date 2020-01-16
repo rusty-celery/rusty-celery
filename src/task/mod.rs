@@ -10,7 +10,7 @@ use crate::error::Error;
 /// # Example
 ///
 /// ```rust
-/// use celery::{task, Error};
+/// use celery::task;
 ///
 /// #[task(name = "add")]
 /// fn add(x: i32, y: i32) -> i32 {
