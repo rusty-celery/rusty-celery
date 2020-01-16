@@ -5,9 +5,7 @@ use crate::error::Error;
 
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///
-/// The recommended way to define a task is through the `task` procedural macro.
-///
-/// # Example
+/// The recommended way to define a task is through the [`task`](attr.task.html) procedural macro:
 ///
 /// ```rust
 /// use celery::task;
@@ -17,26 +15,46 @@ use crate::error::Error;
 ///     x + y
 /// }
 /// ```
+///
+/// However, if you need more fine-grained control, it is fairly straight forward
+/// to implement a task directly. This would be equivalent to above:
+///
+/// ```rust
+/// use async_trait::async_trait;
+/// use serde::{Serialize, Deserialize};
+/// use celery::{Task, Error};
+///
+/// #[allow(non_camel_case_types)]
+/// #[derive(Serialize, Deserialize)]
+/// struct add {
+///     x: i32,
+///     y: i32,
+/// }
+///
+/// #[async_trait]
+/// impl Task for add {
+///     const NAME: &'static str = "add";
+///     const ARGS: &'static [&'static str] = &["x", "y"];
+///
+///     type Returns = i32;
+///
+///     async fn run(&mut self) -> Result<Self::Returns, Error> {
+///         Ok(self.x + self.y)
+///     }
+/// }
+/// ```
 #[async_trait]
 pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
+    /// The name of the task. When a task is registered it will be registered with this name.
     const NAME: &'static str;
+
+    /// For compatability with Python tasks. This keeps track of the order
+    /// of arguments for the task so that the task can be called from Python with
+    /// positional arguments.
+    const ARGS: &'static [&'static str];
 
     /// The return type of the task.
     type Returns: Send + Sync + std::fmt::Debug;
-
-    /// For compatability with Python tasks.
-    ///
-    /// Tasks defined in Rust are serialized and deserialized from a mapping which is stored
-    /// as the task `kwargs`. Therefore there is no concept of `args` (positional arguments)
-    /// for Rust tasks, unlike Python tasks. While this is fine if you are producing tasks from Rust
-    /// for a Rust or Python worker, issues arise if you are producing tasks from Python with
-    /// positional arguments.
-    ///
-    /// In that case this function should return the field names of the task
-    /// struct in the order in which they would appear as positional arguments.
-    fn arg_names() -> Vec<String> {
-        vec![]
-    }
 
     /// This function defines how a task executes.
     async fn run(&mut self) -> Result<Self::Returns, Error>;
@@ -55,22 +73,22 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
         Ok(())
     }
 
-    /// Set a default timeout for this task.
+    /// Default timeout for this task.
     fn timeout(&self) -> Option<usize> {
         None
     }
 
-    /// Set a default maximum number of retries for this task.
+    /// Default maximum number of retries for this task.
     fn max_retries(&self) -> Option<usize> {
         None
     }
 
-    /// Set a default minimum retry delay (in seconds) for this task (default is 0).
+    /// Default minimum retry delay (in seconds) for this task (default is 0).
     fn min_retry_delay(&self) -> usize {
         0
     }
 
-    /// Set a default maximum retry delay (in seconds) for this task (default is 3600 seconds).
+    /// Default maximum retry delay (in seconds) for this task (default is 3600 seconds).
     fn max_retry_delay(&self) -> usize {
         3600
     }
