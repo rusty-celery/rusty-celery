@@ -5,9 +5,7 @@ use crate::error::Error;
 
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///
-/// The recommended way to define a task is through the `task` procedural macro.
-///
-/// # Example
+/// The recommended way to define a task is through the [`task`](attr.task.html) procedural macro:
 ///
 /// ```rust
 /// use celery::task;
@@ -15,6 +13,34 @@ use crate::error::Error;
 /// #[task(name = "add")]
 /// fn add(x: i32, y: i32) -> i32 {
 ///     x + y
+/// }
+/// ```
+///
+/// However, if you need more fine-grained control, it is fairly straight forward
+/// to implement a task directly. This would be equivalent to above:
+///
+/// ```rust
+/// use async_trait::async_trait;
+/// use serde::{Serialize, Deserialize};
+/// use celery::{Task, Error};
+///
+/// #[allow(non_camel_case_types)]
+/// #[derive(Serialize, Deserialize)]
+/// struct add {
+///     x: i32,
+///     y: i32,
+/// }
+///
+/// #[async_trait]
+/// impl Task for add {
+///     const NAME: &'static str = "add";
+///     const ARGS: &'static [&'static str] = &["x", "y"];
+///
+///     type Returns = i32;
+///
+///     async fn run(&mut self) -> Result<Self::Returns, Error> {
+///         Ok(self.x + self.y)
+///     }
 /// }
 /// ```
 #[async_trait]
