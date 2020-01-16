@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use celery::amqp::AMQPBroker;
+use celery::AMQPBroker;
 use celery::{Celery, Error, Task};
 use exitfailure::ExitFailure;
 use serde::{Deserialize, Serialize};
@@ -50,10 +50,10 @@ async fn main() -> Result<(), ExitFailure> {
         .queue(queue)
         .build()
         .await?;
-    let mut celery = Celery::<AMQPBroker>::builder()
+    let mut celery = Celery::builder("celery", broker)
         .default_queue_name(queue)
-        .build("consumer", broker);
-    celery.register_task::<AddTask>("add")?;
+        .build();
+    celery.register_task::<AddTask>()?;
 
     match opt {
         CeleryOpt::Consume => {

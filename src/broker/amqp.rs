@@ -20,11 +20,13 @@ struct Config {
     queues: HashMap<String, QueueDeclareOptions>,
 }
 
+/// Builds an AMQP broker with a custom configuration.
 pub struct AMQPBrokerBuilder {
     config: Config,
 }
 
 impl AMQPBrokerBuilder {
+    /// Create a new `AMQPBrokerBuilder`.
     pub fn new(broker_url: &str) -> Self {
         Self {
             config: Config {
@@ -35,11 +37,14 @@ impl AMQPBrokerBuilder {
         }
     }
 
+    /// Set the worker [prefetch
+    /// count](https://www.rabbitmq.com/confirms.html#channel-qos-prefetch).
     pub fn prefetch_count(mut self, prefetch_count: Option<u16>) -> Self {
         self.config.prefetch_count = prefetch_count;
         self
     }
 
+    /// Add / register a queue.
     pub fn queue(mut self, name: &str) -> Self {
         self.config.queues.insert(
             name.into(),
@@ -54,6 +59,7 @@ impl AMQPBrokerBuilder {
         self
     }
 
+    /// Build an `AMQPBroker`.
     pub async fn build(self) -> Result<AMQPBroker, Error> {
         let conn =
             Connection::connect(&self.config.broker_url, ConnectionProperties::default()).await?;
@@ -74,12 +80,14 @@ impl AMQPBrokerBuilder {
     }
 }
 
+/// An AMQP broker.
 pub struct AMQPBroker {
     channel: Channel,
     queues: HashMap<String, Queue>,
 }
 
 impl AMQPBroker {
+    /// Get an `AMQPBrokerBuilder` for creating an AMQP broker with a custom configuration.
     pub fn builder(broker_url: &str) -> AMQPBrokerBuilder {
         AMQPBrokerBuilder::new(broker_url)
     }

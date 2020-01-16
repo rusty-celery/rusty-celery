@@ -7,8 +7,13 @@ use std::pin::Pin;
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
 
-struct Config {
+struct Config<B>
+where
+    B: Broker + 'static,
+{
     // App level configurations.
+    name: String,
+    broker: B,
     default_queue_name: String,
 
     // Default task configurations.
@@ -19,14 +24,23 @@ struct Config {
 }
 
 /// Used to create a `Celery` app with a custom configuration.
-pub struct CeleryBuilder {
-    config: Config,
+pub struct CeleryBuilder<B>
+where
+    B: Broker + 'static,
+{
+    config: Config<B>,
 }
 
-impl Default for CeleryBuilder {
-    fn default() -> Self {
+impl<B> CeleryBuilder<B>
+where
+    B: Broker + 'static,
+{
+    /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
+    fn new(name: &str, broker: B) -> Self {
         Self {
             config: Config {
+                name: name.into(),
+                broker,
                 default_queue_name: "celery".into(),
 
                 task_timeout: None,
@@ -36,9 +50,7 @@ impl Default for CeleryBuilder {
             },
         }
     }
-}
 
-impl CeleryBuilder {
     /// Set the name of the default queue.
     pub fn default_queue_name(mut self, queue_name: &str) -> Self {
         self.config.default_queue_name = queue_name.into();
@@ -70,10 +82,10 @@ impl CeleryBuilder {
     }
 
     /// Construct a `Celery` app with the current configuration .
-    pub fn build<B: Broker>(self, name: &str, broker: B) -> Celery<B> {
+    pub fn build(self) -> Celery<B> {
         Celery {
-            name: name.into(),
-            broker,
+            name: self.config.name,
+            broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
             tasks: HashMap::new(),
 
@@ -109,13 +121,13 @@ where
     B: Broker + 'static,
 {
     /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
-    pub fn builder() -> CeleryBuilder {
-        CeleryBuilder::default()
+    pub fn builder(name: &str, broker: B) -> CeleryBuilder<B> {
+        CeleryBuilder::new(name, broker)
     }
 
-    /// Create a new `Celery` app with the given name.
+    /// Create a new `Celery` app with the given name and broker.
     pub fn new(name: &str, broker: B) -> Self {
-        Self::builder().build(name, broker)
+        Self::builder(name, broker).build()
     }
 
     /// Send a task to a remote worker.
@@ -128,12 +140,12 @@ where
     }
 
     /// Register a task.
-    pub fn register_task<T: Task + 'static>(&mut self, name: &str) -> Result<(), Error> {
-        if self.tasks.contains_key(name) {
-            Err(ErrorKind::TaskAlreadyExists(name.into()).into())
+    pub fn register_task<T: Task + 'static>(&mut self) -> Result<(), Error> {
+        if self.tasks.contains_key(T::NAME) {
+            Err(ErrorKind::TaskAlreadyExists(T::NAME.into()).into())
         } else {
             self.tasks.insert(
-                name.into(),
+                T::NAME.into(),
                 Box::new(|data| Box::pin(Self::task_executer::<T>(data))),
             );
             Ok(())
@@ -155,7 +167,7 @@ where
         }
     }
 
-    pub async fn execute_task(&self, task_name: &str, data: Vec<u8>) -> Result<(), Error> {
+    async fn execute_task(&self, task_name: &str, data: Vec<u8>) -> Result<(), Error> {
         (self.tasks[task_name])(data).await
     }
 
@@ -184,7 +196,7 @@ where
         }
     }
 
-    /// Consume tasks from the default queue.
+    /// Consume tasks from a queue.
     pub async fn consume(&self, queue: &str) -> Result<(), Error> {
         let consumer = self.broker.consume(queue).await?;
         consumer
