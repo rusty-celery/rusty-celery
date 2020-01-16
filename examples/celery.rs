@@ -43,7 +43,7 @@ async fn main() -> Result<(), ExitFailure> {
             celery.consume(queue).await?;
         }
         CeleryOpt::Produce => {
-            let task = add { x: 1, y: 2 };
+            let task = add(1, 2);
             celery.send_task(task, queue).await?;
         }
     };
