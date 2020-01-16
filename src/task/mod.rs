@@ -19,24 +19,15 @@ use crate::error::Error;
 /// ```
 #[async_trait]
 pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
+    /// The unique name of the task.
     const NAME: &'static str;
+
+    /// For compatability with Python tasks. This keeps track of the position / order
+    /// or arguments for the task.
+    const ARGS: &'static [&'static str];
 
     /// The return type of the task.
     type Returns: Send + Sync + std::fmt::Debug;
-
-    /// For compatability with Python tasks.
-    ///
-    /// Tasks defined in Rust are serialized and deserialized from a mapping which is stored
-    /// as the task `kwargs`. Therefore there is no concept of `args` (positional arguments)
-    /// for Rust tasks, unlike Python tasks. While this is fine if you are producing tasks from Rust
-    /// for a Rust or Python worker, issues arise if you are producing tasks from Python with
-    /// positional arguments.
-    ///
-    /// In that case this function should return the field names of the task
-    /// struct in the order in which they would appear as positional arguments.
-    fn arg_names() -> Vec<String> {
-        vec![]
-    }
 
     /// This function defines how a task executes.
     async fn run(&mut self) -> Result<Self::Returns, Error>;

@@ -353,6 +353,22 @@ impl ToTokens for Task {
             }
         });
         let job_name = &self.name;
+        let arg_names = self
+            .original_args
+            .iter()
+            .fold(TokenStream::new(), |acc, arg| match arg {
+                syn::FnArg::Captured(cap) => match cap.pat {
+                    syn::Pat::Ident(ref pat) => {
+                        let name = &pat.ident.to_string();
+                        quote! {
+                            #acc
+                            #name,
+                        }
+                    }
+                    _ => acc,
+                },
+                _ => acc,
+            });
         let serialized_fields = args2fields(&self.serialized_args);
         let deserialized_bindings =
             self.serialized_args
@@ -387,6 +403,7 @@ impl ToTokens for Task {
         );
 
         let wrapper_struct = quote! {
+            #[allow(non_camel_case_types)]
             #[derive(#export::Deserialize, #export::Serialize)]
             #vis struct #wrapper {
                 #serialized_fields
@@ -402,15 +419,10 @@ impl ToTokens for Task {
                 #[async_trait]
                 impl #krate::Task for #wrapper {
                     const NAME: &'static str = #job_name;
+                    const ARGS: &'static [&'static str] = &[#arg_names];
 
                     type Returns = #ret_ty;
 
-                    /// Performs the job.
-                    ///
-                    /// # Panics
-                    ///
-                    /// The function will panic if any parameter marked as `injected` cannot be found
-                    /// in the given `Factory`.
                     async fn run(&mut self) -> Result<Self::Returns, #krate::Error> {
                         #deserialized_bindings
                         Ok(#inner_block)

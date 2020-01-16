@@ -122,10 +122,10 @@ where
                     // Non-empty args, need to try to coerce them into kwargs.
                     let mut kwargs = kwargs.clone();
                     let embed = embed.clone();
-                    let arg_names = T::arg_names();
+                    let arg_names = T::ARGS;
                     for (i, arg) in args.iter().enumerate() {
                         if let Some(arg_name) = arg_names.get(i) {
-                            kwargs.insert(arg_name.clone(), arg.clone());
+                            kwargs.insert((*arg_name).into(), arg.clone());
                         } else {
                             break;
                         }
@@ -173,12 +173,9 @@ mod tests {
     #[async_trait]
     impl Task for TestTask {
         const NAME: &'static str = "test";
+        const ARGS: &'static [&'static str] = &["a"];
 
         type Returns = ();
-
-        fn arg_names() -> Vec<String> {
-            vec!["a".into()]
-        }
 
         async fn run(&mut self) -> Result<(), Error> {
             Ok(())

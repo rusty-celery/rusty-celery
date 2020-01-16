@@ -1,29 +1,12 @@
 use async_trait::async_trait;
 use celery::AMQPBroker;
-use celery::{Celery, Error, Task};
+use celery::{task, Celery};
 use exitfailure::ExitFailure;
-use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(Serialize, Deserialize)]
-struct AddTask {
-    x: i32,
-    y: i32,
-}
-
-#[async_trait]
-impl Task for AddTask {
-    const NAME: &'static str = "add";
-
-    type Returns = i32;
-
-    fn arg_names() -> Vec<String> {
-        vec!["x".into(), "y".into()]
-    }
-
-    async fn run(&mut self) -> Result<i32, Error> {
-        Ok(self.x + self.y)
-    }
+#[task(name = "add")]
+fn add(x: i32, y: i32) -> i32 {
+    x + y
 }
 
 #[derive(Debug, StructOpt)]
@@ -53,14 +36,14 @@ async fn main() -> Result<(), ExitFailure> {
     let mut celery = Celery::builder("celery", broker)
         .default_queue_name(queue)
         .build();
-    celery.register_task::<AddTask>()?;
+    celery.register_task::<add>()?;
 
     match opt {
         CeleryOpt::Consume => {
             celery.consume(queue).await?;
         }
         CeleryOpt::Produce => {
-            let task = AddTask { x: 1, y: 2 };
+            let task = add { x: 1, y: 2 };
             celery.send_task(task, queue).await?;
         }
     };
