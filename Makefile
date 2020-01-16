@@ -17,19 +17,19 @@ format :
 
 .PHONY : lint
 lint :
-	cargo fmt -- --check
-	cargo clippy --all-targets --all-features -- \
+	cargo fmt --all -- --check
+	cargo clippy --workspace --all-targets --all-features -- \
 			-D warnings \
 			-A clippy::let_and_return \
 			-A clippy::redundant_clone
 
 .PHONY : test
 test :
-	cargo test
+	cargo test --workspace
 
 .PHONY : doc
 doc :
-	cargo doc
+	cargo doc --workspace
 
 .PHONY : all-checks
 all-checks : lint test doc
