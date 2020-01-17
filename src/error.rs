@@ -30,6 +30,15 @@ pub enum ErrorKind {
     /// The queue you're attempting to use has not been defined.
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueueError(String),
+
+    /// An error that is expected to happen every once in a while and should trigger be
+    /// the task to be retried without causes a fit.
+    #[fail(display = "{}", _0)]
+    ExpectedError(String),
+
+    /// Should be used when a task encounters an error that is unexpected.
+    #[fail(display = "{}", _0)]
+    UnexpectedError(String),
 }
 
 impl Fail for Error {
