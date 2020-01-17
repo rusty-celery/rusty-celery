@@ -11,11 +11,14 @@
         <img alt="License" src="https://img.shields.io/github/license/rusty-celery/rusty-celery.svg?color=blue&cachedrop">
     </a>
     <a href="https://crates.io/crates/celery">
-        <img alt="Crates" src="https://img.shields.io/crates/v/cached-path.svg">
+        <img alt="Crates" src="https://img.shields.io/crates/v/celery.svg?color=blue">
+    </a>
+    <a href="https://docs.rs/celery/">
+        <img alt="Docs" src="https://img.shields.io/badge/docs.rs-API%20docs-blue">
     </a>
 </p>
 
-A Rust implementation of the [Celery](https://github.com/celery/celery) protocol, fully compatable with Python workers and producers.
+A Rust implementation of the [Celery](https://github.com/celery/celery) protocol, fully compatible with Python workers and producers.
 
 Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batch-rs) especially for it's awesome macro implementation.
 
@@ -26,10 +29,6 @@ Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batc
 - Natural async / await interface :sparkler:
 - Easily customizable with callbacks :telephone:
 - High performance and safe :fire: :fire: :fire:
-
-## Testimonials
-
-"The crate we've all been waiting for! :clap: :clap: :raised_hands:" - You
 
 ## Examples
 
@@ -49,8 +48,12 @@ bash ./examples/rust_to_python.sh
 
 ## Missing features
 
-`rusty-celery` is still in the early stages and therefore there are several features of the Celery protocol that are still missing. To see what's currently missing search for issues with the label ["Protocol Feature"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Protocol+Feature%22).
+Rusty Celery is still in the early stages and therefore there are several features of the Celery protocol that are still missing. To see what's currently missing search for issues with the label ["Protocol Feature"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Protocol+Feature%22).
 
 ## Contributing
 
 We welcome contributors! If you're interesting in contributing, a good place to start would be any issue marked with the label ["Status: Help Wanted"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Status%3A+Help+Wanted%22).
+
+## Team
+
+Rusty Celery is an open source project backed by [Structurely](https://structurely.com/). Structurely is a start-up building customizable AI inside sales agents.

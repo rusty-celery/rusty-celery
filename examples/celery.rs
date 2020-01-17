@@ -6,7 +6,6 @@ use structopt::StructOpt;
 
 // This generates the task struct and impl with the name set to the function name "add"
 #[task]
-pub fn add(x: i32, y: i32) -> i32 {
     x + y
 }
 
@@ -44,8 +43,7 @@ async fn main() -> Result<(), ExitFailure> {
             celery.consume(queue).await?;
         }
         CeleryOpt::Produce => {
-            let task = add { x: 1, y: 2 };
-            celery.send_task(task, queue).await?;
+            celery.send_task(add(1, 2), queue).await?;
         }
     };
 

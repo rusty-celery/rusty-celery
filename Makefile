@@ -7,10 +7,6 @@ setup :
 	rustup component add rustfmt
 	rustup component add clippy
 
-.PHONY : release
-release :
-	cargo build --release
-
 .PHONY : format
 format :
 	cargo fmt --
@@ -34,13 +30,11 @@ doc :
 .PHONY : all-checks
 all-checks : lint test doc
 
-.PHONY : publish
-publish :
-	cargo publish
+level = alpha
 
-.PHONY : readme
-readme :
-	cargo readme > README.md
+.PHONY : release
+release :
+	cargo release --workspace $(level)
 
 #
 # Git helpers.

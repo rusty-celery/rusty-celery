@@ -7,6 +7,10 @@
     html_logo_url = "https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery-4.png"
 )]
 
+pub extern crate failure;
+
+pub use failure::ResultExt;
+
 mod app;
 mod broker;
 mod error;
@@ -15,7 +19,7 @@ pub mod export;
 pub mod protocol;
 mod task;
 
-pub use app::Celery;
+pub use app::{Celery, CeleryBuilder, TaskOptions};
 pub use broker::{
     amqp::{AMQPBroker, AMQPBrokerBuilder},
     Broker,
