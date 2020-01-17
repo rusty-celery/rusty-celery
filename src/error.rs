@@ -78,6 +78,16 @@ impl From<Context<ErrorKind>> for Error {
     }
 }
 
+impl From<Context<&str>> for Error {
+    fn from(inner: Context<&str>) -> Error {
+        Error {
+            inner: Context::new(ErrorKind::UnexpectedError(
+                (*inner.get_context()).to_string(),
+            )),
+        }
+    }
+}
+
 impl From<lapin::Error> for Error {
     fn from(err: lapin::Error) -> Error {
         Error {
