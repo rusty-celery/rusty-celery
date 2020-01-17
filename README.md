@@ -45,8 +45,12 @@ bash ./examples/rust_to_python.sh
 
 ## Missing features
 
-`rusty-celery` is still in the early stages and therefore there are several features of the Celery protocol that are still missing. To see what's currently missing search for issues with the label ["Protocol Feature"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Protocol+Feature%22).
+Rusty Celery is still in the early stages and therefore there are several features of the Celery protocol that are still missing. To see what's currently missing search for issues with the label ["Protocol Feature"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Protocol+Feature%22).
 
 ## Contributing
 
 We welcome contributors! If you're interesting in contributing, a good place to start would be any issue marked with the label ["Status: Help Wanted"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Status%3A+Help+Wanted%22).
+
+## Team
+
+Rusty Celery is an open source project backed by [Structurely](https://structurely.com/). Structurely is a start-up building customizable AI inside sales agents.
