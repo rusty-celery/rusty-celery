@@ -15,7 +15,7 @@
     </a>
 </p>
 
-A Rust implementation of the [Celery](https://github.com/celery/celery) protocol, fully compatable with Python workers and producers.
+A Rust implementation of the [Celery](https://github.com/celery/celery) protocol, fully compatible with Python workers and producers.
 
 Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batch-rs) especially for it's awesome macro implementation.
 
@@ -26,10 +26,6 @@ Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batc
 - Natural async / await interface :sparkler:
 - Easily customizable with callbacks :telephone:
 - High performance and safe :fire: :fire: :fire:
-
-## Testimonials
-
-"The crate we've all been waiting for! :clap: :clap: :raised_hands:" - You
 
 ## Examples
 
