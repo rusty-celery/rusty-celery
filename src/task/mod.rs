@@ -156,12 +156,12 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     }
 
     /// Default minimum retry delay (in seconds) for this task (default is 0).
-    fn min_retry_delay(&self) -> usize {
-        0
+    fn min_retry_delay(&self) -> Option<usize> {
+        None
     }
 
-    /// Default maximum retry delay (in seconds) for this task (default is 3600 seconds).
-    fn max_retry_delay(&self) -> usize {
-        3600
+    /// Default maximum retry delay (in seconds) for this task.
+    fn max_retry_delay(&self) -> Option<usize> {
+        None
     }
 }

@@ -18,6 +18,14 @@ where
     task_options: TaskOptions,
 }
 
+#[derive(Copy, Clone, Default)]
+pub struct TaskOptions {
+    pub timeout: Option<usize>,
+    pub max_retries: Option<usize>,
+    pub min_retry_delay: usize,
+    pub max_retry_delay: usize,
+}
+
 /// Used to create a `Celery` app with a custom configuration.
 pub struct CeleryBuilder<B>
 where
@@ -40,8 +48,8 @@ where
                 task_options: TaskOptions {
                     timeout: None,
                     max_retries: None,
-                    min_retry_delay: None,
-                    max_retry_delay: None,
+                    min_retry_delay: 0,
+                    max_retry_delay: 3600,
                 },
             },
         }
@@ -67,13 +75,13 @@ where
 
     /// Set a default minimum retry delay for tasks.
     pub fn task_min_retry_delay(mut self, task_min_retry_delay: usize) -> Self {
-        self.config.task_options.min_retry_delay = Some(task_min_retry_delay);
+        self.config.task_options.min_retry_delay = task_min_retry_delay;
         self
     }
 
     /// Set a default maximum retry delay for tasks.
     pub fn task_max_retry_delay(mut self, task_max_retry_delay: usize) -> Self {
-        self.config.task_options.max_retry_delay = Some(task_max_retry_delay);
+        self.config.task_options.max_retry_delay = task_max_retry_delay;
         self
     }
 
@@ -89,14 +97,6 @@ where
     }
 }
 
-#[derive(Copy, Clone, Default)]
-struct TaskOptions {
-    timeout: Option<usize>,
-    max_retries: Option<usize>,
-    min_retry_delay: Option<usize>,
-    max_retry_delay: Option<usize>,
-}
-
 type TaskExecutionOutput = Result<(), Error>;
 type TaskExecutorResult = Pin<Box<dyn Future<Output = TaskExecutionOutput>>>;
 type TaskExecutor = Box<dyn Fn(Vec<u8>, TaskOptions) -> TaskExecutorResult>;
@@ -107,7 +107,7 @@ pub struct Celery<B: Broker> {
     pub broker: B,
     pub default_queue_name: String,
     tasks: HashMap<String, TaskExecutor>,
-    task_options: TaskOptions,
+    pub task_options: TaskOptions,
 }
 
 impl<B> Celery<B>
