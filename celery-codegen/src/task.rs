@@ -286,15 +286,15 @@ impl ToTokens for Task {
         });
         let min_retry_delay = self.min_retry_delay.as_ref().map(|r| {
             quote! {
-                fn min_retry_delay(&self) -> usize {
-                    #r
+                fn min_retry_delay(&self) -> Option<usize> {
+                    Some(#r)
                 }
             }
         });
         let max_retry_delay = self.max_retry_delay.as_ref().map(|r| {
             quote! {
-                fn max_retry_delay(&self) -> usize {
-                    #r
+                fn max_retry_delay(&self) -> Option<usize> {
+                    Some(#r)
                 }
             }
         });
