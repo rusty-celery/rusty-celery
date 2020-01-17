@@ -134,16 +134,12 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     /// This function can be overriden to provide custom logic that will run after a task fails.
     /// The argument to the function is the error returned by the task.
     #[allow(unused_variables)]
-    async fn on_failure(&mut self, err: Error) -> Result<(), Error> {
-        Ok(())
-    }
+    async fn on_failure(&mut self, err: &Error) {}
 
     /// This function can be overriden to provide custom logic that will run after a task completes
     /// successfully. The argument to the function is the returned value of the task.
     #[allow(unused_variables)]
-    async fn on_success(&mut self, returned: Self::Returns) -> Result<(), Error> {
-        Ok(())
-    }
+    async fn on_success(&mut self, returned: &Self::Returns) {}
 
     /// Default timeout for this task.
     fn timeout(&self) -> Option<usize> {

@@ -29,6 +29,9 @@ pub trait Broker {
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
     async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error>;
 
+    /// Requeue a delivery. Used when a task fails are should be retried.
+    async fn requeue(&self, delivery: Self::Delivery) -> Result<(), Error>;
+
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;
 }

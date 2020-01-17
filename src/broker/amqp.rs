@@ -3,7 +3,8 @@
 use amq_protocol_types::{AMQPValue, FieldArray};
 use async_trait::async_trait;
 use lapin::options::{
-    BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
+    BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, BasicRejectOptions,
+    QueueDeclareOptions,
 };
 use lapin::types::FieldTable;
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
@@ -119,6 +120,13 @@ impl Broker for AMQPBroker {
     async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error> {
         self.channel
             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+            .await
+            .map_err(|e| e.into())
+    }
+
+    async fn requeue(&self, delivery: Self::Delivery) -> Result<(), Error> {
+        self.channel
+            .basic_reject(delivery.delivery_tag, BasicRejectOptions { requeue: true })
             .await
             .map_err(|e| e.into())
     }

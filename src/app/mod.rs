@@ -174,11 +174,13 @@ where
         match result {
             Ok(returned) => {
                 debug!("Task returned {:?}", returned);
-                task.on_success(returned).await
+                task.on_success(&returned).await;
+                Ok(())
             }
             Err(e) => {
                 error!("Task failed {}", e);
-                task.on_failure(e).await
+                task.on_failure(&e).await;
+                Err(e)
             }
         }
     }
@@ -196,10 +198,13 @@ where
                 debug!("Handling delivery {:?}", delivery);
                 let message = delivery.try_into_message()?;
                 debug!("Handling message {:?}", message);
-                self.execute_task(&message.headers.task, message.raw_data)
-                    .await?;
-                debug!("Acknowledging message");
-                self.broker.ack(delivery).await?;
+                match self
+                    .execute_task(&message.headers.task, message.raw_data)
+                    .await
+                {
+                    Ok(_) => self.broker.ack(delivery).await?,
+                    Err(_) => self.broker.requeue(delivery).await?,
+                };
                 Ok(())
             }
             Err(e) => Err(e.into()),
