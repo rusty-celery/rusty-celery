@@ -166,6 +166,7 @@ where
         let options = options.overrides(&task);
         let result = match options.timeout {
             Some(secs) => {
+                debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
                 time::timeout(duration, task.run()).into_inner().await
             }
@@ -173,12 +174,12 @@ where
         };
         match result {
             Ok(returned) => {
-                debug!("Task returned {:?}", returned);
+                debug!("Task successfully: {:?}", returned);
                 task.on_success(&returned).await;
                 Ok(())
             }
             Err(e) => {
-                error!("Task failed {}", e);
+                error!("Task failed: {}", e);
                 task.on_failure(&e).await;
                 Err(e)
             }
@@ -195,19 +196,27 @@ where
     ) -> Result<(), Error> {
         match delivery_result {
             Ok(delivery) => {
-                debug!("Handling delivery {:?}", delivery);
+                debug!("Received delivery: {:?}", delivery);
                 let message = delivery.try_into_message()?;
-                debug!("Handling message {:?}", message);
                 match self
                     .execute_task(&message.headers.task, message.raw_data)
                     .await
                 {
-                    Ok(_) => self.broker.ack(delivery).await?,
-                    Err(_) => self.broker.requeue(delivery).await?,
+                    Ok(_) => {
+                        self.broker.ack(delivery).await?;
+                        debug!("Successfully acked delivery");
+                    }
+                    Err(_) => {
+                        self.broker.requeue(delivery).await?;
+                        debug!("Requeued delivery");
+                    }
                 };
                 Ok(())
             }
-            Err(e) => Err(e.into()),
+            Err(e) => {
+                error!("Delivery error occurred");
+                Err(e.into())
+            }
         }
     }
 
