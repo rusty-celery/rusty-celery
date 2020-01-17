@@ -42,13 +42,17 @@ use crate::error::Error;
 ///         Ok(self.x + self.y)
 ///     }
 /// }
+///
+/// fn add(x: i32, y: i32) -> add {
+///     add { x, y }
+/// }
 /// ```
 ///
 /// # Error handling
 ///
 /// As shown above, a task tries wrapping the return value in `Result<Self::Returns, Error>`
-/// when it is executed, so it is actually valid to return a `Result` directly
-/// and also to use the `?` operator within the task body.
+/// when it is executed. Therefore the recommended way to propogate errors is to use the `?`
+/// operator within the task body.
 ///
 /// For example:
 ///
@@ -58,7 +62,9 @@ use crate::error::Error;
 ///
 /// #[task(name = "add")]
 /// fn read_some_file() -> String {
-///     tokio::fs::read_to_string("some_file").await.context("File does not exist")?
+///     tokio::fs::read_to_string("some_file")
+///         .await
+///         .context("File does not exist")?
 /// }
 /// ```
 #[async_trait]

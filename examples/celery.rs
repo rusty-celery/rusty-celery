@@ -4,7 +4,7 @@ use celery::{task, Celery};
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
 
-#[task(name = "add")]
+#[task(name = "add", timeout = 2)]
 fn add(x: i32, y: i32) -> i32 {
     x + y
 }
