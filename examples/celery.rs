@@ -4,7 +4,8 @@ use celery::{task, Celery};
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
 
-#[task(name = "add")]
+// This generates the task struct and impl with the name set to the function name "add"
+#[task]
 fn add(x: i32, y: i32) -> i32 {
     x + y
 }
