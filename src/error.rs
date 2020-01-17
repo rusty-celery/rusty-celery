@@ -30,6 +30,15 @@ pub enum ErrorKind {
     /// The queue you're attempting to use has not been defined.
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueueError(String),
+
+    /// An error that is expected to happen every once in a while and should trigger be
+    /// the task to be retried without causes a fit.
+    #[fail(display = "{}", _0)]
+    ExpectedError(String),
+
+    /// Should be used when a task encounters an error that is unexpected.
+    #[fail(display = "{}", _0)]
+    UnexpectedError(String),
 }
 
 impl Fail for Error {
@@ -66,6 +75,16 @@ impl From<ErrorKind> for Error {
 impl From<Context<ErrorKind>> for Error {
     fn from(inner: Context<ErrorKind>) -> Error {
         Error { inner }
+    }
+}
+
+impl From<Context<&str>> for Error {
+    fn from(inner: Context<&str>) -> Error {
+        Error {
+            inner: Context::new(ErrorKind::UnexpectedError(
+                (*inner.get_context()).to_string(),
+            )),
+        }
     }
 }
 

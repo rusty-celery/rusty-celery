@@ -43,6 +43,24 @@ use crate::error::Error;
 ///     }
 /// }
 /// ```
+///
+/// # Error handling
+///
+/// As shown above, a task tries wrapping the return value in `Result<Self::Returns, Error>`
+/// when it is executed, so it is actually valid to return a `Result` directly
+/// and also to use the `?` operator within the task body.
+///
+/// For example:
+///
+/// ```rust
+/// # use celery::task;
+/// use failure::ResultExt;
+///
+/// #[task(name = "add")]
+/// fn read_some_file() -> String {
+///     tokio::fs::read_to_string("some_file").await.context("File does not exist")?
+/// }
+/// ```
 #[async_trait]
 pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     /// The name of the task. When a task is registered it will be registered with this name.
