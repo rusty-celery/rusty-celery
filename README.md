@@ -11,7 +11,10 @@
         <img alt="License" src="https://img.shields.io/github/license/rusty-celery/rusty-celery.svg?color=blue&cachedrop">
     </a>
     <a href="https://crates.io/crates/celery">
-        <img alt="Crates" src="https://img.shields.io/crates/v/cached-path.svg">
+        <img alt="Crates" src="https://img.shields.io/crates/v/celery.svg?color=blue">
+    </a>
+    <a href="https://docs.rs/celery/">
+        <img alt="Docs" src="https://img.shields.io/badge/docs.rs-API%20docs-blue">
     </a>
 </p>
 
