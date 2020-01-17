@@ -1,14 +1,12 @@
 // Adapted from https://github.com/kureuil/batch-rs/blob/master/batch-codegen/src/job.rs.
 
-use std::collections::HashSet;
-
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{bracketed, parse_quote, Token};
+use syn::{parse_quote, Token};
 
 use crate::error::Error;
 
@@ -21,7 +19,6 @@ struct TaskAttrs {
 enum TaskAttr {
     Name(syn::LitStr),
     Wrapper(syn::Ident),
-    Inject(HashSet<syn::Ident>),
     Timeout(syn::LitInt),
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
@@ -38,9 +35,6 @@ struct Task {
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
-    injected: HashSet<syn::Ident>,
-    injected_args: Vec<syn::FnArg>,
-    serialized_args: Vec<syn::FnArg>,
     original_args: Vec<syn::FnArg>,
     inner_block: Option<syn::Block>,
     ret: Option<syn::Type>,
@@ -65,17 +59,6 @@ impl TaskAttrs {
                 _ => None,
             })
             .next()
-    }
-
-    fn inject(&self) -> HashSet<syn::Ident> {
-        self.attrs
-            .iter()
-            .filter_map(|a| match a {
-                TaskAttr::Inject(i) => Some(i.clone()),
-                _ => None,
-            })
-            .next()
-            .unwrap_or_else(HashSet::new)
     }
 
     fn timeout(&self) -> Option<syn::LitInt> {
@@ -131,7 +114,6 @@ impl parse::Parse for TaskAttrs {
 mod kw {
     syn::custom_keyword!(name);
     syn::custom_keyword!(wrapper);
-    syn::custom_keyword!(inject);
     syn::custom_keyword!(timeout);
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
@@ -149,13 +131,6 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::wrapper>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::Wrapper(input.parse()?))
-        } else if lookahead.peek(kw::inject) {
-            input.parse::<kw::inject>()?;
-            input.parse::<Token![=]>()?;
-            let content;
-            let _: syn::token::Bracket = bracketed!(content in input);
-            let injected: Punctuated<_, Token![,]> = content.parse_terminated(syn::Ident::parse)?;
-            Ok(TaskAttr::Inject(injected.into_iter().collect()))
         } else if lookahead.peek(kw::timeout) {
             input.parse::<kw::timeout>()?;
             input.parse::<Token![=]>()?;
@@ -193,9 +168,6 @@ impl Task {
         let max_retries = attrs.max_retries();
         let min_retry_delay = attrs.min_retry_delay();
         let max_retry_delay = attrs.max_retry_delay();
-        let injected = attrs.inject();
-        let injected_args = Vec::new();
-        let serialized_args = Vec::new();
         let original_args = Vec::new();
         let inner_block = None;
         let ret = None;
@@ -208,9 +180,6 @@ impl Task {
             max_retries,
             min_retry_delay,
             max_retry_delay,
-            injected,
-            injected_args,
-            serialized_args,
             original_args,
             inner_block,
             ret,
@@ -234,7 +203,7 @@ impl VisitMut for Task {
         self.inner_block = Some((*node.block).clone());
         let wrapper = self.wrapper.as_ref().unwrap();
         let serialized_fields = self
-            .serialized_args
+            .original_args
             .iter()
             .fold(TokenStream::new(), |acc, arg| match arg {
                 syn::FnArg::Captured(cap) => match cap.pat {
@@ -258,36 +227,13 @@ impl VisitMut for Task {
 
     fn visit_fn_decl_mut(&mut self, node: &mut syn::FnDecl) {
         const ERR_GENERICS: &str = "functions with generic arguments are not supported";
-        const ERR_UNKOWN_INJECT: &str =
-            "an inject parameter should match the name of one of the functin's argument";
         const ERR_VARIADIC: &str = "functions with variadic arguments are not supported";
 
         if !node.generics.params.is_empty() {
             self.errors
                 .push(Error::spanned(ERR_GENERICS, node.generics.span()));
         }
-        let (serialized, injected) = node
-            .inputs
-            .clone()
-            .into_iter()
-            .partition::<Vec<syn::FnArg>, _>(|arg| match arg {
-                syn::FnArg::Captured(captured) => {
-                    if let syn::Pat::Ident(ref pat) = captured.pat {
-                        !self.injected.remove(&pat.ident)
-                    } else {
-                        true
-                    }
-                }
-                _ => true,
-            });
-        for inject in &self.injected {
-            self.errors
-                .push(Error::spanned(ERR_UNKOWN_INJECT, inject.span()))
-        }
-        self.serialized_args = serialized.clone();
-        self.injected_args = injected;
         self.original_args = node.inputs.clone().into_iter().collect();
-        node.inputs = serialized.into_iter().collect();
         if let Some(ref mut it) = node.variadic {
             self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
         }
@@ -369,9 +315,9 @@ impl ToTokens for Task {
                 },
                 _ => acc,
             });
-        let serialized_fields = args2fields(&self.serialized_args);
+        let serialized_fields = args2fields(&self.original_args);
         let deserialized_bindings =
-            self.serialized_args
+            self.original_args
                 .iter()
                 .fold(TokenStream::new(), |acc, arg| match arg {
                     syn::FnArg::Captured(cap) => match cap.pat {

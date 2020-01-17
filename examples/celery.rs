@@ -4,7 +4,7 @@ use celery::{task, Celery};
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
 
-#[task(name = "add", timeout = 2)]
+#[task(name = "add")]
 fn add(x: i32, y: i32) -> i32 {
     x + y
 }
@@ -43,8 +43,7 @@ async fn main() -> Result<(), ExitFailure> {
             celery.consume(queue).await?;
         }
         CeleryOpt::Produce => {
-            let task = add(1, 2);
-            celery.send_task(task, queue).await?;
+            celery.send_task(add(1, 2), queue).await?;
         }
     };
 
