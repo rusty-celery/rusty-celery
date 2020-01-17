@@ -26,6 +26,17 @@ pub struct TaskOptions {
     pub max_retry_delay: usize,
 }
 
+impl TaskOptions {
+    fn overrides<T: Task>(&self, task: &T) -> Self {
+        Self {
+            timeout: task.timeout().or(self.timeout),
+            max_retries: task.max_retries().or(self.max_retries),
+            min_retry_delay: task.min_retry_delay().unwrap_or(self.min_retry_delay),
+            max_retry_delay: task.max_retry_delay().unwrap_or(self.max_retry_delay),
+        }
+    }
+}
+
 /// Used to create a `Celery` app with a custom configuration.
 pub struct CeleryBuilder<B>
 where
@@ -152,11 +163,8 @@ where
     ) -> Result<(), Error> {
         let body = MessageBody::<T>::from_raw_data(&data)?;
         let mut task = body.1;
-        let timeout = match task.timeout() {
-            Some(secs) => Some(secs),
-            None => options.timeout,
-        };
-        let result = match timeout {
+        let options = options.overrides(&task);
+        let result = match options.timeout {
             Some(secs) => {
                 let duration = Duration::from_secs(secs as u64);
                 time::timeout(duration, task.run()).into_inner().await
