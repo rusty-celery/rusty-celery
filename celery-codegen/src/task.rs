@@ -180,13 +180,11 @@ impl parse::Parse for TaskAttr {
 
 impl Task {
     fn new(attrs: TaskAttrs) -> Result<Self, Error> {
-        const ERR_MISSING_NAME: &str = "missing mandatory name attribute";
-
         let errors = Vec::new();
         let visibility = syn::Visibility::Inherited;
         let name = match attrs.name() {
             Some(name) => name,
-            None => return Err(Error::new(ERR_MISSING_NAME)),
+            None => String::from(""),
         };
         let wrapper = attrs.wrapper();
         let timeout = attrs.timeout();
@@ -221,13 +219,16 @@ impl Task {
 impl VisitMut for Task {
     fn visit_item_fn_mut(&mut self, node: &mut syn::ItemFn) {
         const ERR_ABI: &str = "functions with non-Rust ABI are not supported";
+        let ident = node.ident.clone();
 
         self.visibility = node.vis.clone();
         if let Some(ref mut it) = node.abi {
             self.errors.push(Error::spanned(ERR_ABI, it.span()));
         };
+        if self.name.is_empty() {
+            self.name = ident.to_string()
+        }
         if self.wrapper.is_none() {
-            let ident = node.ident.clone();
             self.wrapper = Some(ident);
         }
         self.visit_fn_decl_mut(&mut *node.decl);
@@ -387,6 +388,7 @@ impl ToTokens for Task {
         );
 
         let wrapper_struct = quote! {
+            #[allow(non_camel_case_types)]
             #[derive(#export::Deserialize, #export::Serialize)]
             #vis struct #wrapper {
                 #serialized_fields

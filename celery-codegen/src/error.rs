@@ -11,10 +11,6 @@ pub(crate) struct Error {
 }
 
 impl Error {
-    pub(crate) fn new(message: impl Into<String>) -> Self {
-        Error::spanned(message, Span::call_site())
-    }
-
     pub(crate) fn spanned(message: impl Into<String>, span: Span) -> Self {
         Error {
             message: message.into(),
