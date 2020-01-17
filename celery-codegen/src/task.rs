@@ -326,15 +326,15 @@ impl ToTokens for Task {
         let wrapper = self.wrapper.as_ref().unwrap();
         let timeout = self.timeout.as_ref().map(|r| {
             quote! {
-                fn timeout(&self) -> usize {
-                    #r
+                fn timeout(&self) -> Option<usize> {
+                    Some(#r)
                 }
             }
         });
         let max_retries = self.max_retries.as_ref().map(|r| {
             quote! {
-                fn max_retries(&self) -> usize {
-                    #r
+                fn max_retries(&self) -> Option<usize> {
+                    Some(#r)
                 }
             }
         });
