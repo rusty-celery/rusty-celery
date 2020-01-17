@@ -3,6 +3,7 @@ use log::{debug, error};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use tokio::time::{self, Duration};
 
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
@@ -11,16 +12,10 @@ struct Config<B>
 where
     B: Broker + 'static,
 {
-    // App level configurations.
     name: String,
     broker: B,
     default_queue_name: String,
-
-    // Default task configurations.
-    task_timeout: Option<usize>,
-    task_max_retries: Option<usize>,
-    task_min_retry_delay: Option<usize>,
-    task_max_retry_delay: Option<usize>,
+    task_options: TaskOptions,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
@@ -42,11 +37,12 @@ where
                 name: name.into(),
                 broker,
                 default_queue_name: "celery".into(),
-
-                task_timeout: None,
-                task_max_retries: None,
-                task_min_retry_delay: None,
-                task_max_retry_delay: None,
+                task_options: TaskOptions {
+                    timeout: None,
+                    max_retries: None,
+                    min_retry_delay: None,
+                    max_retry_delay: None,
+                },
             },
         }
     }
@@ -59,25 +55,25 @@ where
 
     /// Set a default timeout for tasks.
     pub fn task_timeout(mut self, task_timeout: usize) -> Self {
-        self.config.task_timeout = Some(task_timeout);
+        self.config.task_options.timeout = Some(task_timeout);
         self
     }
 
     /// Set a default maximum number of retries for tasks.
     pub fn task_max_retries(mut self, task_max_retries: usize) -> Self {
-        self.config.task_max_retries = Some(task_max_retries);
+        self.config.task_options.max_retries = Some(task_max_retries);
         self
     }
 
     /// Set a default minimum retry delay for tasks.
     pub fn task_min_retry_delay(mut self, task_min_retry_delay: usize) -> Self {
-        self.config.task_min_retry_delay = Some(task_min_retry_delay);
+        self.config.task_options.min_retry_delay = Some(task_min_retry_delay);
         self
     }
 
     /// Set a default maximum retry delay for tasks.
     pub fn task_max_retry_delay(mut self, task_max_retry_delay: usize) -> Self {
-        self.config.task_max_retry_delay = Some(task_max_retry_delay);
+        self.config.task_options.max_retry_delay = Some(task_max_retry_delay);
         self
     }
 
@@ -88,32 +84,30 @@ where
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
             tasks: HashMap::new(),
-
-            task_timeout: self.config.task_timeout,
-            task_max_retries: self.config.task_max_retries,
-            task_min_retry_delay: self.config.task_min_retry_delay,
-            task_max_retry_delay: self.config.task_max_retry_delay,
+            task_options: self.config.task_options,
         }
     }
 }
 
+#[derive(Copy, Clone, Default)]
+struct TaskOptions {
+    timeout: Option<usize>,
+    max_retries: Option<usize>,
+    min_retry_delay: Option<usize>,
+    max_retry_delay: Option<usize>,
+}
+
 type TaskExecutionOutput = Result<(), Error>;
 type TaskExecutorResult = Pin<Box<dyn Future<Output = TaskExecutionOutput>>>;
-type TaskExecutor = Box<dyn Fn(Vec<u8>) -> TaskExecutorResult>;
+type TaskExecutor = Box<dyn Fn(Vec<u8>, TaskOptions) -> TaskExecutorResult>;
 
 /// A `Celery` app is used to produce or consume tasks asyncronously.
 pub struct Celery<B: Broker> {
-    // App level configurations.
     pub name: String,
     pub broker: B,
     pub default_queue_name: String,
     tasks: HashMap<String, TaskExecutor>,
-
-    // Default task configurations.
-    pub task_timeout: Option<usize>,
-    pub task_max_retries: Option<usize>,
-    pub task_min_retry_delay: Option<usize>,
-    pub task_max_retry_delay: Option<usize>,
+    task_options: TaskOptions,
 }
 
 impl<B> Celery<B>
@@ -146,16 +140,30 @@ where
         } else {
             self.tasks.insert(
                 T::NAME.into(),
-                Box::new(|data| Box::pin(Self::task_executer::<T>(data))),
+                Box::new(|data, timeout| Box::pin(Self::task_executer::<T>(data, timeout))),
             );
             Ok(())
         }
     }
 
-    async fn task_executer<T: Task + 'static>(data: Vec<u8>) -> Result<(), Error> {
+    async fn task_executer<T: Task + 'static>(
+        data: Vec<u8>,
+        options: TaskOptions,
+    ) -> Result<(), Error> {
         let body = MessageBody::<T>::from_raw_data(&data)?;
         let mut task = body.1;
-        match task.run().await {
+        let timeout = match task.timeout() {
+            Some(secs) => Some(secs),
+            None => options.timeout,
+        };
+        let result = match timeout {
+            Some(secs) => {
+                let duration = Duration::from_secs(secs as u64);
+                time::timeout(duration, task.run()).into_inner().await
+            }
+            None => task.run().await,
+        };
+        match result {
             Ok(returned) => {
                 debug!("Task returned {:?}", returned);
                 task.on_success(returned).await
@@ -168,7 +176,7 @@ where
     }
 
     async fn execute_task(&self, task_name: &str, data: Vec<u8>) -> Result<(), Error> {
-        (self.tasks[task_name])(data).await
+        (self.tasks[task_name])(data, self.task_options).await
     }
 
     async fn consume_delivery(
