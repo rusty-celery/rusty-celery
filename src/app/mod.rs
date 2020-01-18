@@ -1,5 +1,5 @@
 use futures_util::stream::StreamExt;
-use log::{debug, error};
+use log::{debug, error, info};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -102,7 +102,7 @@ where
             name: self.config.name,
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
-            tasks: HashMap::new(),
+            task_executers: HashMap::new(),
             task_options: self.config.task_options,
         }
     }
@@ -110,14 +110,14 @@ where
 
 type TaskExecutionOutput = Result<(), Error>;
 type TaskExecutorResult = Pin<Box<dyn Future<Output = TaskExecutionOutput>>>;
-type TaskExecutor = Box<dyn Fn(Vec<u8>, TaskOptions) -> TaskExecutorResult>;
+type TaskExecutor = Box<dyn Fn(Message, TaskOptions) -> TaskExecutorResult>;
 
 /// A `Celery` app is used to produce or consume tasks asyncronously.
 pub struct Celery<B: Broker> {
     pub name: String,
     pub broker: B,
     pub default_queue_name: String,
-    tasks: HashMap<String, TaskExecutor>,
+    task_executers: HashMap<String, TaskExecutor>,
     pub task_options: TaskOptions,
 }
 
@@ -146,23 +146,30 @@ where
 
     /// Register a task.
     pub fn register_task<T: Task + 'static>(&mut self) -> Result<(), Error> {
-        if self.tasks.contains_key(T::NAME) {
+        if self.task_executers.contains_key(T::NAME) {
             Err(ErrorKind::TaskAlreadyExists(T::NAME.into()).into())
         } else {
-            self.tasks.insert(
+            self.task_executers.insert(
                 T::NAME.into(),
-                Box::new(|data, timeout| Box::pin(Self::task_executer::<T>(data, timeout))),
+                Box::new(|message, options| Box::pin(Self::task_executer::<T>(message, options))),
             );
             Ok(())
         }
     }
 
+    /// Wraps the execution of a task, catching and logging errors and then running
+    /// the appropriate post-execution functions.
     async fn task_executer<T: Task + 'static>(
-        data: Vec<u8>,
+        message: Message,
         options: TaskOptions,
     ) -> Result<(), Error> {
-        let body = MessageBody::<T>::from_raw_data(&data)?;
+        let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
         let mut task = body.1;
+        info!(
+            "Task {}[{}] received",
+            T::NAME,
+            message.properties.correlation_id
+        );
         let options = options.overrides(&task);
         let result = match options.timeout {
             Some(secs) => {
@@ -174,22 +181,30 @@ where
         };
         match result {
             Ok(returned) => {
-                debug!("Task successfully: {:?}", returned);
+                info!(
+                    "Task {}[{}] succeeded: {:?}",
+                    T::NAME,
+                    message.properties.correlation_id,
+                    returned
+                );
                 task.on_success(&returned).await;
                 Ok(())
             }
             Err(e) => {
-                error!("Task failed: {}", e);
+                error!(
+                    "Task {}[{}] failed: {}",
+                    T::NAME,
+                    message.properties.correlation_id,
+                    e
+                );
                 task.on_failure(&e).await;
                 Err(e)
             }
         }
     }
 
-    async fn execute_task(&self, task_name: &str, data: Vec<u8>) -> Result<(), Error> {
-        (self.tasks[task_name])(data, self.task_options).await
-    }
-
+    /// Converts a delivery into a `Message`, executes the task, and communicates
+    /// with the broker.
     async fn consume_delivery(
         &self,
         delivery_result: Result<B::Delivery, B::DeliveryError>,
@@ -198,17 +213,15 @@ where
             Ok(delivery) => {
                 debug!("Received delivery: {:?}", delivery);
                 let message = delivery.try_into_message()?;
-                match self
-                    .execute_task(&message.headers.task, message.raw_data)
-                    .await
+                match (self.task_executers[&message.headers.task])(message, self.task_options).await
                 {
                     Ok(_) => {
                         self.broker.ack(delivery).await?;
-                        debug!("Successfully acked delivery");
+                        debug!("Delivery acked");
                     }
                     Err(_) => {
                         self.broker.requeue(delivery).await?;
-                        debug!("Requeued delivery");
+                        debug!("Delivery requeued");
                     }
                 };
                 Ok(())
@@ -220,6 +233,7 @@ where
         }
     }
 
+    /// Wraps `consume_delivery` to catch any and all errors that might occur.
     async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
         if let Err(e) = self.consume_delivery(delivery_result).await {
             error!("{}", e);
