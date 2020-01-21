@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use celery::AMQPBroker;
-use celery::{task, Celery};
+use celery::{task, Celery, ErrorKind};
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
 
@@ -8,6 +8,12 @@ use structopt::StructOpt;
 #[task]
 fn add(x: i32, y: i32) -> i32 {
     x + y
+}
+
+#[task(max_retries = 3)]
+fn buggy_task() {
+    #[allow(clippy::try_err)]
+    Err(ErrorKind::UnexpectedError("a bug caused this".into()))?
 }
 
 #[derive(Debug, StructOpt)]
@@ -38,6 +44,7 @@ async fn main() -> Result<(), ExitFailure> {
         .default_queue_name(queue)
         .build();
     celery.register_task::<add>()?;
+    celery.register_task::<buggy_task>()?;
 
     match opt {
         CeleryOpt::Consume => {

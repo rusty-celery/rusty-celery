@@ -15,6 +15,10 @@ pub enum ErrorKind {
     #[fail(display = "Task named '{}' already exists", _0)]
     TaskAlreadyExists(String),
 
+    /// Received an unregistered task.
+    #[fail(display = "Received unregistered task named '{}'", _0)]
+    UnregisteredTaskError(String),
+
     /// Any type of error that can happen at the [`Broker`](trait.Broker.html) level.
     #[fail(display = "{}", _0)]
     BrokerError(lapin::Error),
@@ -39,6 +43,10 @@ pub enum ErrorKind {
     /// Should be used when a task encounters an error that is unexpected.
     #[fail(display = "{}", _0)]
     UnexpectedError(String),
+
+    /// Raise when a task should be retried.
+    #[fail(display = "Retrying task")]
+    Retry,
 }
 
 impl Fail for Error {

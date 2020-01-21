@@ -1,9 +1,9 @@
 use futures_util::stream::StreamExt;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use tokio::time::{self, Duration};
+use tokio::time::{self, Duration, Instant};
 
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
@@ -171,6 +171,7 @@ where
             message.properties.correlation_id
         );
         let options = options.overrides(&task);
+        let start = Instant::now();
         let result = match options.timeout {
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
@@ -179,26 +180,62 @@ where
             }
             None => task.run().await,
         };
+        let duration = start.elapsed();
         match result {
             Ok(returned) => {
                 info!(
-                    "Task {}[{}] succeeded: {:?}",
+                    "Task {}[{}] succeeded in {}s: {:?}",
                     T::NAME,
                     message.properties.correlation_id,
+                    duration.as_secs_f32(),
                     returned
                 );
                 task.on_success(&returned).await;
                 Ok(())
             }
             Err(e) => {
-                error!(
-                    "Task {}[{}] failed: {}",
-                    T::NAME,
-                    message.properties.correlation_id,
-                    e
-                );
+                match e.kind() {
+                    ErrorKind::ExpectedError(reason) => {
+                        warn!(
+                            "Task {}[{}] raised expected: {}",
+                            T::NAME,
+                            message.properties.correlation_id,
+                            reason
+                        );
+                    }
+                    ErrorKind::UnexpectedError(reason) => {
+                        error!(
+                            "Task {}[{}] raised unexpected: {}",
+                            T::NAME,
+                            message.properties.correlation_id,
+                            reason
+                        );
+                    }
+                    _ => {
+                        error!(
+                            "Task {}[{}] failed: {}",
+                            T::NAME,
+                            message.properties.correlation_id,
+                            e
+                        );
+                    }
+                };
                 task.on_failure(&e).await;
-                Err(e)
+                if let Some(max_retries) = options.max_retries {
+                    let retries = match message.headers.retries {
+                        Some(n) => n,
+                        None => 0,
+                    };
+                    if retries >= max_retries {
+                        return Err(e);
+                    }
+                }
+                info!(
+                    "Task {}[{}] retrying",
+                    T::NAME,
+                    message.properties.correlation_id
+                );
+                Err(ErrorKind::Retry.into())
             }
         }
     }
@@ -213,18 +250,25 @@ where
             Ok(delivery) => {
                 debug!("Received delivery: {:?}", delivery);
                 let message = delivery.try_into_message()?;
-                match (self.task_executers[&message.headers.task])(message, self.task_options).await
-                {
-                    Ok(_) => {
+                match self.task_executers.get(&message.headers.task) {
+                    Some(executor) => {
+                        match executor(message, self.task_options).await {
+                            Ok(_) => {
+                                self.broker.ack(delivery).await?;
+                            }
+                            Err(e) => match e.kind() {
+                                ErrorKind::Retry => self.broker.retry(delivery).await?,
+                                _ => self.broker.ack(delivery).await?,
+                            },
+                        };
+                        Ok(())
+                    }
+                    None => {
                         self.broker.ack(delivery).await?;
                         debug!("Delivery acked");
+                        Err(ErrorKind::UnregisteredTaskError(message.headers.task).into())
                     }
-                    Err(_) => {
-                        self.broker.requeue(delivery).await?;
-                        debug!("Delivery requeued");
-                    }
-                };
-                Ok(())
+                }
             }
             Err(e) => {
                 error!("Delivery error occurred");
