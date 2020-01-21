@@ -123,6 +123,17 @@ impl Broker for AMQPBroker {
             .map_err(|e| e.into())
     }
 
+    async fn retry(&self, delivery: Self::Delivery) -> Result<(), Error> {
+        let mut message = delivery.try_into_message()?;
+        if let Some(retries) = message.headers.retries {
+            message.headers.retries = Some(retries + 1);
+        } else {
+            message.headers.retries = Some(1);
+        }
+        self.send(&message, delivery.routing_key.as_str()).await?;
+        self.ack(delivery).await
+    }
+
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error> {
         let properties = message.delivery_properties();
         debug!("properties: {:?}", properties);
@@ -202,7 +213,7 @@ impl Message {
             );
         }
         if let Some(retries) = self.headers.retries {
-            headers.insert("retries".into(), AMQPValue::LongUInt(retries));
+            headers.insert("retries".into(), AMQPValue::LongUInt(retries as u32));
         }
         let mut timelimit = FieldArray::default();
         if let Some(t) = self.headers.timelimit.0 {
@@ -339,13 +350,13 @@ impl TryIntoMessage for lapin::message::Delivery {
                     _ => None,
                 }),
                 retries: headers.inner().get("retries").and_then(|v| match v {
-                    AMQPValue::ShortShortInt(n) => Some(*n as u32),
-                    AMQPValue::ShortShortUInt(n) => Some(*n as u32),
-                    AMQPValue::ShortInt(n) => Some(*n as u32),
-                    AMQPValue::ShortUInt(n) => Some(*n as u32),
-                    AMQPValue::LongInt(n) => Some(*n as u32),
-                    AMQPValue::LongUInt(n) => Some(*n as u32),
-                    AMQPValue::LongLongInt(n) => Some(*n as u32),
+                    AMQPValue::ShortShortInt(n) => Some(*n as usize),
+                    AMQPValue::ShortShortUInt(n) => Some(*n as usize),
+                    AMQPValue::ShortInt(n) => Some(*n as usize),
+                    AMQPValue::ShortUInt(n) => Some(*n as usize),
+                    AMQPValue::LongInt(n) => Some(*n as usize),
+                    AMQPValue::LongUInt(n) => Some(*n as usize),
+                    AMQPValue::LongLongInt(n) => Some(*n as usize),
                     _ => None,
                 }),
                 timelimit: headers

@@ -14,3 +14,4 @@ def add(x, y):
 
 if __name__ == "__main__":
     add.apply_async(args=[1, 2])
+    app.send_task("buggy_task")

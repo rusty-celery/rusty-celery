@@ -94,7 +94,7 @@ pub struct MessageHeaders {
     pub shadow: Option<String>,
     pub eta: Option<String>,
     pub expires: Option<String>,
-    pub retries: Option<u32>,
+    pub retries: Option<usize>,
     pub timelimit: (Option<u32>, Option<u32>),
     pub argsrepr: Option<String>,
     pub kwargsrepr: Option<String>,
