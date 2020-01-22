@@ -14,5 +14,8 @@ def add(x, y):
 
 if __name__ == "__main__":
     add.apply_async(args=[1, 2], countdown=6)
+    add.apply_async(args=[1, 2], countdown=7)
+    add.apply_async(args=[1, 2], countdown=5)
+    add.apply_async(args=[1, 2], countdown=4)
     add.apply_async(args=[2, 2])
-    app.send_task("buggy_task")
+    #  app.send_task("buggy_task")

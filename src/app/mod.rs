@@ -174,6 +174,10 @@ where
                 let message = delivery.try_into_message()?;
                 match self.get_task_tracer(message) {
                     Ok(mut tracer) => {
+                        if tracer.is_delayed() {
+                            // Task has an ETA, so we need to increment the prefetch count.
+                            self.broker.increase_prefetch_count().await?;
+                        }
                         match tracer.trace().await {
                             Ok(_) => {
                                 self.broker.ack(delivery).await?;
@@ -186,6 +190,10 @@ where
                                 _ => self.broker.ack(delivery).await?,
                             },
                         };
+                        if tracer.is_delayed() {
+                            // Bring prefetch count back down by 1.
+                            self.broker.decrease_prefetch_count().await?;
+                        }
                         Ok(())
                     }
                     Err(e) => {
