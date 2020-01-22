@@ -2,7 +2,7 @@
 
 use amq_protocol_types::{AMQPValue, FieldArray};
 use async_trait::async_trait;
-use chrono::{Utc, DateTime, SecondsFormat};
+use chrono::{DateTime, SecondsFormat, Utc};
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
@@ -124,7 +124,11 @@ impl Broker for AMQPBroker {
             .map_err(|e| e.into())
     }
 
-    async fn retry(&self, delivery: Self::Delivery, eta: Option<DateTime<Utc>>) -> Result<(), Error> {
+    async fn retry(
+        &self,
+        delivery: Self::Delivery,
+        eta: Option<DateTime<Utc>>,
+    ) -> Result<(), Error> {
         let mut message = delivery.try_into_message()?;
         message.headers.retries = match message.headers.retries {
             Some(retries) => Some(retries + 1),

@@ -182,7 +182,7 @@ where
                                 ErrorKind::Retry => {
                                     let retry_eta = tracer.retry_eta();
                                     self.broker.retry(delivery, retry_eta).await?
-                                },
+                                }
                                 _ => self.broker.ack(delivery).await?,
                             },
                         };
