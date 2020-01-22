@@ -27,7 +27,7 @@ enum CeleryOpt {
     Produce,
 }
 
-#[tokio::main]
+#[tokio::main(core_threads = 2)]
 async fn main() -> Result<(), ExitFailure> {
     env_logger::init();
     let opt = CeleryOpt::from_args();

@@ -165,12 +165,22 @@ where
     ) -> Result<(), Error> {
         let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
         let mut task = body.1;
-        info!(
-            "Task {}[{}] received",
-            T::NAME,
-            message.properties.correlation_id
-        );
         let options = options.overrides(&task);
+        if let Some(countdown) = message.countdown() {
+            info!(
+                "Task {}[{}] received, ETA: {}",
+                T::NAME,
+                message.properties.correlation_id,
+                message.headers.eta.unwrap()
+            );
+            time::delay_for(countdown).await;
+        } else {
+            info!(
+                "Task {}[{}] received",
+                T::NAME,
+                message.properties.correlation_id
+            );
+        }
         let start = Instant::now();
         let result = match options.timeout {
             Some(secs) => {

@@ -2,6 +2,7 @@
 
 use amq_protocol_types::{AMQPValue, FieldArray};
 use async_trait::async_trait;
+use chrono::{DateTime, SecondsFormat};
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
@@ -204,7 +205,10 @@ impl Message {
             );
         }
         if let Some(ref eta) = self.headers.eta {
-            headers.insert("eta".into(), AMQPValue::LongString(eta.clone().into()));
+            headers.insert(
+                "eta".into(),
+                AMQPValue::LongString(eta.to_rfc3339_opts(SecondsFormat::Millis, false).into()),
+            );
         }
         if let Some(ref expires) = self.headers.expires {
             headers.insert(
@@ -339,10 +343,20 @@ impl TryIntoMessage for lapin::message::Delivery {
                     AMQPValue::LongString(s) => Some(s.to_string()),
                     _ => None,
                 }),
-                eta: headers.inner().get("eta").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
+                eta: headers.inner().get("eta").and_then(|v| {
+                    let eta_string = match v {
+                        AMQPValue::ShortString(s) => Some(s.to_string()),
+                        AMQPValue::LongString(s) => Some(s.to_string()),
+                        _ => None,
+                    };
+                    if let Some(s) = eta_string {
+                        match DateTime::parse_from_rfc3339(&s) {
+                            Ok(dt) => Some(dt),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
                 }),
                 expires: headers.inner().get("expires").and_then(|v| match v {
                     AMQPValue::ShortString(s) => Some(s.to_string()),
