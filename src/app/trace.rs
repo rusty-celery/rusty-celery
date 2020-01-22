@@ -31,6 +31,8 @@ pub(super) trait TracerTrait: Send {
     fn retry_eta(&self) -> Option<DateTime<Utc>>;
 
     fn is_delayed(&self) -> bool;
+
+    fn is_expired(&self) -> bool;
 }
 
 pub(super) struct Tracer<T>
@@ -82,6 +84,16 @@ where
                 self.message.properties.correlation_id
             );
         }
+
+        if self.is_expired() {
+            warn!(
+                "Task {}[{}] expired, discarding",
+                T::NAME,
+                self.message.properties.correlation_id,
+            );
+            return Err(ErrorKind::TaskExpiredError.into());
+        }
+
         let start = Instant::now();
         let result = match self.options.timeout {
             Some(secs) => {
@@ -92,6 +104,7 @@ where
             None => self.task.run().await,
         };
         let duration = start.elapsed();
+
         match result {
             Ok(returned) => {
                 info!(
@@ -180,5 +193,9 @@ where
 
     fn is_delayed(&self) -> bool {
         self.countdown.is_some()
+    }
+
+    fn is_expired(&self) -> bool {
+        self.message.is_expired()
     }
 }

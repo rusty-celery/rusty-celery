@@ -272,7 +272,7 @@ impl Message {
         if let Some(ref expires) = self.headers.expires {
             headers.insert(
                 "expires".into(),
-                AMQPValue::LongString(expires.clone().into()),
+                AMQPValue::LongString(expires.to_rfc3339_opts(SecondsFormat::Millis, false).into()),
             );
         }
         if let Some(retries) = self.headers.retries {
@@ -417,10 +417,20 @@ impl TryIntoMessage for lapin::message::Delivery {
                         None
                     }
                 }),
-                expires: headers.inner().get("expires").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
+                expires: headers.inner().get("expires").and_then(|v| {
+                    let expires_string = match v {
+                        AMQPValue::ShortString(s) => Some(s.to_string()),
+                        AMQPValue::LongString(s) => Some(s.to_string()),
+                        _ => None,
+                    };
+                    if let Some(s) = expires_string {
+                        match DateTime::parse_from_rfc3339(&s) {
+                            Ok(dt) => Some(DateTime::<Utc>::from(dt)),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
                 }),
                 retries: headers.inner().get("retries").and_then(|v| match v {
                     AMQPValue::ShortShortInt(n) => Some(*n as usize),

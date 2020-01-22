@@ -13,7 +13,7 @@ def add(x, y):
 
 
 if __name__ == "__main__":
-    add.apply_async(args=[1, 0], countdown=5)
+    add.apply_async(args=[1, 0], countdown=5, expires=2)
     add.apply_async(args=[1, 1], countdown=5)
     add.apply_async(args=[1, 1])
     add.apply_async(args=[1, 2], countdown=10)
