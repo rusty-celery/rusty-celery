@@ -179,7 +179,10 @@ where
                                 self.broker.ack(delivery).await?;
                             }
                             Err(e) => match e.kind() {
-                                ErrorKind::Retry => self.broker.retry(delivery).await?,
+                                ErrorKind::Retry => {
+                                    let retry_eta = tracer.retry_eta();
+                                    self.broker.retry(delivery, retry_eta).await?
+                                },
                                 _ => self.broker.ack(delivery).await?,
                             },
                         };

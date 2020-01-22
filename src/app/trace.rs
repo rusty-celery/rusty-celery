@@ -1,5 +1,8 @@
 use async_trait::async_trait;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use log::{debug, error, info, warn};
+use rand::distributions::{Distribution, Uniform};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{self, Duration, Instant};
 
 use super::TaskOptions;
@@ -17,7 +20,12 @@ pub(super) fn build_tracer<T: Task + Send + 'static>(
 
 #[async_trait]
 pub(super) trait TracerTrait: Send {
+    /// Wraps the execution of a task, catching and logging errors and then running
+    /// the appropriate post-execution functions.
     async fn trace(&mut self) -> Result<(), Error>;
+
+    /// Get the ETA for a retry with exponential backoff.
+    fn retry_eta(&self) -> Option<DateTime<Utc>>;
 }
 
 pub(super) struct Tracer<T>
@@ -50,8 +58,6 @@ impl<T> TracerTrait for Tracer<T>
 where
     T: Task,
 {
-    /// Wraps the execution of a task, catching and logging errors and then running
-    /// the appropriate post-execution functions.
     async fn trace(&mut self) -> Result<(), Error> {
         if let Some(countdown) = self.message.countdown() {
             info!(
@@ -134,6 +140,33 @@ where
                 );
                 Err(ErrorKind::Retry.into())
             }
+        }
+    }
+
+    fn retry_eta(&self) -> Option<DateTime<Utc>> {
+        let retries = self.message.headers.retries.unwrap_or(0);
+        let delay_secs = std::cmp::min(
+            2usize
+                .checked_pow(retries as u32)
+                .unwrap_or_else(|| self.options.max_retry_delay),
+            self.options.max_retry_delay,
+        );
+        let delay_secs = std::cmp::max(delay_secs, self.options.min_retry_delay);
+        let between = Uniform::from(0..1000);
+        let mut rng = rand::thread_rng();
+        let delay_millis = between.sample(&mut rng);
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(now) => {
+                let now_secs = now.as_secs() as usize;
+                let now_millis = now.subsec_millis();
+                let eta_secs = now_secs + delay_secs;
+                let eta_millis = now_millis + delay_millis;
+                Some(DateTime::<Utc>::from_utc(
+                    NaiveDateTime::from_timestamp(eta_secs as i64, eta_millis * 1000),
+                    Utc,
+                ))
+            }
+            Err(_) => None,
         }
     }
 }
