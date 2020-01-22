@@ -39,8 +39,13 @@ async fn main() -> Result<(), ExitFailure> {
         static ref CELERY: Celery<AMQPBroker> = {
             let broker_url =
                 std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-            let broker =
-                executor::block_on(AMQPBroker::builder(&broker_url).queue(QUEUE).build()).unwrap();
+            let broker = executor::block_on(
+                AMQPBroker::builder(&broker_url)
+                    .queue(QUEUE)
+                    .prefetch_count(2)
+                    .build(),
+            )
+            .unwrap();
             let mut celery = Celery::builder("celery", broker)
                 .default_queue_name(QUEUE)
                 .build();

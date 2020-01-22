@@ -100,7 +100,7 @@ impl AMQPBroker {
     async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), Error> {
         debug!("Setting prefetch count to {}", prefetch_count);
         self.channel
-            .basic_qos(prefetch_count, BasicQosOptions { global: false })
+            .basic_qos(prefetch_count, BasicQosOptions { global: true })
             .await?;
         Ok(())
     }
