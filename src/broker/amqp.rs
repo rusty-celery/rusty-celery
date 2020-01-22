@@ -146,9 +146,8 @@ impl Broker for AMQPBroker {
             Some(retries) => Some(retries + 1),
             None => Some(1),
         };
-        message.headers.eta = match eta {
-            Some(dt) => Some(dt),
-            None => None,
+        if let Some(dt) = eta {
+            message.headers.eta = Some(dt);
         };
         self.send(&message, delivery.routing_key.as_str()).await?;
         self.ack(delivery).await
@@ -176,9 +175,13 @@ impl Broker for AMQPBroker {
                 .prefetch_count
                 .lock()
                 .map_err(|_| Error::from(ErrorKind::SyncError))?;
-            let new_count = *prefetch_count + 1;
-            *prefetch_count = new_count;
-            new_count
+            if *prefetch_count < std::u16::MAX {
+                let new_count = *prefetch_count + 1;
+                *prefetch_count = new_count;
+                new_count
+            } else {
+                std::u16::MAX
+            }
         };
         self.set_prefetch_count(new_count).await?;
         Ok(())

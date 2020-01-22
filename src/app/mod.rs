@@ -162,57 +162,67 @@ where
         }
     }
 
-    /// Converts a delivery into a `Message`, executes the task, and communicates
-    /// with the broker.
-    async fn consume_delivery(
+    /// Trie converting a delivery into a `Message`, executing the corresponding task,
+    /// and communicating with the broker.
+    async fn try_handle_delivery(
         &self,
         delivery_result: Result<B::Delivery, B::DeliveryError>,
     ) -> Result<(), Error> {
-        match delivery_result {
-            Ok(delivery) => {
-                debug!("Received delivery: {:?}", delivery);
-                let message = delivery.try_into_message()?;
-                match self.get_task_tracer(message) {
-                    Ok(mut tracer) => {
-                        if tracer.is_delayed() {
-                            // Task has an ETA, so we need to increment the prefetch count.
-                            self.broker.increase_prefetch_count().await?;
-                        }
-                        match tracer.trace().await {
-                            Ok(_) => {
-                                self.broker.ack(delivery).await?;
-                            }
-                            Err(e) => match e.kind() {
-                                ErrorKind::Retry => {
-                                    let retry_eta = tracer.retry_eta();
-                                    self.broker.retry(delivery, retry_eta).await?
-                                }
-                                _ => self.broker.ack(delivery).await?,
-                            },
-                        };
-                        if tracer.is_delayed() {
-                            // Bring prefetch count back down by 1.
-                            self.broker.decrease_prefetch_count().await?;
-                        }
-                        Ok(())
-                    }
-                    Err(e) => {
-                        self.broker.ack(delivery).await?;
-                        debug!("Delivery acked");
-                        Err(e)
-                    }
-                }
-            }
+        let delivery = delivery_result.map_err(|e| e.into())?;
+        debug!("Received delivery: {:?}", delivery);
+
+        let message = match delivery.try_into_message() {
+            Ok(message) => message,
             Err(e) => {
-                error!("Delivery error occurred");
-                Err(e.into())
+                self.broker.ack(delivery).await?;
+                return Err(e);
             }
+        };
+
+        let mut tracer = match self.get_task_tracer(message) {
+            Ok(tracer) => tracer,
+            Err(e) => {
+                self.broker.ack(delivery).await?;
+                return Err(e);
+            }
+        };
+
+        if tracer.is_delayed() {
+            // Task has an ETA, so we need to increment the prefetch count.
+            if let Err(e) = self.broker.increase_prefetch_count().await {
+                // If for some reason this operation fails, we should stop tracing
+                // this task and send it back to the broker to retry.
+                // Otherwise we could reach the prefetch_count and end up blocking
+                // other deliveries if there are a high number of messages with a
+                // future ETA.
+                self.broker.retry(delivery, None).await?;
+                return Err(e);
+            };
         }
+
+        match tracer.trace().await {
+            Ok(_) => {
+                self.broker.ack(delivery).await?;
+            }
+            Err(e) => match e.kind() {
+                ErrorKind::Retry => {
+                    let retry_eta = tracer.retry_eta();
+                    self.broker.retry(delivery, retry_eta).await?
+                }
+                _ => self.broker.ack(delivery).await?,
+            },
+        };
+
+        if tracer.is_delayed() {
+            self.broker.decrease_prefetch_count().await?;
+        }
+
+        Ok(())
     }
 
-    /// Wraps `consume_delivery` to catch any and all errors that might occur.
+    /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
     async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
-        if let Err(e) = self.consume_delivery(delivery_result).await {
+        if let Err(e) = self.try_handle_delivery(delivery_result).await {
             error!("{}", e);
         }
     }
