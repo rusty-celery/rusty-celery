@@ -1,13 +1,13 @@
 use futures::StreamExt;
-use log::{debug, error};
+use log::{debug, error, info};
 use std::collections::HashMap;
+use std::sync::RwLock;
 
 mod trace;
 
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
-use trace::{build_tracer, TraceBuilderResult, TracerTrait};
-
+use trace::{build_tracer, TraceBuilder, TracerTrait};
 struct Config<B>
 where
     B: Broker + 'static,
@@ -102,7 +102,7 @@ where
             name: self.config.name,
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
-            task_trace_builders: HashMap::new(),
+            task_trace_builders: RwLock::new(HashMap::new()),
             task_options: self.config.task_options,
         }
     }
@@ -113,10 +113,7 @@ pub struct Celery<B: Broker> {
     pub name: String,
     pub broker: B,
     pub default_queue_name: String,
-    task_trace_builders: HashMap<
-        String,
-        Box<dyn Fn(Message, TaskOptions) -> TraceBuilderResult + Send + Sync + 'static>,
-    >,
+    task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
     task_options: TaskOptions,
 }
 
@@ -144,18 +141,26 @@ where
     }
 
     /// Register a task.
-    pub fn register_task<T: Task + 'static>(&mut self) -> Result<(), Error> {
-        if self.task_trace_builders.contains_key(T::NAME) {
+    pub fn register_task<T: Task + 'static>(&self) -> Result<(), Error> {
+        let mut task_trace_builders = self
+            .task_trace_builders
+            .write()
+            .map_err(|_| Error::from(ErrorKind::SyncError))?;
+        if task_trace_builders.contains_key(T::NAME) {
             Err(ErrorKind::TaskAlreadyExists(T::NAME.into()).into())
         } else {
-            self.task_trace_builders
-                .insert(T::NAME.into(), Box::new(build_tracer::<T>));
+            task_trace_builders.insert(T::NAME.into(), Box::new(build_tracer::<T>));
+            info!("Registered task {}", T::NAME);
             Ok(())
         }
     }
 
     fn get_task_tracer(&self, message: Message) -> Result<Box<dyn TracerTrait>, Error> {
-        if let Some(build_tracer) = self.task_trace_builders.get(&message.headers.task) {
+        let task_trace_builders = self
+            .task_trace_builders
+            .read()
+            .map_err(|_| Error::from(ErrorKind::SyncError))?;
+        if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
             Ok(build_tracer(message, self.task_options)?)
         } else {
             Err(ErrorKind::UnregisteredTaskError(message.headers.task).into())

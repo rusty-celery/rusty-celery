@@ -46,7 +46,7 @@ async fn main() -> Result<(), ExitFailure> {
                 .prefetch_count(2)
                 .build()
                 .unwrap();
-            let mut celery = Celery::builder("celery", broker)
+            let celery = Celery::builder("celery", broker)
                 .default_queue_name(QUEUE)
                 .build();
             celery.register_task::<add>().unwrap();
