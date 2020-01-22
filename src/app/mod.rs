@@ -202,7 +202,7 @@ where
     }
 
     /// Wraps `consume_delivery` to catch any and all errors that might occur.
-    async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
+    pub async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
         if let Err(e) = self.consume_delivery(delivery_result).await {
             error!("{}", e);
         }
@@ -212,9 +212,10 @@ where
     pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
         let consumer = self.broker.consume(queue).await?;
         consumer
-            .for_each_concurrent(None, |delivery_result| async {
-                tokio::spawn(self.handle_delivery(delivery_result));
-                ()
+            .for_each_concurrent(None, |delivery_result| {
+                async {
+                    tokio::spawn(self.handle_delivery(delivery_result));
+                }
             })
             .await;
         Ok(())

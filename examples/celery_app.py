@@ -13,6 +13,6 @@ def add(x, y):
 
 
 if __name__ == "__main__":
-    add.apply_async(args=[1, 2], countdown=10)
+    add.apply_async(args=[1, 2], countdown=6)
     add.apply_async(args=[2, 2])
     #  app.send_task("buggy_task")

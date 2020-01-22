@@ -32,7 +32,7 @@ impl AMQPBrokerBuilder {
         Self {
             config: Config {
                 broker_url: broker_url.into(),
-                prefetch_count: Some(1),
+                prefetch_count: Some(10),
                 queues: HashMap::new(),
             },
         }

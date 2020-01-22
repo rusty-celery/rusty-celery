@@ -4,6 +4,8 @@ use futures::Stream;
 use crate::protocol::{Message, TryIntoMessage};
 use crate::Error;
 
+pub mod amqp;
+
 /// A message `Broker` is used as the transport for producing or consuming tasks.
 #[async_trait]
 pub trait Broker: Send + Sync {
@@ -34,5 +36,3 @@ pub trait Broker: Send + Sync {
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;
 }
-
-pub mod amqp;

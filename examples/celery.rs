@@ -1,9 +1,8 @@
-use lazy_static::lazy_static;
 use async_trait::async_trait;
-use celery::AMQPBroker;
-use celery::{task, Celery, ErrorKind};
+use celery::{task, AMQPBroker, Celery, ErrorKind};
 use exitfailure::ExitFailure;
 use futures::executor;
+use lazy_static::lazy_static;
 use structopt::StructOpt;
 
 // This generates the task struct and impl with the name set to the function name "add"
@@ -29,7 +28,7 @@ enum CeleryOpt {
     Produce,
 }
 
-static QUEUE: &'static str = "celery";
+static QUEUE: &str = "celery";
 
 #[tokio::main]
 async fn main() -> Result<(), ExitFailure> {
@@ -40,9 +39,8 @@ async fn main() -> Result<(), ExitFailure> {
         static ref CELERY: Celery<AMQPBroker> = {
             let broker_url =
                 std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-            let broker = executor::block_on(AMQPBroker::builder(&broker_url)
-                .queue(QUEUE)
-                .build()).unwrap();
+            let broker =
+                executor::block_on(AMQPBroker::builder(&broker_url).queue(QUEUE).build()).unwrap();
             let mut celery = Celery::builder("celery", broker)
                 .default_queue_name(QUEUE)
                 .build();
