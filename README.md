@@ -32,18 +32,18 @@ Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batc
 
 ## Examples
 
-The `./examples` directory contains a simple Celery app that is implemented in both Python and Rust using an AMQP broker. Before running the examples you'll need to set the environment variable `AMQP_ADDR` to your broker URL.
+The `./examples` directory contains a simple Celery app that is implemented in both Python and Rust using an AMQP broker. Before running the examples you'll need to set the environment variable `AMQP_ADDR` to your broker URL. I also recommend setting `RUST_LOG=debug`.
 
-Then send a task from Python to Rust by running
+Then send a task from Python to Rust by running the script
 
-```
-bash ./examples/python_to_rust.sh
+```bash
+./examples/python_to_rust.sh
 ```
 
 Similary, send a task from Rust to Python by running
 
-```
-bash ./examples/rust_to_python.sh
+```bash
+./examples/rust_to_python.sh
 ```
 
 ## Missing features
