@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use celery::{task, AMQPBroker, Celery, ErrorKind};
 use exitfailure::ExitFailure;
-use futures::executor;
 use lazy_static::lazy_static;
 use structopt::StructOpt;
 
@@ -35,17 +34,18 @@ async fn main() -> Result<(), ExitFailure> {
     env_logger::init();
     let opt = CeleryOpt::from_args();
 
+    // The Celery app instance needs to have a static lifetime in order to be able
+    // to consume from a queue, since consuming spawns async tasks that are bound
+    // to the app.
     lazy_static! {
         static ref CELERY: Celery<AMQPBroker> = {
             let broker_url =
                 std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-            let broker = executor::block_on(
-                AMQPBroker::builder(&broker_url)
-                    .queue(QUEUE)
-                    .prefetch_count(2)
-                    .build(),
-            )
-            .unwrap();
+            let broker = AMQPBroker::builder(&broker_url)
+                .queue(QUEUE)
+                .prefetch_count(2)
+                .build()
+                .unwrap();
             let mut celery = Celery::builder("celery", broker)
                 .default_queue_name(QUEUE)
                 .build();

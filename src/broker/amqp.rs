@@ -3,6 +3,7 @@
 use amq_protocol_types::{AMQPValue, FieldArray};
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
+use futures::executor;
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
@@ -61,15 +62,19 @@ impl AMQPBrokerBuilder {
     }
 
     /// Build an `AMQPBroker`.
-    pub async fn build(self) -> Result<AMQPBroker, Error> {
-        let conn =
-            Connection::connect(&self.config.broker_url, ConnectionProperties::default()).await?;
-        let channel = conn.create_channel().await?;
+    pub fn build(self) -> Result<AMQPBroker, Error> {
+        let conn = executor::block_on(Connection::connect(
+            &self.config.broker_url,
+            ConnectionProperties::default(),
+        ))?;
+        let channel = executor::block_on(conn.create_channel())?;
         let mut queues: HashMap<String, Queue> = HashMap::new();
         for (queue_name, queue_options) in &self.config.queues {
-            let queue = channel
-                .queue_declare(queue_name, queue_options.clone(), FieldTable::default())
-                .await?;
+            let queue = executor::block_on(channel.queue_declare(
+                queue_name,
+                queue_options.clone(),
+                FieldTable::default(),
+            ))?;
             queues.insert(queue_name.into(), queue);
         }
         let broker = AMQPBroker {
@@ -77,9 +82,7 @@ impl AMQPBrokerBuilder {
             queues,
             prefetch_count: std::sync::Mutex::new(self.config.prefetch_count),
         };
-        broker
-            .set_prefetch_count(self.config.prefetch_count)
-            .await?;
+        executor::block_on(broker.set_prefetch_count(self.config.prefetch_count))?;
         Ok(broker)
     }
 }
