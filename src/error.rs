@@ -44,6 +44,10 @@ pub enum ErrorKind {
     #[fail(display = "{}", _0)]
     UnexpectedError(String),
 
+    /// Should be used when an expired task is received.
+    #[fail(display = "Task expired")]
+    TaskExpiredError,
+
     /// Raise when a task should be retried.
     #[fail(display = "Retrying task")]
     Retry,

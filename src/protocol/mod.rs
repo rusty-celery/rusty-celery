@@ -96,6 +96,26 @@ impl Message {
             None
         }
     }
+
+    /// Check if the message is expired.
+    pub fn is_expired(&self) -> bool {
+        if let Some(dt) = self.headers.expires {
+            let expires_millis = dt.timestamp_millis();
+            if expires_millis < 0 {
+                // Invalid.
+                return false;
+            }
+            let expires_millis = expires_millis as u64;
+            if let Ok(now) = SystemTime::now().duration_since(UNIX_EPOCH) {
+                let now_millis = now.as_millis() as u64;
+                now_millis >= expires_millis
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
 }
 
 pub trait TryIntoMessage {
@@ -121,7 +141,7 @@ pub struct MessageHeaders {
     pub meth: Option<String>,
     pub shadow: Option<String>,
     pub eta: Option<DateTime<Utc>>,
-    pub expires: Option<String>,
+    pub expires: Option<DateTime<Utc>>,
     pub retries: Option<usize>,
     pub timelimit: (Option<u32>, Option<u32>),
     pub argsrepr: Option<String>,
