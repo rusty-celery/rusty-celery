@@ -1,6 +1,6 @@
 //! Defines the [Celery protocol](http://docs.celeryproject.org/en/latest/internals/protocol.html).
 
-use chrono::{offset::FixedOffset, DateTime};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -120,7 +120,7 @@ pub struct MessageHeaders {
     pub group: Option<String>,
     pub meth: Option<String>,
     pub shadow: Option<String>,
-    pub eta: Option<DateTime<FixedOffset>>,
+    pub eta: Option<DateTime<Utc>>,
     pub expires: Option<String>,
     pub retries: Option<usize>,
     pub timelimit: (Option<u32>, Option<u32>),

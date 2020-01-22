@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use futures::Stream;
 
 use crate::protocol::{Message, TryIntoMessage};
@@ -31,7 +32,11 @@ pub trait Broker: Send + Sync {
     async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error>;
 
     /// Retry a delivery.
-    async fn retry(&self, delivery: Self::Delivery) -> Result<(), Error>;
+    async fn retry(
+        &self,
+        delivery: Self::Delivery,
+        eta: Option<DateTime<Utc>>,
+    ) -> Result<(), Error>;
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;

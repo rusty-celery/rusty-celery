@@ -2,7 +2,7 @@
 
 use amq_protocol_types::{AMQPValue, FieldArray};
 use async_trait::async_trait;
-use chrono::{DateTime, SecondsFormat};
+use chrono::{DateTime, SecondsFormat, Utc};
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
@@ -124,13 +124,20 @@ impl Broker for AMQPBroker {
             .map_err(|e| e.into())
     }
 
-    async fn retry(&self, delivery: Self::Delivery) -> Result<(), Error> {
+    async fn retry(
+        &self,
+        delivery: Self::Delivery,
+        eta: Option<DateTime<Utc>>,
+    ) -> Result<(), Error> {
         let mut message = delivery.try_into_message()?;
-        if let Some(retries) = message.headers.retries {
-            message.headers.retries = Some(retries + 1);
-        } else {
-            message.headers.retries = Some(1);
-        }
+        message.headers.retries = match message.headers.retries {
+            Some(retries) => Some(retries + 1),
+            None => Some(1),
+        };
+        message.headers.eta = match eta {
+            Some(dt) => Some(dt),
+            None => None,
+        };
         self.send(&message, delivery.routing_key.as_str()).await?;
         self.ack(delivery).await
     }
@@ -351,7 +358,7 @@ impl TryIntoMessage for lapin::message::Delivery {
                     };
                     if let Some(s) = eta_string {
                         match DateTime::parse_from_rfc3339(&s) {
-                            Ok(dt) => Some(dt),
+                            Ok(dt) => Some(DateTime::<Utc>::from(dt)),
                             _ => None,
                         }
                     } else {
