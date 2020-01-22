@@ -40,7 +40,7 @@ async fn main() -> Result<(), ExitFailure> {
         .queue(queue)
         .build()
         .await?;
-    let mut celery = Celery::builder("celery", broker)
+    let celery = Celery::builder("celery", broker)
         .default_queue_name(queue)
         .build();
     celery.register_task::<add>()?;

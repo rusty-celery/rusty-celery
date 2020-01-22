@@ -3,6 +3,7 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::RwLock;
 use tokio::time::{self, Duration, Instant};
 
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
@@ -102,7 +103,7 @@ where
             name: self.config.name,
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
-            task_executers: HashMap::new(),
+            task_executers: RwLock::new(HashMap::new()),
             task_options: self.config.task_options,
         }
     }
@@ -117,7 +118,7 @@ pub struct Celery<B: Broker> {
     pub name: String,
     pub broker: B,
     pub default_queue_name: String,
-    task_executers: HashMap<String, TaskExecutor>,
+    task_executers: RwLock<HashMap<String, TaskExecutor>>,
     pub task_options: TaskOptions,
 }
 
@@ -145,11 +146,12 @@ where
     }
 
     /// Register a task.
-    pub fn register_task<T: Task + 'static>(&mut self) -> Result<(), Error> {
-        if self.task_executers.contains_key(T::NAME) {
+    pub fn register_task<T: Task + 'static>(&self) -> Result<(), Error> {
+        let mut task_executers = self.task_executers.write().unwrap();
+        if task_executers.contains_key(T::NAME) {
             Err(ErrorKind::TaskAlreadyExists(T::NAME.into()).into())
         } else {
-            self.task_executers.insert(
+            task_executers.insert(
                 T::NAME.into(),
                 Box::new(|message, options| Box::pin(Self::task_executer::<T>(message, options))),
             );
@@ -260,7 +262,8 @@ where
             Ok(delivery) => {
                 debug!("Received delivery: {:?}", delivery);
                 let message = delivery.try_into_message()?;
-                match self.task_executers.get(&message.headers.task) {
+                let task_executers = self.task_executers.read().unwrap();
+                match task_executers.get(&message.headers.task) {
                     Some(executor) => {
                         match executor(message, self.task_options).await {
                             Ok(_) => {
