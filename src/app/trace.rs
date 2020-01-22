@@ -11,6 +11,9 @@ use crate::{Error, ErrorKind, Task};
 
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, Error>;
 
+pub(super) type TraceBuilder =
+    Box<dyn Fn(Message, TaskOptions) -> TraceBuilderResult + Send + Sync + 'static>;
+
 pub(super) fn build_tracer<T: Task + Send + 'static>(
     message: Message,
     options: TaskOptions,
