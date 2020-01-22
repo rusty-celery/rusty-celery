@@ -26,6 +26,8 @@ pub(super) trait TracerTrait: Send {
 
     /// Get the ETA for a retry with exponential backoff.
     fn retry_eta(&self) -> Option<DateTime<Utc>>;
+
+    fn is_delayed(&self) -> bool;
 }
 
 pub(super) struct Tracer<T>
@@ -35,6 +37,7 @@ where
     task: T,
     message: Message,
     options: TaskOptions,
+    countdown: Option<Duration>,
 }
 
 impl<T> Tracer<T>
@@ -45,10 +48,12 @@ where
         let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
         let task = body.1;
         let options = options.overrides(&task);
+        let countdown = message.countdown();
         Ok(Self {
             task,
             message,
             options,
+            countdown,
         })
     }
 }
@@ -59,7 +64,7 @@ where
     T: Task,
 {
     async fn trace(&mut self) -> Result<(), Error> {
-        if let Some(countdown) = self.message.countdown() {
+        if let Some(countdown) = self.countdown {
             info!(
                 "Task {}[{}] received, ETA: {}",
                 T::NAME,
@@ -168,5 +173,9 @@ where
             }
             Err(_) => None,
         }
+    }
+
+    fn is_delayed(&self) -> bool {
+        self.countdown.is_some()
     }
 }

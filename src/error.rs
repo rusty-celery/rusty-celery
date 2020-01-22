@@ -47,6 +47,10 @@ pub enum ErrorKind {
     /// Raise when a task should be retried.
     #[fail(display = "Retrying task")]
     Retry,
+
+    /// When a mutex is poisened, for example.
+    #[fail(display = "Sync error")]
+    SyncError,
 }
 
 impl Fail for Error {

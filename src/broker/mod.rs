@@ -40,4 +40,8 @@ pub trait Broker: Send + Sync {
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;
+
+    async fn increase_prefetch_count(&self) -> Result<(), Error>;
+
+    async fn decrease_prefetch_count(&self) -> Result<(), Error>;
 }

@@ -17,7 +17,7 @@ use crate::{Error, ErrorKind};
 
 struct Config {
     broker_url: String,
-    prefetch_count: Option<u16>,
+    prefetch_count: u16,
     queues: HashMap<String, QueueDeclareOptions>,
 }
 
@@ -32,7 +32,7 @@ impl AMQPBrokerBuilder {
         Self {
             config: Config {
                 broker_url: broker_url.into(),
-                prefetch_count: Some(10),
+                prefetch_count: 10,
                 queues: HashMap::new(),
             },
         }
@@ -40,7 +40,7 @@ impl AMQPBrokerBuilder {
 
     /// Set the worker [prefetch
     /// count](https://www.rabbitmq.com/confirms.html#channel-qos-prefetch).
-    pub fn prefetch_count(mut self, prefetch_count: Option<u16>) -> Self {
+    pub fn prefetch_count(mut self, prefetch_count: u16) -> Self {
         self.config.prefetch_count = prefetch_count;
         self
     }
@@ -65,11 +65,6 @@ impl AMQPBrokerBuilder {
         let conn =
             Connection::connect(&self.config.broker_url, ConnectionProperties::default()).await?;
         let channel = conn.create_channel().await?;
-        if let Some(prefetch_count) = self.config.prefetch_count {
-            channel
-                .basic_qos(prefetch_count, BasicQosOptions::default())
-                .await?;
-        }
         let mut queues: HashMap<String, Queue> = HashMap::new();
         for (queue_name, queue_options) in &self.config.queues {
             let queue = channel
@@ -77,7 +72,15 @@ impl AMQPBrokerBuilder {
                 .await?;
             queues.insert(queue_name.into(), queue);
         }
-        Ok(AMQPBroker { channel, queues })
+        let broker = AMQPBroker {
+            channel,
+            queues,
+            prefetch_count: std::sync::Mutex::new(self.config.prefetch_count),
+        };
+        broker
+            .set_prefetch_count(self.config.prefetch_count)
+            .await?;
+        Ok(broker)
     }
 }
 
@@ -85,12 +88,21 @@ impl AMQPBrokerBuilder {
 pub struct AMQPBroker {
     channel: Channel,
     queues: HashMap<String, Queue>,
+    prefetch_count: std::sync::Mutex<u16>,
 }
 
 impl AMQPBroker {
     /// Get an `AMQPBrokerBuilder` for creating an AMQP broker with a custom configuration.
     pub fn builder(broker_url: &str) -> AMQPBrokerBuilder {
         AMQPBrokerBuilder::new(broker_url)
+    }
+
+    async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), Error> {
+        debug!("Setting prefetch count to {}", prefetch_count);
+        self.channel
+            .basic_qos(prefetch_count, BasicQosOptions { global: false })
+            .await?;
+        Ok(())
     }
 }
 
@@ -134,9 +146,8 @@ impl Broker for AMQPBroker {
             Some(retries) => Some(retries + 1),
             None => Some(1),
         };
-        message.headers.eta = match eta {
-            Some(dt) => Some(dt),
-            None => None,
+        if let Some(dt) = eta {
+            message.headers.eta = Some(dt);
         };
         self.send(&message, delivery.routing_key.as_str()).await?;
         self.ack(delivery).await
@@ -155,6 +166,44 @@ impl Broker for AMQPBroker {
             )
             .await?;
 
+        Ok(())
+    }
+
+    async fn increase_prefetch_count(&self) -> Result<(), Error> {
+        let new_count = {
+            let mut prefetch_count = self
+                .prefetch_count
+                .lock()
+                .map_err(|_| Error::from(ErrorKind::SyncError))?;
+            if *prefetch_count < std::u16::MAX {
+                let new_count = *prefetch_count + 1;
+                *prefetch_count = new_count;
+                new_count
+            } else {
+                std::u16::MAX
+            }
+        };
+        self.set_prefetch_count(new_count).await?;
+        Ok(())
+    }
+
+    async fn decrease_prefetch_count(&self) -> Result<(), Error> {
+        let new_count = {
+            let mut prefetch_count = self
+                .prefetch_count
+                .lock()
+                .map_err(|_| Error::from(ErrorKind::SyncError))?;
+            if *prefetch_count > 1 {
+                let new_count = *prefetch_count - 1;
+                *prefetch_count = new_count;
+                new_count
+            } else {
+                0u16
+            }
+        };
+        if new_count > 0 {
+            self.set_prefetch_count(new_count).await?;
+        }
         Ok(())
     }
 }
