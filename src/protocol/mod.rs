@@ -72,7 +72,7 @@ impl Message {
         Self::builder(task, data).build()
     }
 
-    // Get the TTL countdown.
+    /// Get the TTL countdown.
     pub fn countdown(&self) -> Option<Duration> {
         if let Some(eta) = self.headers.eta {
             let eta_millis = eta.timestamp_millis();

@@ -19,7 +19,7 @@ pub mod export;
 pub mod protocol;
 mod task;
 
-pub use app::{Celery, CeleryBuilder, TaskOptions};
+pub use app::{Celery, CeleryBuilder};
 pub use broker::{
     amqp::{AMQPBroker, AMQPBrokerBuilder},
     Broker,

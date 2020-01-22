@@ -1,11 +1,12 @@
-use async_trait::async_trait;
 use futures::StreamExt;
-use log::{debug, error, info, warn};
+use log::{debug, error};
 use std::collections::HashMap;
-use tokio::time::{self, Duration, Instant};
+
+mod trace;
 
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
+use trace::{build_tracer, TraceBuilderResult, TracerTrait};
 
 struct Config<B>
 where
@@ -18,11 +19,11 @@ where
 }
 
 #[derive(Copy, Clone, Default)]
-pub struct TaskOptions {
-    pub timeout: Option<usize>,
-    pub max_retries: Option<usize>,
-    pub min_retry_delay: usize,
-    pub max_retry_delay: usize,
+pub(crate) struct TaskOptions {
+    timeout: Option<usize>,
+    max_retries: Option<usize>,
+    min_retry_delay: usize,
+    max_retry_delay: usize,
 }
 
 impl TaskOptions {
@@ -101,24 +102,22 @@ where
             name: self.config.name,
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
-            task_executors: HashMap::new(),
+            task_trace_builders: HashMap::new(),
             task_options: self.config.task_options,
         }
     }
 }
-
-type ExecutorFactoryResult = Result<Box<dyn TaskExecutorTrait>, Error>;
 
 /// A `Celery` app is used to produce or consume tasks asyncronously.
 pub struct Celery<B: Broker> {
     pub name: String,
     pub broker: B,
     pub default_queue_name: String,
-    task_executors: HashMap<
+    task_trace_builders: HashMap<
         String,
-        Box<dyn Fn(Message, TaskOptions) -> ExecutorFactoryResult + Send + Sync + 'static>,
+        Box<dyn Fn(Message, TaskOptions) -> TraceBuilderResult + Send + Sync + 'static>,
     >,
-    pub task_options: TaskOptions,
+    task_options: TaskOptions,
 }
 
 impl<B> Celery<B>
@@ -146,18 +145,18 @@ where
 
     /// Register a task.
     pub fn register_task<T: Task + 'static>(&mut self) -> Result<(), Error> {
-        if self.task_executors.contains_key(T::NAME) {
+        if self.task_trace_builders.contains_key(T::NAME) {
             Err(ErrorKind::TaskAlreadyExists(T::NAME.into()).into())
         } else {
-            self.task_executors
-                .insert(T::NAME.into(), Box::new(task_executor_factory::<T>));
+            self.task_trace_builders
+                .insert(T::NAME.into(), Box::new(build_tracer::<T>));
             Ok(())
         }
     }
 
-    fn get_task_executor(&self, message: Message) -> Result<Box<dyn TaskExecutorTrait>, Error> {
-        if let Some(executor_factory) = self.task_executors.get(&message.headers.task) {
-            Ok(executor_factory(message, self.task_options)?)
+    fn get_task_tracer(&self, message: Message) -> Result<Box<dyn TracerTrait>, Error> {
+        if let Some(build_tracer) = self.task_trace_builders.get(&message.headers.task) {
+            Ok(build_tracer(message, self.task_options)?)
         } else {
             Err(ErrorKind::UnregisteredTaskError(message.headers.task).into())
         }
@@ -173,10 +172,9 @@ where
             Ok(delivery) => {
                 debug!("Received delivery: {:?}", delivery);
                 let message = delivery.try_into_message()?;
-                let maybe_task_executor = self.get_task_executor(message);
-                match maybe_task_executor {
-                    Ok(mut executor) => {
-                        match executor.execute().await {
+                match self.get_task_tracer(message) {
+                    Ok(mut tracer) => {
+                        match tracer.trace().await {
                             Ok(_) => {
                                 self.broker.ack(delivery).await?;
                             }
@@ -202,7 +200,7 @@ where
     }
 
     /// Wraps `consume_delivery` to catch any and all errors that might occur.
-    pub async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
+    async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
         if let Err(e) = self.consume_delivery(delivery_result).await {
             error!("{}", e);
         }
@@ -219,135 +217,5 @@ where
             })
             .await;
         Ok(())
-    }
-}
-
-fn task_executor_factory<T: Task + Send + 'static>(
-    message: Message,
-    options: TaskOptions,
-) -> Result<Box<dyn TaskExecutorTrait>, Error> {
-    Ok(Box::new(TaskExecutor::<T>::new(message, options)?))
-}
-
-#[async_trait]
-trait TaskExecutorTrait: Send {
-    async fn execute(&mut self) -> Result<(), Error>;
-}
-
-struct TaskExecutor<T>
-where
-    T: Task + Send + 'static,
-{
-    task: T,
-    message: Message,
-    options: TaskOptions,
-}
-
-impl<T> TaskExecutor<T>
-where
-    T: Task + Send + 'static,
-{
-    fn new(message: Message, options: TaskOptions) -> Result<Self, Error> {
-        let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
-        let task = body.1;
-        let options = options.overrides(&task);
-        Ok(Self {
-            task,
-            message,
-            options,
-        })
-    }
-}
-
-#[async_trait]
-impl<T> TaskExecutorTrait for TaskExecutor<T>
-where
-    T: Task + Send + 'static,
-{
-    /// Wraps the execution of a task, catching and logging errors and then running
-    /// the appropriate post-execution functions.
-    async fn execute(&mut self) -> Result<(), Error> {
-        if let Some(countdown) = self.message.countdown() {
-            info!(
-                "Task {}[{}] received, ETA: {}",
-                T::NAME,
-                self.message.properties.correlation_id,
-                self.message.headers.eta.unwrap()
-            );
-            time::delay_for(countdown).await;
-        } else {
-            info!(
-                "Task {}[{}] received",
-                T::NAME,
-                self.message.properties.correlation_id
-            );
-        }
-        let start = Instant::now();
-        let result = match self.options.timeout {
-            Some(secs) => {
-                debug!("Executing task with {} second timeout", secs);
-                let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, self.task.run()).into_inner().await
-            }
-            None => self.task.run().await,
-        };
-        let duration = start.elapsed();
-        match result {
-            Ok(returned) => {
-                info!(
-                    "Task {}[{}] succeeded in {}s: {:?}",
-                    T::NAME,
-                    self.message.properties.correlation_id,
-                    duration.as_secs_f32(),
-                    returned
-                );
-                self.task.on_success(&returned).await;
-                Ok(())
-            }
-            Err(e) => {
-                match e.kind() {
-                    ErrorKind::ExpectedError(reason) => {
-                        warn!(
-                            "Task {}[{}] raised expected: {}",
-                            T::NAME,
-                            self.message.properties.correlation_id,
-                            reason
-                        );
-                    }
-                    ErrorKind::UnexpectedError(reason) => {
-                        error!(
-                            "Task {}[{}] raised unexpected: {}",
-                            T::NAME,
-                            self.message.properties.correlation_id,
-                            reason
-                        );
-                    }
-                    _ => {
-                        error!(
-                            "Task {}[{}] failed: {}",
-                            T::NAME,
-                            self.message.properties.correlation_id,
-                            e
-                        );
-                    }
-                };
-                self.task.on_failure(&e).await;
-                if let Some(max_retries) = self.options.max_retries {
-                    let retries = match self.message.headers.retries {
-                        Some(n) => n,
-                        None => 0,
-                    };
-                    if retries >= max_retries {
-                        return Err(e);
-                    }
-                }
-                info!(
-                    "Task {}[{}] retrying",
-                    T::NAME,
-                    self.message.properties.correlation_id
-                );
-                Err(ErrorKind::Retry.into())
-            }
-        }
     }
 }
