@@ -22,7 +22,8 @@ name = "celery"
 
 [dependencies]
 celery-codegen = { version = "0.1.0-alpha.1", path = "./celery-codegen", optional = true }
-tokio = { version = "0.2", features = ["full"]}
+chrono = "0.4"
+tokio = { version = "0.2", features = ["time", "rt-core"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 failure = "0.1"
@@ -31,12 +32,14 @@ lapin = { version = "0.28.3", features = ["default", "futures"] }
 amq-protocol-types = "3.1"
 log = "0.4"
 env_logger = "0.7"
-futures-util = "0.3"
+futures = "0.3"
 uuid = { version = "0.8", features = ["v4"]}
 
 [dev-dependencies]
 exitfailure = "0.5.1"
 structopt = "0.3"
+lazy_static = "1.4"
+tokio = { version = "0.2", features = ["rt-threaded", "fs", "macros"] }
 
 [features]
 default = ["codegen"]

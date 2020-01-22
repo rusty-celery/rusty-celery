@@ -1,7 +1,10 @@
 //! Defines the [Celery protocol](http://docs.celeryproject.org/en/latest/internals/protocol.html).
 
+use chrono::{offset::FixedOffset, DateTime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::time::Duration;
 use uuid::Uuid;
 
 use crate::{Error, Task};
@@ -68,6 +71,31 @@ impl Message {
     pub fn new(task: &str, data: Vec<u8>) -> Self {
         Self::builder(task, data).build()
     }
+
+    /// Get the TTL countdown.
+    pub fn countdown(&self) -> Option<Duration> {
+        if let Some(eta) = self.headers.eta {
+            let eta_millis = eta.timestamp_millis();
+            if eta_millis < 0 {
+                // Invalid ETA.
+                return None;
+            }
+            let eta_millis = eta_millis as u64;
+            match SystemTime::now().duration_since(UNIX_EPOCH) {
+                Ok(now) => {
+                    let now_millis = now.as_millis() as u64;
+                    if eta_millis < now_millis {
+                        None
+                    } else {
+                        Some(Duration::from_millis(eta_millis - now_millis))
+                    }
+                }
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    }
 }
 
 pub trait TryIntoMessage {
@@ -92,7 +120,7 @@ pub struct MessageHeaders {
     pub group: Option<String>,
     pub meth: Option<String>,
     pub shadow: Option<String>,
-    pub eta: Option<String>,
+    pub eta: Option<DateTime<FixedOffset>>,
     pub expires: Option<String>,
     pub retries: Option<usize>,
     pub timelimit: (Option<u32>, Option<u32>),

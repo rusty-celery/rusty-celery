@@ -1,7 +1,8 @@
 use async_trait::async_trait;
-use celery::AMQPBroker;
-use celery::{task, Celery, ErrorKind};
+use celery::{task, AMQPBroker, Celery, ErrorKind};
 use exitfailure::ExitFailure;
+use futures::executor;
+use lazy_static::lazy_static;
 use structopt::StructOpt;
 
 // This generates the task struct and impl with the name set to the function name "add"
@@ -27,31 +28,34 @@ enum CeleryOpt {
     Produce,
 }
 
+static QUEUE: &str = "celery";
+
 #[tokio::main]
 async fn main() -> Result<(), ExitFailure> {
     env_logger::init();
     let opt = CeleryOpt::from_args();
 
-    let broker_url =
-        std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-    let queue = "celery";
-
-    let broker = AMQPBroker::builder(&broker_url)
-        .queue(queue)
-        .build()
-        .await?;
-    let mut celery = Celery::builder("celery", broker)
-        .default_queue_name(queue)
-        .build();
-    celery.register_task::<add>()?;
-    celery.register_task::<buggy_task>()?;
+    lazy_static! {
+        static ref CELERY: Celery<AMQPBroker> = {
+            let broker_url =
+                std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
+            let broker =
+                executor::block_on(AMQPBroker::builder(&broker_url).queue(QUEUE).build()).unwrap();
+            let mut celery = Celery::builder("celery", broker)
+                .default_queue_name(QUEUE)
+                .build();
+            celery.register_task::<add>().unwrap();
+            celery.register_task::<buggy_task>().unwrap();
+            celery
+        };
+    }
 
     match opt {
         CeleryOpt::Consume => {
-            celery.consume(queue).await?;
+            CELERY.consume(QUEUE).await?;
         }
         CeleryOpt::Produce => {
-            celery.send_task(add(1, 2), queue).await?;
+            CELERY.send_task(add(1, 2), QUEUE).await?;
         }
     };
 

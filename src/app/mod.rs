@@ -1,12 +1,12 @@
-use futures_util::stream::StreamExt;
-use log::{debug, error, info, warn};
+use futures::StreamExt;
+use log::{debug, error};
 use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
-use tokio::time::{self, Duration, Instant};
+
+mod trace;
 
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
+use trace::{build_tracer, TraceBuilderResult, TracerTrait};
 
 struct Config<B>
 where
@@ -19,11 +19,11 @@ where
 }
 
 #[derive(Copy, Clone, Default)]
-pub struct TaskOptions {
-    pub timeout: Option<usize>,
-    pub max_retries: Option<usize>,
-    pub min_retry_delay: usize,
-    pub max_retry_delay: usize,
+pub(crate) struct TaskOptions {
+    timeout: Option<usize>,
+    max_retries: Option<usize>,
+    min_retry_delay: usize,
+    max_retry_delay: usize,
 }
 
 impl TaskOptions {
@@ -102,23 +102,22 @@ where
             name: self.config.name,
             broker: self.config.broker,
             default_queue_name: self.config.default_queue_name,
-            task_executers: HashMap::new(),
+            task_trace_builders: HashMap::new(),
             task_options: self.config.task_options,
         }
     }
 }
-
-type TaskExecutionOutput = Result<(), Error>;
-type TaskExecutorResult = Pin<Box<dyn Future<Output = TaskExecutionOutput>>>;
-type TaskExecutor = Box<dyn Fn(Message, TaskOptions) -> TaskExecutorResult>;
 
 /// A `Celery` app is used to produce or consume tasks asyncronously.
 pub struct Celery<B: Broker> {
     pub name: String,
     pub broker: B,
     pub default_queue_name: String,
-    task_executers: HashMap<String, TaskExecutor>,
-    pub task_options: TaskOptions,
+    task_trace_builders: HashMap<
+        String,
+        Box<dyn Fn(Message, TaskOptions) -> TraceBuilderResult + Send + Sync + 'static>,
+    >,
+    task_options: TaskOptions,
 }
 
 impl<B> Celery<B>
@@ -146,97 +145,20 @@ where
 
     /// Register a task.
     pub fn register_task<T: Task + 'static>(&mut self) -> Result<(), Error> {
-        if self.task_executers.contains_key(T::NAME) {
+        if self.task_trace_builders.contains_key(T::NAME) {
             Err(ErrorKind::TaskAlreadyExists(T::NAME.into()).into())
         } else {
-            self.task_executers.insert(
-                T::NAME.into(),
-                Box::new(|message, options| Box::pin(Self::task_executer::<T>(message, options))),
-            );
+            self.task_trace_builders
+                .insert(T::NAME.into(), Box::new(build_tracer::<T>));
             Ok(())
         }
     }
 
-    /// Wraps the execution of a task, catching and logging errors and then running
-    /// the appropriate post-execution functions.
-    async fn task_executer<T: Task + 'static>(
-        message: Message,
-        options: TaskOptions,
-    ) -> Result<(), Error> {
-        let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
-        let mut task = body.1;
-        info!(
-            "Task {}[{}] received",
-            T::NAME,
-            message.properties.correlation_id
-        );
-        let options = options.overrides(&task);
-        let start = Instant::now();
-        let result = match options.timeout {
-            Some(secs) => {
-                debug!("Executing task with {} second timeout", secs);
-                let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, task.run()).into_inner().await
-            }
-            None => task.run().await,
-        };
-        let duration = start.elapsed();
-        match result {
-            Ok(returned) => {
-                info!(
-                    "Task {}[{}] succeeded in {}s: {:?}",
-                    T::NAME,
-                    message.properties.correlation_id,
-                    duration.as_secs_f32(),
-                    returned
-                );
-                task.on_success(&returned).await;
-                Ok(())
-            }
-            Err(e) => {
-                match e.kind() {
-                    ErrorKind::ExpectedError(reason) => {
-                        warn!(
-                            "Task {}[{}] raised expected: {}",
-                            T::NAME,
-                            message.properties.correlation_id,
-                            reason
-                        );
-                    }
-                    ErrorKind::UnexpectedError(reason) => {
-                        error!(
-                            "Task {}[{}] raised unexpected: {}",
-                            T::NAME,
-                            message.properties.correlation_id,
-                            reason
-                        );
-                    }
-                    _ => {
-                        error!(
-                            "Task {}[{}] failed: {}",
-                            T::NAME,
-                            message.properties.correlation_id,
-                            e
-                        );
-                    }
-                };
-                task.on_failure(&e).await;
-                if let Some(max_retries) = options.max_retries {
-                    let retries = match message.headers.retries {
-                        Some(n) => n,
-                        None => 0,
-                    };
-                    if retries >= max_retries {
-                        return Err(e);
-                    }
-                }
-                info!(
-                    "Task {}[{}] retrying",
-                    T::NAME,
-                    message.properties.correlation_id
-                );
-                Err(ErrorKind::Retry.into())
-            }
+    fn get_task_tracer(&self, message: Message) -> Result<Box<dyn TracerTrait>, Error> {
+        if let Some(build_tracer) = self.task_trace_builders.get(&message.headers.task) {
+            Ok(build_tracer(message, self.task_options)?)
+        } else {
+            Err(ErrorKind::UnregisteredTaskError(message.headers.task).into())
         }
     }
 
@@ -250,9 +172,9 @@ where
             Ok(delivery) => {
                 debug!("Received delivery: {:?}", delivery);
                 let message = delivery.try_into_message()?;
-                match self.task_executers.get(&message.headers.task) {
-                    Some(executor) => {
-                        match executor(message, self.task_options).await {
+                match self.get_task_tracer(message) {
+                    Ok(mut tracer) => {
+                        match tracer.trace().await {
                             Ok(_) => {
                                 self.broker.ack(delivery).await?;
                             }
@@ -263,10 +185,10 @@ where
                         };
                         Ok(())
                     }
-                    None => {
+                    Err(e) => {
                         self.broker.ack(delivery).await?;
                         debug!("Delivery acked");
-                        Err(ErrorKind::UnregisteredTaskError(message.headers.task).into())
+                        Err(e)
                     }
                 }
             }
@@ -285,13 +207,14 @@ where
     }
 
     /// Consume tasks from a queue.
-    pub async fn consume(&self, queue: &str) -> Result<(), Error> {
+    pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
         let consumer = self.broker.consume(queue).await?;
         consumer
-            .for_each_concurrent(
-                None, // limit of concurrent tasks.
-                |delivery_result| self.handle_delivery(delivery_result),
-            )
+            .for_each_concurrent(None, |delivery_result| {
+                async {
+                    tokio::spawn(self.handle_delivery(delivery_result));
+                }
+            })
             .await;
         Ok(())
     }

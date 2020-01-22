@@ -1,19 +1,20 @@
 use async_trait::async_trait;
-use futures_util::stream::{Stream, StreamExt};
+use futures::Stream;
 
 use crate::protocol::{Message, TryIntoMessage};
 use crate::Error;
 
+pub mod amqp;
+
 /// A message `Broker` is used as the transport for producing or consuming tasks.
 #[async_trait]
-pub trait Broker {
-    type Delivery: TryIntoMessage + Clone + std::fmt::Debug;
-    type DeliveryError: Into<Error>;
+pub trait Broker: Send + Sync {
+    type Delivery: TryIntoMessage + Send + Sync + Clone + std::fmt::Debug;
+    type DeliveryError: Into<Error> + Send + Sync;
     type Consumer: IntoIterator<
             Item = Result<Self::Delivery, Self::DeliveryError>,
             IntoIter = Self::ConsumerIterator,
-        > + Stream<Item = Result<Self::Delivery, Self::DeliveryError>>
-        + StreamExt;
+        > + Stream<Item = Result<Self::Delivery, Self::DeliveryError>>;
     type ConsumerIterator: Iterator<Item = Result<Self::Delivery, Self::DeliveryError>>;
 
     /// Consume messages from a queue.
@@ -35,5 +36,3 @@ pub trait Broker {
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;
 }
-
-pub mod amqp;
