@@ -39,10 +39,7 @@ uuid = { version = "0.8", features = ["v4"]}
 exitfailure = "0.5.1"
 structopt = "0.3"
 lazy_static = "1.4"
-
-[dev-dependencies.tokio]
-version = "0.2"
-features = ["rt-threaded", "fs", "macros"]
+tokio = { version = "0.2", features = ["rt-threaded", "fs", "macros"] }
 
 [features]
 default = ["codegen"]
