@@ -21,7 +21,7 @@ where
 }
 
 #[derive(Copy, Clone, Default)]
-pub(crate) struct TaskOptions {
+struct TaskOptions {
     timeout: Option<usize>,
     max_retries: Option<usize>,
     min_retry_delay: usize,
@@ -40,14 +40,14 @@ impl TaskOptions {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum TaskStatus {
+enum TaskStatus {
     Pending,
     Finished,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct TaskEvent {
-    pub(crate) status: TaskStatus,
+struct TaskEvent {
+    status: TaskStatus,
 }
 
 impl TaskEvent {
