@@ -235,20 +235,25 @@ where
 
     /// Consume tasks from a queue.
     pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
-        let consumer = self.broker.consume(queue).await?;
-        let mut consumer = Box::pin(consumer.fuse());
-        // TODO: handle error instead of using 'unwrap'.
-        let mut signal_stream = signal(SignalKind::interrupt()).unwrap().fuse();
+        let mut deliveries = Box::pin(self.broker.consume(queue).await?.fuse());
+        let mut signals = signal(SignalKind::interrupt())?.fuse();
+        let mut signal_already_received = false;
         loop {
             select! {
-                maybe_delivery_result = consumer.next() => {
+                maybe_delivery_result = deliveries.next() => {
                     if let Some(delivery_result) = maybe_delivery_result {
                         tokio::spawn(self.handle_delivery(delivery_result));
                     }
                 },
-                _ = signal_stream.next() => {
-                    warn!("Received interrupt, shutting down...");
-                    break;
+                _ = signals.next() => {
+                    if !signal_already_received {
+                        signal_already_received = true;
+                        warn!("Hitting Ctrl+C again will terminate all running tasks!");
+                        info!("Warm shutdown...");
+                    } else {
+                        warn!("Shutting down now");
+                        break;
+                    }
                 },
             };
         }
