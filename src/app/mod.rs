@@ -10,15 +10,6 @@ mod trace;
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
 use crate::{Broker, Error, ErrorKind, Task};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
-struct Config<B>
-where
-    B: Broker + 'static,
-{
-    name: String,
-    broker: B,
-    default_queue_name: String,
-    task_options: TaskOptions,
-}
 
 #[derive(Copy, Clone, Default)]
 struct TaskOptions {
@@ -54,6 +45,16 @@ impl TaskEvent {
     fn new(status: TaskStatus) -> Self {
         Self { status }
     }
+}
+
+struct Config<B>
+where
+    B: Broker + 'static,
+{
+    name: String,
+    broker: B,
+    default_queue_name: String,
+    task_options: TaskOptions,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
