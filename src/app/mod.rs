@@ -1,7 +1,8 @@
-use futures::StreamExt;
-use log::{debug, error, info};
+use futures::{select, StreamExt};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::RwLock;
+use tokio::signal::unix::{signal, SignalKind};
 
 mod trace;
 
@@ -235,13 +236,22 @@ where
     /// Consume tasks from a queue.
     pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
         let consumer = self.broker.consume(queue).await?;
-        consumer
-            .for_each_concurrent(None, |delivery_result| {
-                async {
-                    tokio::spawn(self.handle_delivery(delivery_result));
-                }
-            })
-            .await;
+        let mut consumer = Box::pin(consumer.fuse());
+        // TODO: handle error instead of using 'unwrap'.
+        let mut signal_stream = signal(SignalKind::interrupt()).unwrap().fuse();
+        loop {
+            select! {
+                maybe_delivery_result = consumer.next() => {
+                    if let Some(delivery_result) = maybe_delivery_result {
+                        tokio::spawn(self.handle_delivery(delivery_result));
+                    }
+                },
+                _ = signal_stream.next() => {
+                    warn!("Received interrupt, shutting down...");
+                    break;
+                },
+            };
+        }
         Ok(())
     }
 }
