@@ -3,6 +3,7 @@ use celery::{task, AMQPBroker, Celery, ErrorKind};
 use exitfailure::ExitFailure;
 use lazy_static::lazy_static;
 use structopt::StructOpt;
+use tokio::time::{self, Duration};
 
 // This generates the task struct and impl with the name set to the function name "add"
 #[task]
@@ -14,6 +15,11 @@ fn add(x: i32, y: i32) -> i32 {
 fn buggy_task() {
     #[allow(clippy::try_err)]
     Err(ErrorKind::UnexpectedError("a bug caused this".into()))?
+}
+
+#[task]
+fn long_running_task() {
+    time::delay_for(Duration::from_secs(10)).await;
 }
 
 #[derive(Debug, StructOpt)]
@@ -51,6 +57,7 @@ async fn main() -> Result<(), ExitFailure> {
                 .build();
             celery.register_task::<add>().unwrap();
             celery.register_task::<buggy_task>().unwrap();
+            celery.register_task::<long_running_task>().unwrap();
             celery
         };
     }

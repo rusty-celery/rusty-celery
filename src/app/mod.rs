@@ -1,7 +1,9 @@
-use futures::StreamExt;
-use log::{debug, error, info};
+use futures::{select, StreamExt};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::RwLock;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc::{self, UnboundedSender};
 
 mod trace;
 
@@ -19,7 +21,7 @@ where
 }
 
 #[derive(Copy, Clone, Default)]
-pub(crate) struct TaskOptions {
+struct TaskOptions {
     timeout: Option<usize>,
     max_retries: Option<usize>,
     min_retry_delay: usize,
@@ -34,6 +36,23 @@ impl TaskOptions {
             min_retry_delay: task.min_retry_delay().unwrap_or(self.min_retry_delay),
             max_retry_delay: task.max_retry_delay().unwrap_or(self.max_retry_delay),
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum TaskStatus {
+    Pending,
+    Finished,
+}
+
+#[derive(Clone, Debug)]
+struct TaskEvent {
+    status: TaskStatus,
+}
+
+impl TaskEvent {
+    fn new(status: TaskStatus) -> Self {
+        Self { status }
     }
 }
 
@@ -110,10 +129,20 @@ where
 
 /// A `Celery` app is used to produce or consume tasks asyncronously.
 pub struct Celery<B: Broker> {
+    /// An arbitrary, human-readable name for the app.
     pub name: String,
+
+    /// The app's broker.
     pub broker: B,
+
+    /// The default queue to send and receive from.
     pub default_queue_name: String,
+
+    /// Mapping of task name to task tracer factory. Used to create a task tracer
+    /// from an incoming message.
     task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
+
+    /// Default task options.
     task_options: TaskOptions,
 }
 
@@ -155,13 +184,17 @@ where
         }
     }
 
-    fn get_task_tracer(&self, message: Message) -> Result<Box<dyn TracerTrait>, Error> {
+    fn get_task_tracer(
+        &self,
+        message: Message,
+        event_tx: UnboundedSender<TaskEvent>,
+    ) -> Result<Box<dyn TracerTrait>, Error> {
         let task_trace_builders = self
             .task_trace_builders
             .read()
             .map_err(|_| Error::from(ErrorKind::SyncError))?;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
-            Ok(build_tracer(message, self.task_options)?)
+            Ok(build_tracer(message, self.task_options, event_tx)?)
         } else {
             Err(ErrorKind::UnregisteredTaskError(message.headers.task).into())
         }
@@ -172,6 +205,7 @@ where
     async fn try_handle_delivery(
         &self,
         delivery_result: Result<B::Delivery, B::DeliveryError>,
+        event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<(), Error> {
         let delivery = delivery_result.map_err(|e| e.into())?;
         debug!("Received delivery: {:?}", delivery);
@@ -184,7 +218,7 @@ where
             }
         };
 
-        let mut tracer = match self.get_task_tracer(message) {
+        let mut tracer = match self.get_task_tracer(message, event_tx) {
             Ok(tracer) => tracer,
             Err(e) => {
                 self.broker.ack(delivery).await?;
@@ -226,22 +260,91 @@ where
     }
 
     /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
-    async fn handle_delivery(&self, delivery_result: Result<B::Delivery, B::DeliveryError>) {
-        if let Err(e) = self.try_handle_delivery(delivery_result).await {
+    async fn handle_delivery(
+        &self,
+        delivery_result: Result<B::Delivery, B::DeliveryError>,
+        event_tx: UnboundedSender<TaskEvent>,
+    ) {
+        if let Err(e) = self.try_handle_delivery(delivery_result, event_tx).await {
             error!("{}", e);
         }
     }
 
     /// Consume tasks from a queue.
     pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
-        let consumer = self.broker.consume(queue).await?;
-        consumer
-            .for_each_concurrent(None, |delivery_result| {
-                async {
-                    tokio::spawn(self.handle_delivery(delivery_result));
-                }
-            })
-            .await;
+        // Stream of deliveries from the queue.
+        let mut deliveries = Box::pin(self.broker.consume(queue).await?.fuse());
+
+        // Stream of OS signals.
+        let mut signals = signal(SignalKind::interrupt())?.fuse();
+
+        // A sender and receiver for task related events.
+        // NOTE: we can use an unbounded channel since we already have backpressure
+        // from the `prefetch_count` setting.
+        let (event_tx, event_rx) = mpsc::unbounded_channel::<TaskEvent>();
+        let mut event_rx = event_rx.fuse();
+        let mut pending_tasks = 0;
+
+        // This is the main loop where we receive deliveries and pass them off
+        // to be handled by spawning `self.handle_delivery`.
+        // At the same time we are also listening for a SIGINT (Ctrl+C) interruption.
+        // If that occurs we break from this loop and move to the warm shutdown loop
+        // if there are still any pending tasks (tasks being executed, not including
+        // tasks being delayed due to a future ETA).
+        loop {
+            select! {
+                maybe_delivery_result = deliveries.next() => {
+                    if let Some(delivery_result) = maybe_delivery_result {
+                        let event_tx = event_tx.clone();
+                        tokio::spawn(self.handle_delivery(delivery_result, event_tx));
+                    }
+                },
+                _ = signals.next() => {
+                    warn!("Ope! Hitting Ctrl+C again will terminate all running tasks!");
+                    info!("Warm shutdown...");
+                    break;
+                },
+                maybe_event = event_rx.next() => {
+                    if let Some(event) = maybe_event {
+                        debug!("Received task event {:?}", event);
+                        match event.status {
+                            TaskStatus::Pending => pending_tasks += 1,
+                            TaskStatus::Finished => pending_tasks -= 1,
+                        };
+                    }
+                },
+            };
+        }
+
+        if pending_tasks > 0 {
+            // Warm shutdown loop. When there are still pendings tasks we wait for them
+            // to finish. We get updates about pending tasks through the `event_rx` channel.
+            // We also watch for a second SIGINT, in which case we immediately shutdown.
+            info!("Waiting on {} pending tasks...", pending_tasks);
+            loop {
+                select! {
+                    _ = signals.next() => {
+                        warn!("Okay fine, shutting down now. See ya!");
+                        return Err(ErrorKind::ForcedShutdown.into());
+                    },
+                    maybe_event = event_rx.next() => {
+                        if let Some(event) = maybe_event {
+                            debug!("Received task event {:?}", event);
+                            match event.status {
+                                TaskStatus::Pending => pending_tasks += 1,
+                                TaskStatus::Finished => pending_tasks -= 1,
+                            };
+                            if pending_tasks <= 0 {
+                                break;
+                            }
+                        }
+                    },
+                };
+            }
+        }
+
+        info!("No more pending tasks. See ya!");
+
         Ok(())
     }
 }

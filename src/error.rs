@@ -35,7 +35,7 @@ pub enum ErrorKind {
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueueError(String),
 
-    /// An error that is expected to happen every once in a while and should trigger be
+    /// An error that is expected to happen every once in a while and should trigger
     /// the task to be retried without causes a fit.
     #[fail(display = "{}", _0)]
     ExpectedError(String),
@@ -55,6 +55,14 @@ pub enum ErrorKind {
     /// When a mutex is poisened, for example.
     #[fail(display = "Sync error")]
     SyncError,
+
+    /// An IO error.
+    #[fail(display = "An IO error occured ({:?})", _0)]
+    IoError(tokio::io::ErrorKind),
+
+    /// Forced shutdown.
+    #[fail(display = "Forced shutdown")]
+    ForcedShutdown,
 }
 
 impl Fail for Error {
@@ -116,6 +124,14 @@ impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Error {
         Error {
             inner: Context::new(ErrorKind::SerializationError(err)),
+        }
+    }
+}
+
+impl From<tokio::io::Error> for Error {
+    fn from(err: tokio::io::Error) -> Error {
+        Error {
+            inner: Context::new(ErrorKind::IoError(err.kind())),
         }
     }
 }
