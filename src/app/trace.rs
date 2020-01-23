@@ -3,22 +3,28 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use log::{debug, error, info, warn};
 use rand::distributions::{Distribution, Uniform};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
-use super::TaskOptions;
+use super::{TaskEvent, TaskOptions, TaskStatus};
 use crate::protocol::{Message, MessageBody};
 use crate::{Error, ErrorKind, Task};
 
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, Error>;
 
-pub(super) type TraceBuilder =
-    Box<dyn Fn(Message, TaskOptions) -> TraceBuilderResult + Send + Sync + 'static>;
+pub(super) type TraceBuilder = Box<
+    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>) -> TraceBuilderResult
+        + Send
+        + Sync
+        + 'static,
+>;
 
 pub(super) fn build_tracer<T: Task + Send + 'static>(
     message: Message,
     options: TaskOptions,
+    event_tx: UnboundedSender<TaskEvent>,
 ) -> TraceBuilderResult {
-    Ok(Box::new(Tracer::<T>::new(message, options)?))
+    Ok(Box::new(Tracer::<T>::new(message, options, event_tx)?))
 }
 
 #[async_trait]
@@ -43,13 +49,18 @@ where
     message: Message,
     options: TaskOptions,
     countdown: Option<Duration>,
+    event_tx: UnboundedSender<TaskEvent>,
 }
 
 impl<T> Tracer<T>
 where
     T: Task,
 {
-    fn new(message: Message, options: TaskOptions) -> Result<Self, Error> {
+    fn new(
+        message: Message,
+        options: TaskOptions,
+        event_tx: UnboundedSender<TaskEvent>,
+    ) -> Result<Self, Error> {
         let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
         let task = body.1;
         let options = options.overrides(&task);
@@ -59,6 +70,7 @@ where
             message,
             options,
             countdown,
+            event_tx,
         })
     }
 }
@@ -94,6 +106,12 @@ where
             return Err(ErrorKind::TaskExpiredError.into());
         }
 
+        self.event_tx
+            .send(TaskEvent::new(TaskStatus::Pending))
+            .unwrap_or_else(|_| {
+                error!("Failed sending task event");
+            });
+
         let start = Instant::now();
         let result = match self.options.timeout {
             Some(secs) => {
@@ -114,7 +132,15 @@ where
                     duration.as_secs_f32(),
                     returned
                 );
+
                 self.task.on_success(&returned).await;
+
+                self.event_tx
+                    .send(TaskEvent::new(TaskStatus::Finished))
+                    .unwrap_or_else(|_| {
+                        error!("Failed sending task event");
+                    });
+
                 Ok(())
             }
             Err(e) => {
@@ -144,7 +170,15 @@ where
                         );
                     }
                 };
+
                 self.task.on_failure(&e).await;
+
+                self.event_tx
+                    .send(TaskEvent::new(TaskStatus::Finished))
+                    .unwrap_or_else(|_| {
+                        error!("Failed sending task event");
+                    });
+
                 if let Some(max_retries) = self.options.max_retries {
                     let retries = match self.message.headers.retries {
                         Some(n) => n,
@@ -154,11 +188,13 @@ where
                         return Err(e);
                     }
                 }
+
                 info!(
                     "Task {}[{}] retrying",
                     T::NAME,
                     self.message.properties.correlation_id
                 );
+
                 Err(ErrorKind::Retry.into())
             }
         }

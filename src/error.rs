@@ -59,6 +59,10 @@ pub enum ErrorKind {
     /// An IO error.
     #[fail(display = "An IO error occured ({:?})", _0)]
     IoError(tokio::io::ErrorKind),
+
+    /// Forced shutdown.
+    #[fail(display = "Forced shutdown")]
+    ForcedShutdown,
 }
 
 impl Fail for Error {
