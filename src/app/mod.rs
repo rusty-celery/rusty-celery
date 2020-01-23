@@ -51,7 +51,7 @@ struct TaskEvent {
 }
 
 impl TaskEvent {
-    pub(crate) fn new(status: TaskStatus) -> Self {
+    fn new(status: TaskStatus) -> Self {
         Self { status }
     }
 }
