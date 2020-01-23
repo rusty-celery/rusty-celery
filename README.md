@@ -24,11 +24,11 @@ Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batc
 
 ## Features
 
-- Send tasks from Python to Rust or vice versa :left_right_arrow:
-- Use provided brokers and backends or implement your own :wrench:
-- Natural async / await interface :sparkler:
-- Easily customizable with callbacks :telephone:
-- High performance and safe :fire: :fire: :fire:
+- Send tasks from Python to Rust or vice versa ↔️
+- Use provided brokers and backends or implement your own 🔧
+- Natural async / await interface 🎇
+- Easily customizable with callbacks ☎️
+- High performance and safe 🔥 🔥 🔥
 
 ## Examples
 
@@ -56,4 +56,4 @@ We welcome contributors! If you're interesting in contributing, a good place to 
 
 ## Team
 
-Rusty Celery is an open source project backed by [Structurely](https://structurely.com/). Structurely is a start-up building customizable AI inside sales agents.
+Rusty Celery is an open source project backed by [Structurely](https://structurely.com/). Structurely is a start-up building customizable AI inside sales agents that has been using Celery in production back to circa 2017.
