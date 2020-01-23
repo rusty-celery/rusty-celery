@@ -109,6 +109,8 @@ where
         self.event_tx
             .send(TaskEvent::new(TaskStatus::Pending))
             .unwrap_or_else(|_| {
+                // This really shouldn't happen. If it does, there's probably much
+                // bigger things to worry about like running out of memory.
                 error!("Failed sending task event");
             });
 

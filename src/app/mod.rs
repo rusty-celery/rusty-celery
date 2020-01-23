@@ -320,7 +320,7 @@ where
             // Warm shutdown loop. When there are still pendings tasks we wait for them
             // to finish. We get updates about pending tasks through the `event_rx` channel.
             // We also watch for a second SIGINT, in which case we immediately shutdown.
-            info!("Waiting on {} pending tasks", pending_tasks);
+            info!("Waiting on {} pending tasks...", pending_tasks);
             loop {
                 select! {
                     _ = signals.next() => {
