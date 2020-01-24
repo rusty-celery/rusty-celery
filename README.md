@@ -54,6 +54,8 @@ Rusty Celery is still in the early stages and therefore there are several featur
 
 We welcome contributors! If you're interesting in contributing, a good place to start would be any issue marked with the label ["Status: Help Wanted"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Status%3A+Help+Wanted%22).
 
+For more information on our guidelines please refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Team
 
 Rusty Celery is an open source project backed by [Structurely](https://structurely.com/). Structurely is a start-up building customizable AI inside sales agents that has been using Celery in production back to circa 2017.
