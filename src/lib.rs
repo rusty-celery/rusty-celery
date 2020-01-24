@@ -26,6 +26,7 @@ mod app;
 // producing and consuming tasks.
 mod broker;
 
+// Macro rules for quickly defining apps.
 #[cfg(feature = "codegen")]
 mod codegen;
 
@@ -56,5 +57,6 @@ pub use broker::{
 pub use error::{Error, ErrorKind};
 pub use task::Task;
 
+// Proc macros for defining tasks.
 #[cfg(feature = "codegen")]
 pub use celery_codegen::task;
