@@ -26,6 +26,9 @@ mod app;
 // producing and consuming tasks.
 mod broker;
 
+#[cfg(feature = "codegen")]
+mod codegen;
+
 // Defines the `Error` type used across Rusty Celery.
 mod error;
 
@@ -50,7 +53,8 @@ pub use broker::{
     amqp::{AMQPBroker, AMQPBrokerBuilder},
     Broker,
 };
-#[cfg(feature = "codegen")]
-pub use celery_codegen::task;
 pub use error::{Error, ErrorKind};
 pub use task::Task;
+
+#[cfg(feature = "codegen")]
+pub use celery_codegen::task;

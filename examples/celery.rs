@@ -1,5 +1,7 @@
+#![allow(non_upper_case_globals)]
+
 use async_trait::async_trait;
-use celery::{task, AMQPBroker, Celery, ErrorKind};
+use celery::{celery_app, task, AMQPBroker, Celery, ErrorKind};
 use exitfailure::ExitFailure;
 use lazy_static::lazy_static;
 use structopt::StructOpt;
@@ -33,41 +35,25 @@ enum CeleryOpt {
     Produce,
 }
 
-static QUEUE: &str = "celery";
-
 #[tokio::main]
 async fn main() -> Result<(), ExitFailure> {
     env_logger::init();
     let opt = CeleryOpt::from_args();
 
-    // The Celery app instance needs to have a static lifetime in order to be able
-    // to consume from a queue, since consuming spawns async tasks that are bound
-    // to the app.
-    lazy_static! {
-        static ref CELERY: Celery<AMQPBroker> = {
-            let broker_url =
-                std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
-            let broker = AMQPBroker::builder(&broker_url)
-                .queue(QUEUE)
-                .prefetch_count(2)
-                .build()
-                .unwrap();
-            let celery = Celery::builder("celery", broker)
-                .default_queue_name(QUEUE)
-                .build();
-            celery.register_task::<add>().unwrap();
-            celery.register_task::<buggy_task>().unwrap();
-            celery.register_task::<long_running_task>().unwrap();
-            celery
-        };
-    }
+    // Initialize a Celery app named 'app'.
+    celery_app!(
+        app,
+        broker_url = std::env::var("AMQP_ADDR").unwrap(),
+        default_queue = "celery",
+        tasks = [add, buggy_task, long_running_task],
+    );
 
     match opt {
         CeleryOpt::Consume => {
-            CELERY.consume(QUEUE).await?;
+            app.consume("celery").await?;
         }
         CeleryOpt::Produce => {
-            CELERY.send_task(add(1, 2), QUEUE).await?;
+            app.send_task(add(1, 2), "celery").await?;
         }
     };
 
