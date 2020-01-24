@@ -56,6 +56,12 @@ Then set the `upstream` remote to the original repo. This is essential if you pl
 git remote add upstream https://github.com/rusty-celery/rusty-celery.git
 ```
 
+### Building a testing
+
+To compile the codebase just type `make` (the Makefile in this repo is mostly just a wrapper for common `cargo` commands). To lint the code use `make lint`, and to run tests use `make test`. Before submitting a PR please run all of these commands and make sure they complete successfully.
+
+Additionally, if your contribution involves changes to the API documentation, please build and proofread the docs with `cargo doc --workspace --open`.
+
 ### Continuing to contribute
 
 When you are preparing to make additional contributions you should first make sure your local fork is up-to-date:
