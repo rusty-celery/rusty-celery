@@ -49,7 +49,7 @@ impl TaskEvent {
 
 struct Config<Bb>
 where
-    Bb: BrokerBuilder + 'static,
+    Bb: BrokerBuilder,
 {
     name: String,
     broker_builder: Bb,
@@ -58,19 +58,16 @@ where
 }
 
 /// Used to create a `Celery` app with a custom configuration.
-pub struct CeleryBuilder<B, Bb>
+pub struct CeleryBuilder<Bb>
 where
-    B: Broker + 'static,
-    Bb: BrokerBuilder<Broker = B> + 'static,
+    Bb: BrokerBuilder,
 {
     config: Config<Bb>,
-    phantom: std::marker::PhantomData<B>,
 }
 
-impl<B, Bb> CeleryBuilder<B, Bb>
+impl<Bb> CeleryBuilder<Bb>
 where
-    B: Broker + 'static,
-    Bb: BrokerBuilder<Broker = B> + 'static,
+    Bb: BrokerBuilder,
 {
     /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
     pub fn new(name: &str, broker_url: &str) -> Self {
@@ -86,14 +83,12 @@ where
                     max_retry_delay: 3600,
                 },
             },
-            phantom: std::marker::PhantomData,
         }
     }
 
     /// Set the name of the default queue.
     pub fn default_queue_name(mut self, queue_name: &str) -> Self {
         self.config.default_queue_name = queue_name.into();
-        self.config.broker_builder = self.config.broker_builder.queue(queue_name);
         self
     }
 
@@ -134,10 +129,14 @@ where
     }
 
     /// Construct a `Celery` app with the current configuration .
-    pub fn build(self) -> Result<Celery<B>, Error> {
+    pub fn build(self) -> Result<Celery<Bb::Broker>, Error> {
+        let broker_builder = self
+            .config
+            .broker_builder
+            .queue(&self.config.default_queue_name);
         Ok(Celery {
             name: self.config.name,
-            broker: self.config.broker_builder.build()?,
+            broker: broker_builder.build()?,
             default_queue_name: self.config.default_queue_name,
             task_trace_builders: RwLock::new(HashMap::new()),
             task_options: self.config.task_options,
@@ -169,11 +168,8 @@ where
     B: Broker + 'static,
 {
     /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
-    pub fn builder<Bb>(name: &str, broker_url: &str) -> CeleryBuilder<B, Bb>
-    where
-        Bb: BrokerBuilder<Broker = B>,
-    {
-        CeleryBuilder::<B, Bb>::new(name, broker_url)
+    pub fn builder(name: &str, broker_url: &str) -> CeleryBuilder<B::Builder> {
+        CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
     /// Send a task to a remote worker.

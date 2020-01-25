@@ -9,9 +9,9 @@ pub mod amqp;
 
 /// A message `Broker` is used as the transport for producing or consuming tasks.
 #[async_trait]
-pub trait Broker: Send + Sync {
+pub trait Broker: Send + Sync + Sized {
     /// The builder type used to create the broker with a custom configuration.
-    type Builder: BrokerBuilder;
+    type Builder: BrokerBuilder<Broker = Self>;
 
     /// The type representing a successful delivery.
     type Delivery: TryIntoMessage + Send + Sync + Clone + std::fmt::Debug;

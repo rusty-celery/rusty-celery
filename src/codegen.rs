@@ -1,3 +1,4 @@
+/// A macro for creating a `Celery` app.
 #[macro_export]
 macro_rules! celery_app {
     (
@@ -13,7 +14,7 @@ macro_rules! celery_app {
             static ref $name: Celery<$broker_type> = {
                 let broker_url = $broker_url;
 
-                let mut builder = Celery::builder::<<$broker_type as Broker>::Builder>("celery", &broker_url);
+                let mut builder = Celery::<$broker_type>::builder("celery", &broker_url);
 
                 $(
                     builder = builder.$x($y);
