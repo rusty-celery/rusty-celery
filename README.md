@@ -25,36 +25,36 @@ Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batc
 ## Features
 
 - Send tasks from Python to Rust or vice versa ↔️
-- Use provided brokers and backends or implement your own 🔧
+- Use provided brokers and backends (coming soon) or implement your own 🔧
 - Natural async / await interface 🎇
-- Easily customizable with callbacks ☎️
+- Easily customizable with callbacks ☎️ (coming soon)
 - High performance and safe 🔥 🔥 🔥
 
-## Examples
+## Quick links
 
-The `./examples` directory contains a simple Celery app that is implemented in both Python and Rust using an AMQP broker. Before running the examples you'll need to set the environment variable `AMQP_ADDR` to your broker URL. I also recommend setting `RUST_LOG=debug`.
+- [API docs](https://docs.rs/celery/)
+- [The Rusty Celery Book](https://rusty-celery.github.io/) (work in progress)
+- [Library on crates.io](https://crates.io/crates/celery)
+- [Issues and pending features](https://github.com/rusty-celery/rusty-celery/issues)
+- [Contributing](https://github.com/rusty-celery/rusty-celery/blob/master/CONTRIBUTING.md)
 
-Then send a task from Python to Rust by running the script
+## Getting started
+
+The `./examples` directory contains a simple Celery app that is implemented in both Rust ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)) and Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)) using an AMQP broker. 
+
+Before running the examples you'll need to have the broker set up. RabbitMQ is a popular implementation of the AMQP protocol and provides a [Docker image](https://hub.docker.com/_/rabbitmq) that you can run locally. Another option would be to use a hosting provider like [CloudAMQP](https://www.cloudamqp.com/), which provides a free tier broker for development purposes.
+
+Once you have your broker running, set the environment variable `AMQP_ADDR` to your broker URL. I also recommend setting `RUST_LOG=debug`. Then you can send a task from Python to Rust by running the script
 
 ```bash
 ./examples/python_to_rust.sh
 ```
 
-Similary, send a task from Rust to Python by running
+And send a task from Rust to Python by running
 
 ```bash
 ./examples/rust_to_python.sh
 ```
-
-## Missing features
-
-Rusty Celery is still in the early stages and therefore there are several features of the Celery protocol that are still missing. To see what's currently missing search for issues with the label ["Protocol Feature"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Protocol+Feature%22).
-
-## Contributing
-
-We welcome contributors! If you're interesting in contributing, a good place to start would be any issue marked with the label ["Status: Help Wanted"](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aopen+is%3Aissue+label%3A%22Status%3A+Help+Wanted%22).
-
-For more information on our guidelines please refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Team
 
