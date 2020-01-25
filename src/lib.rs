@@ -52,7 +52,7 @@ mod task;
 pub use app::{Celery, CeleryBuilder};
 pub use broker::{
     amqp::{AMQPBroker, AMQPBrokerBuilder},
-    Broker,
+    Broker, BrokerBuilder,
 };
 pub use error::{Error, ErrorKind};
 pub use task::Task;

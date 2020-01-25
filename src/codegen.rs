@@ -7,7 +7,7 @@ macro_rules! celery_app {
         default_queue = $default_queue:expr,
         tasks = [ $( $t:ty ),* ],
     ) => {
-        use celery::Celery;
+        use celery::{Celery, Broker, BrokerBuilder};
 
         lazy_static! {
             static ref $name: Celery<$broker_type> = {

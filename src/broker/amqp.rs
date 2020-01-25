@@ -12,7 +12,7 @@ use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 
-use super::Broker;
+use super::{Broker, BrokerBuilder};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryIntoMessage};
 use crate::{Error, ErrorKind};
 
@@ -38,16 +38,20 @@ impl AMQPBrokerBuilder {
             },
         }
     }
+}
+
+impl BrokerBuilder for AMQPBrokerBuilder {
+    type Broker = AMQPBroker;
 
     /// Set the worker [prefetch
     /// count](https://www.rabbitmq.com/confirms.html#channel-qos-prefetch).
-    pub fn prefetch_count(mut self, prefetch_count: u16) -> Self {
+    fn prefetch_count(mut self, prefetch_count: u16) -> Self {
         self.config.prefetch_count = prefetch_count;
         self
     }
 
     /// Add / register a queue.
-    pub fn queue(mut self, name: &str) -> Self {
+    fn queue(mut self, name: &str) -> Self {
         self.config.queues.insert(
             name.into(),
             QueueDeclareOptions {
@@ -62,7 +66,7 @@ impl AMQPBrokerBuilder {
     }
 
     /// Build an `AMQPBroker`.
-    pub fn build(self) -> Result<AMQPBroker, Error> {
+    fn build(self) -> Result<AMQPBroker, Error> {
         let conn = executor::block_on(Connection::connect(
             &self.config.broker_url,
             ConnectionProperties::default(),
@@ -95,11 +99,6 @@ pub struct AMQPBroker {
 }
 
 impl AMQPBroker {
-    /// Get an `AMQPBrokerBuilder` for creating an AMQP broker with a custom configuration.
-    pub fn builder(broker_url: &str) -> AMQPBrokerBuilder {
-        AMQPBrokerBuilder::new(broker_url)
-    }
-
     async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), Error> {
         debug!("Setting prefetch count to {}", prefetch_count);
         self.channel
@@ -111,12 +110,17 @@ impl AMQPBroker {
 
 #[async_trait]
 impl Broker for AMQPBroker {
+    type Builder = AMQPBrokerBuilder;
     type Delivery = lapin::message::Delivery;
     type DeliveryError = lapin::Error;
-    type Consumer = lapin::Consumer;
-    type ConsumerIterator = lapin::ConsumerIterator;
+    type DeliveryStream = lapin::Consumer;
 
-    async fn consume(&self, queue: &str) -> Result<Self::Consumer, Error> {
+    /// Get an `AMQPBrokerBuilder` for creating an AMQP broker with a custom configuration.
+    fn builder(broker_url: &str) -> AMQPBrokerBuilder {
+        AMQPBrokerBuilder::new(broker_url)
+    }
+
+    async fn consume(&self, queue: &str) -> Result<Self::DeliveryStream, Error> {
         let queue = self
             .queues
             .get(queue)
