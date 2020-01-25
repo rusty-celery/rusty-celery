@@ -94,7 +94,9 @@ where
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, self.task.run()).into_inner().await
+                time::timeout(duration, self.task.run())
+                    .await
+                    .unwrap_or_else(|_| Err(Error::from(ErrorKind::TimeoutError)))
             }
             None => self.task.run().await,
         };
@@ -136,6 +138,13 @@ where
                             T::NAME,
                             self.message.properties.correlation_id,
                             reason
+                        );
+                    }
+                    ErrorKind::TimeoutError => {
+                        error!(
+                            "Task {}[{}] timed out",
+                            T::NAME,
+                            self.message.properties.correlation_id,
                         );
                     }
                     _ => {

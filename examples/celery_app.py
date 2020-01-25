@@ -14,11 +14,11 @@ def add(x, y):
 
 if __name__ == "__main__":
     #  add.apply_async(args=[1, 0], countdown=5, expires=2)
-    add.apply_async(args=[1, 1], countdown=5)
+    #  add.apply_async(args=[1, 1], countdown=5)
     #  add.apply_async(args=[1, 1])
     #  add.apply_async(args=[1, 2], countdown=10)
     #  add.apply_async(args=[1, 3], countdown=10)
     #  add.apply_async(args=[2, 4], countdown=10)
     #  add.apply_async(args=[2, 5], countdown=10)
     #  app.send_task("buggy_task")
-    #  app.send_task("long_running_task")
+    my_app.send_task("long_running_task")
