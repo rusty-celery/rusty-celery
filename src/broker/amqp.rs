@@ -27,9 +27,11 @@ pub struct AMQPBrokerBuilder {
     config: Config,
 }
 
-impl AMQPBrokerBuilder {
+impl BrokerBuilder for AMQPBrokerBuilder {
+    type Broker = AMQPBroker;
+
     /// Create a new `AMQPBrokerBuilder`.
-    pub fn new(broker_url: &str) -> Self {
+    fn new(broker_url: &str) -> Self {
         Self {
             config: Config {
                 broker_url: broker_url.into(),
@@ -38,10 +40,6 @@ impl AMQPBrokerBuilder {
             },
         }
     }
-}
-
-impl BrokerBuilder for AMQPBrokerBuilder {
-    type Broker = AMQPBroker;
 
     /// Set the worker [prefetch
     /// count](https://www.rabbitmq.com/confirms.html#channel-qos-prefetch).

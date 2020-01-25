@@ -14,19 +14,11 @@ macro_rules! celery_app {
                 let broker_url = $broker_url;
                 let default_queue = $default_queue;
 
-                // Initialize broker.
-                let broker = <$broker_type>::builder(&broker_url)
-                    .queue(default_queue)
-                    .prefetch_count(2)
+                let celery: Celery<$broker_type> = Celery::builder::<<$broker_type as Broker>::Builder>("celery", &broker_url)
+                    .default_queue_name(default_queue)
                     .build()
                     .unwrap();
 
-                // Initialize Celery app.
-                let celery = Celery::builder("celery", broker)
-                    .default_queue_name(default_queue)
-                    .build();
-
-                // Register tasks.
                 $(
                     celery.register_task::<$t>().unwrap();
                 )*

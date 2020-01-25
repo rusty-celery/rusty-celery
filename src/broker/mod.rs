@@ -61,6 +61,9 @@ pub trait Broker: Send + Sync {
 pub trait BrokerBuilder {
     type Broker: Broker;
 
+    /// Create a new `BrokerBuilder`.
+    fn new(broker_url: &str) -> Self;
+
     /// Set the prefetch count.
     fn prefetch_count(self, prefetch_count: u16) -> Self;
 

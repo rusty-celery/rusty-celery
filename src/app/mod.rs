@@ -8,7 +8,7 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 mod trace;
 
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
-use crate::{Broker, Error, ErrorKind, Task};
+use crate::{Broker, BrokerBuilder, Error, ErrorKind, Task};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 #[derive(Copy, Clone, Default)]
@@ -47,34 +47,37 @@ impl TaskEvent {
     }
 }
 
-struct Config<B>
+struct Config<Bb>
 where
-    B: Broker + 'static,
+    Bb: BrokerBuilder + 'static,
 {
     name: String,
-    broker: B,
+    broker_builder: Bb,
     default_queue_name: String,
     task_options: TaskOptions,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
-pub struct CeleryBuilder<B>
+pub struct CeleryBuilder<B, Bb>
 where
     B: Broker + 'static,
+    Bb: BrokerBuilder + 'static,
 {
-    config: Config<B>,
+    config: Config<Bb>,
+    phantom: std::marker::PhantomData<B>,
 }
 
-impl<B> CeleryBuilder<B>
+impl<B, Bb> CeleryBuilder<B, Bb>
 where
     B: Broker + 'static,
+    Bb: BrokerBuilder<Broker = B> + 'static,
 {
     /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
-    fn new(name: &str, broker: B) -> Self {
+    pub fn new(name: &str, broker_url: &str) -> Self {
         Self {
             config: Config {
                 name: name.into(),
-                broker,
+                broker_builder: Bb::new(broker_url),
                 default_queue_name: "celery".into(),
                 task_options: TaskOptions {
                     timeout: None,
@@ -83,12 +86,26 @@ where
                     max_retry_delay: 3600,
                 },
             },
+            phantom: std::marker::PhantomData,
         }
     }
 
     /// Set the name of the default queue.
     pub fn default_queue_name(mut self, queue_name: &str) -> Self {
         self.config.default_queue_name = queue_name.into();
+        self.config.broker_builder = self.config.broker_builder.queue(queue_name);
+        self
+    }
+
+    /// Set the prefetch count.
+    pub fn prefetch_count(mut self, prefetch_count: u16) -> Self {
+        self.config.broker_builder = self.config.broker_builder.prefetch_count(prefetch_count);
+        self
+    }
+
+    /// Register a queue.
+    pub fn queue(mut self, name: &str) -> Self {
+        self.config.broker_builder = self.config.broker_builder.queue(name);
         self
     }
 
@@ -117,14 +134,14 @@ where
     }
 
     /// Construct a `Celery` app with the current configuration .
-    pub fn build(self) -> Celery<B> {
-        Celery {
+    pub fn build(self) -> Result<Celery<B>, Error> {
+        Ok(Celery {
             name: self.config.name,
-            broker: self.config.broker,
+            broker: self.config.broker_builder.build()?,
             default_queue_name: self.config.default_queue_name,
             task_trace_builders: RwLock::new(HashMap::new()),
             task_options: self.config.task_options,
-        }
+        })
     }
 }
 
@@ -152,13 +169,11 @@ where
     B: Broker + 'static,
 {
     /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
-    pub fn builder(name: &str, broker: B) -> CeleryBuilder<B> {
-        CeleryBuilder::new(name, broker)
-    }
-
-    /// Create a new `Celery` app with the given name and broker.
-    pub fn new(name: &str, broker: B) -> Self {
-        Self::builder(name, broker).build()
+    pub fn builder<Bb>(name: &str, broker_url: &str) -> CeleryBuilder<B, Bb>
+    where
+        Bb: BrokerBuilder<Broker = B>,
+    {
+        CeleryBuilder::<B, Bb>::new(name, broker_url)
     }
 
     /// Send a task to a remote worker.
