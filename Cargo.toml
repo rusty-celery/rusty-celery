@@ -18,7 +18,7 @@ name = "celery"
 path = "src/lib.rs"
 
 [[example]]
-name = "celery"
+name = "celery_app"
 
 [dependencies]
 chrono = "0.4"

@@ -12,4 +12,4 @@ echo ""
 
 echo "Consuming celery task from Rust"
 echo "-------------------------------"
-cargo run --example celery consume
+cargo run --example celery_app consume

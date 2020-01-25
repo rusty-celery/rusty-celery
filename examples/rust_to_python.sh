@@ -6,7 +6,7 @@ test -f .env && source .env
 
 echo "Sending celery task from Rust"
 echo "-----------------------------"
-cargo run --example celery produce
+cargo run --example celery_app produce
 echo ""
 echo ""
 
