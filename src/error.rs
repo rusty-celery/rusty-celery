@@ -63,6 +63,10 @@ pub enum ErrorKind {
     /// Forced shutdown.
     #[fail(display = "Forced shutdown")]
     ForcedShutdown,
+
+    /// Task timed out.
+    #[fail(display = "Task timed out")]
+    TimeoutError,
 }
 
 impl Fail for Error {
@@ -132,6 +136,14 @@ impl From<tokio::io::Error> for Error {
     fn from(err: tokio::io::Error) -> Error {
         Error {
             inner: Context::new(ErrorKind::IoError(err.kind())),
+        }
+    }
+}
+
+impl From<tokio::time::Elapsed> for Error {
+    fn from(_err: tokio::time::Elapsed) -> Error {
+        Error {
+            inner: Context::new(ErrorKind::TimeoutError),
         }
     }
 }
