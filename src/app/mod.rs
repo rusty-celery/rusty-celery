@@ -61,7 +61,7 @@ where
 pub struct CeleryBuilder<B, Bb>
 where
     B: Broker + 'static,
-    Bb: BrokerBuilder + 'static,
+    Bb: BrokerBuilder<Broker = B> + 'static,
 {
     config: Config<Bb>,
     phantom: std::marker::PhantomData<B>,

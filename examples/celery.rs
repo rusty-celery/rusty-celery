@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use celery::{celery_app, task, AMQPBroker, ErrorKind};
 use exitfailure::ExitFailure;
-use lazy_static::lazy_static;
 use structopt::StructOpt;
 use tokio::time::{self, Duration};
 
@@ -45,8 +44,9 @@ async fn main() -> Result<(), ExitFailure> {
         app,
         AMQPBroker,
         broker_url = std::env::var("AMQP_ADDR").unwrap(),
-        default_queue = "celery",
         tasks = [add, buggy_task, long_running_task],
+        default_queue_name = "celery",
+        prefetch_count = 2,
     );
 
     match opt {
