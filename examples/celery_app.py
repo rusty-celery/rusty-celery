@@ -3,11 +3,11 @@ import os
 from celery import Celery
 
 
-app = Celery("celery", broker=os.environ.get("AMQP_ADDR", "amqp://127.0.0.1:5672"))
-app.conf.update(result_backend=None, task_ignore_result=True)
+my_app = Celery("celery", broker=os.environ.get("AMQP_ADDR", "amqp://127.0.0.1:5672"))
+my_app.conf.update(result_backend=None, task_ignore_result=True)
 
 
-@app.task(name="add")
+@my_app.task(name="add")
 def add(x, y):
     return x + y
 
