@@ -212,7 +212,7 @@ where
         }
     }
 
-    /// Trie converting a delivery into a `Message`, executing the corresponding task,
+    /// Tries converting a delivery into a `Message`, executing the corresponding task,
     /// and communicating with the broker.
     async fn try_handle_delivery(
         &self,
@@ -222,24 +222,34 @@ where
         let delivery = delivery_result.map_err(|e| e.into())?;
         debug!("Received delivery: {:?}", delivery);
 
+        // Coerce the delivery into a protocol message.
         let message = match delivery.try_into_message() {
             Ok(message) => message,
             Err(e) => {
+                // This is a naughty message that we can't handle, so we'll ack it with
+                // the broker so it gets deleted.
                 self.broker.ack(delivery).await?;
                 return Err(e);
             }
         };
 
+        // Try deserializing the message to create a task wrapped in a task tracer.
+        // (The tracer handles all of the logic of directly interacting with the task
+        // to execute it and handle the post-execution functions).
         let mut tracer = match self.get_task_tracer(message, event_tx) {
             Ok(tracer) => tracer,
             Err(e) => {
+                // Even though the message meta data was okay, we failed to deserialize
+                // the body of the message for some reason, so ack it with the broker
+                // to delete it and return an error.
                 self.broker.ack(delivery).await?;
                 return Err(e);
             }
         };
 
         if tracer.is_delayed() {
-            // Task has an ETA, so we need to increment the prefetch count.
+            // Task has an ETA, so we need to increment the prefetch count so that
+            // we can receive other tasks while we wait for the ETA.
             if let Err(e) = self.broker.increase_prefetch_count().await {
                 // If for some reason this operation fails, we should stop tracing
                 // this task and send it back to the broker to retry.
@@ -251,19 +261,27 @@ where
             };
         }
 
+        // Try tracing the task now.
+        // NOTE: we don't need to log errors from the trace here since the tracer
+        // handles all errors at it's own level or the task level. In this function
+        // we only log errors at the broker and delivery level.
         match tracer.trace().await {
             Ok(_) => {
                 self.broker.ack(delivery).await?;
             }
             Err(e) => match e.kind() {
+                // Retriable error -> retry the task.
                 ErrorKind::Retry => {
                     let retry_eta = tracer.retry_eta();
                     self.broker.retry(delivery, retry_eta).await?
                 }
+                // Some other kind of error -> ack / delete the task.
                 _ => self.broker.ack(delivery).await?,
             },
         };
 
+        // If we increased the prefetch count before due to a future ETA, we have
+        // to decrease it back down.
         if tracer.is_delayed() {
             self.broker.decrease_prefetch_count().await?;
         }

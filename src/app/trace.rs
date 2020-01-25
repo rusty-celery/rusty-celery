@@ -10,37 +10,12 @@ use super::{TaskEvent, TaskOptions, TaskStatus};
 use crate::protocol::{Message, MessageBody};
 use crate::{Error, ErrorKind, Task};
 
-pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, Error>;
-
-pub(super) type TraceBuilder = Box<
-    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>) -> TraceBuilderResult
-        + Send
-        + Sync
-        + 'static,
->;
-
-pub(super) fn build_tracer<T: Task + Send + 'static>(
-    message: Message,
-    options: TaskOptions,
-    event_tx: UnboundedSender<TaskEvent>,
-) -> TraceBuilderResult {
-    Ok(Box::new(Tracer::<T>::new(message, options, event_tx)?))
-}
-
-#[async_trait]
-pub(super) trait TracerTrait: Send {
-    /// Wraps the execution of a task, catching and logging errors and then running
-    /// the appropriate post-execution functions.
-    async fn trace(&mut self) -> Result<(), Error>;
-
-    /// Get the ETA for a retry with exponential backoff.
-    fn retry_eta(&self) -> Option<DateTime<Utc>>;
-
-    fn is_delayed(&self) -> bool;
-
-    fn is_expired(&self) -> bool;
-}
-
+/// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
+///
+/// A `Tracer` is tied to a task and is responsible for executing it directly, catching
+/// and handling any errors, logging, and running the `on_failure` or `on_success` post-execution
+/// methods. It communicates its progress and the results back to the application through
+/// the `event_tx` channel and the return value of `Tracer::trace`, respectively.
 pub(super) struct Tracer<T>
 where
     T: Task,
@@ -236,4 +211,35 @@ where
     fn is_expired(&self) -> bool {
         self.message.is_expired()
     }
+}
+
+#[async_trait]
+pub(super) trait TracerTrait: Send {
+    /// Wraps the execution of a task, catching and logging errors and then running
+    /// the appropriate post-execution functions.
+    async fn trace(&mut self) -> Result<(), Error>;
+
+    /// Get the ETA for a retry with exponential backoff.
+    fn retry_eta(&self) -> Option<DateTime<Utc>>;
+
+    fn is_delayed(&self) -> bool;
+
+    fn is_expired(&self) -> bool;
+}
+
+pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, Error>;
+
+pub(super) type TraceBuilder = Box<
+    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>) -> TraceBuilderResult
+        + Send
+        + Sync
+        + 'static,
+>;
+
+pub(super) fn build_tracer<T: Task + Send + 'static>(
+    message: Message,
+    options: TaskOptions,
+    event_tx: UnboundedSender<TaskEvent>,
+) -> TraceBuilderResult {
+    Ok(Box::new(Tracer::<T>::new(message, options, event_tx)?))
 }
