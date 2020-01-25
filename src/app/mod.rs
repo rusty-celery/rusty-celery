@@ -280,8 +280,8 @@ where
             },
         };
 
-        // If we increased the prefetch count before due to a future ETA, we have
-        // to decrease it back down.
+        // If we had increased the prefetch count above due to a future ETA, we have
+        // to decrease it back down to restore balance to the universe.
         if tracer.is_delayed() {
             self.broker.decrease_prefetch_count().await?;
         }
