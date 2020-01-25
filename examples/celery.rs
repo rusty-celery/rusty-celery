@@ -42,11 +42,8 @@ async fn main() -> Result<(), ExitFailure> {
     // Initialize a Celery app named 'app'.
     celery_app!(
         app,
-        AMQPBroker,
-        broker_url = std::env::var("AMQP_ADDR").unwrap(),
+        AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
         tasks = [add, buggy_task, long_running_task],
-        default_queue_name = "celery",
-        prefetch_count = 2,
     );
 
     match opt {
