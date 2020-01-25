@@ -48,8 +48,12 @@ pub trait Broker: Send + Sync {
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;
 
+    /// Increase the `prefetch_count`. This has to be done when a task with a future
+    /// ETA is consumed.
     async fn increase_prefetch_count(&self) -> Result<(), Error>;
 
+    /// Decrease the `prefetch_count`. This has to be done after a task with a future
+    /// ETA is executed.
     async fn decrease_prefetch_count(&self) -> Result<(), Error>;
 }
 
