@@ -126,15 +126,7 @@ where
                 match e.kind() {
                     ErrorKind::ExpectedError(reason) => {
                         warn!(
-                            "Task {}[{}] raised expected: {}",
-                            T::NAME,
-                            self.message.properties.correlation_id,
-                            reason
-                        );
-                    }
-                    ErrorKind::UnexpectedError(reason) => {
-                        error!(
-                            "Task {}[{}] raised unexpected: {}",
+                            "Task {}[{}] failed with expected error: {}",
                             T::NAME,
                             self.message.properties.correlation_id,
                             reason
@@ -149,7 +141,7 @@ where
                     }
                     _ => {
                         error!(
-                            "Task {}[{}] failed: {}",
+                            "Task {}[{}] failed with unexpected error: {}",
                             T::NAME,
                             self.message.properties.correlation_id,
                             e
@@ -165,21 +157,34 @@ where
                         error!("Failed sending task event");
                     });
 
+                let retries = match self.message.headers.retries {
+                    Some(n) => n,
+                    None => 0,
+                };
                 if let Some(max_retries) = self.options.max_retries {
-                    let retries = match self.message.headers.retries {
-                        Some(n) => n,
-                        None => 0,
-                    };
                     if retries >= max_retries {
+                        warn!(
+                            "Task {}[{}] retries exceeded",
+                            T::NAME,
+                            self.message.properties.correlation_id
+                        );
                         return Err(e);
                     }
+                    info!(
+                        "Task {}[{}] retrying ({} / {})",
+                        T::NAME,
+                        self.message.properties.correlation_id,
+                        retries + 1,
+                        max_retries,
+                    );
+                } else {
+                    info!(
+                        "Task {}[{}] retrying ({} / inf)",
+                        T::NAME,
+                        self.message.properties.correlation_id,
+                        retries + 1,
+                    );
                 }
-
-                info!(
-                    "Task {}[{}] retrying",
-                    T::NAME,
-                    self.message.properties.correlation_id
-                );
 
                 Err(ErrorKind::Retry.into())
             }
