@@ -20,7 +20,7 @@ pub(super) struct Tracer<T>
 where
     T: Task,
 {
-    task: T,
+    task: Option<T>,
     message: Message,
     options: TaskOptions,
     countdown: Option<Duration>,
@@ -41,7 +41,7 @@ where
         let options = options.overrides(&task);
         let countdown = message.countdown();
         Ok(Self {
-            task,
+            task: Some(task),
             message,
             options,
             countdown,
@@ -90,15 +90,16 @@ where
             });
 
         let start = Instant::now();
+        let task = self.task.take().unwrap();
         let result = match self.options.timeout {
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, self.task.run())
+                time::timeout(duration, task.run())
                     .await
                     .unwrap_or_else(|_| Err(Error::from(ErrorKind::TimeoutError)))
             }
-            None => self.task.run().await,
+            None => task.run().await,
         };
         let duration = start.elapsed();
 
@@ -113,7 +114,7 @@ where
                 );
 
                 // Run success callback.
-                self.task.on_success(&returned).await;
+                T::on_success(&returned).await;
 
                 self.event_tx
                     .send(TaskEvent::new(TaskStatus::Finished))
@@ -151,7 +152,7 @@ where
                 };
 
                 // Run failure callback.
-                self.task.on_failure(&e).await;
+                T::on_failure(&e).await;
 
                 self.event_tx
                     .send(TaskEvent::new(TaskStatus::Finished))

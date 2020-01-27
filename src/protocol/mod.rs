@@ -301,7 +301,7 @@ mod tests {
 
         type Returns = ();
 
-        async fn run(&mut self) -> Result<(), Error> {
+        async fn run(mut self) -> Result<(), Error> {
             Ok(())
         }
     }
