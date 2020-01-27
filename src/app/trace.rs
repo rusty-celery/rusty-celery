@@ -6,9 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
-use super::{TaskEvent, TaskOptions, TaskStatus};
-use crate::protocol::{Message, MessageBody};
-use crate::{Error, ErrorKind, Task};
+use crate::error::{Error, ErrorKind};
+use crate::protocol::Message;
+use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
@@ -36,8 +36,8 @@ where
         options: TaskOptions,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Self, Error> {
-        let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
-        let task = body.1;
+        let body = message.body::<T>()?;
+        let (task, _) = body.parts();
         let options = options.overrides(&task);
         let countdown = message.countdown();
         Ok(Self {
@@ -196,8 +196,7 @@ where
     fn retry_eta(&self) -> Option<DateTime<Utc>> {
         let retries = self.message.headers.retries.unwrap_or(0);
         let delay_secs = std::cmp::min(
-            2usize
-                .checked_pow(retries as u32)
+            2u32.checked_pow(retries)
                 .unwrap_or_else(|| self.options.max_retry_delay),
             self.options.max_retry_delay,
         );
@@ -207,7 +206,7 @@ where
         let delay_millis = between.sample(&mut rng);
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(now) => {
-                let now_secs = now.as_secs() as usize;
+                let now_secs = now.as_secs() as u32;
                 let now_millis = now.subsec_millis();
                 let eta_secs = now_secs + delay_secs;
                 let eta_millis = now_millis + delay_millis;

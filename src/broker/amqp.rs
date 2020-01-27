@@ -13,8 +13,8 @@ use log::debug;
 use std::collections::HashMap;
 
 use super::{Broker, BrokerBuilder};
+use crate::error::{Error, ErrorKind};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryIntoMessage};
-use crate::{Error, ErrorKind};
 
 struct Config {
     broker_url: String,
@@ -166,7 +166,7 @@ impl Broker for AMQPBroker {
                 "",
                 queue,
                 BasicPublishOptions::default(),
-                message.raw_data.clone(),
+                message.raw_body.clone(),
                 properties,
             )
             .await?;
@@ -435,13 +435,13 @@ impl TryIntoMessage for lapin::message::Delivery {
                     }
                 }),
                 retries: headers.inner().get("retries").and_then(|v| match v {
-                    AMQPValue::ShortShortInt(n) => Some(*n as usize),
-                    AMQPValue::ShortShortUInt(n) => Some(*n as usize),
-                    AMQPValue::ShortInt(n) => Some(*n as usize),
-                    AMQPValue::ShortUInt(n) => Some(*n as usize),
-                    AMQPValue::LongInt(n) => Some(*n as usize),
-                    AMQPValue::LongUInt(n) => Some(*n as usize),
-                    AMQPValue::LongLongInt(n) => Some(*n as usize),
+                    AMQPValue::ShortShortInt(n) => Some(*n as u32),
+                    AMQPValue::ShortShortUInt(n) => Some(*n as u32),
+                    AMQPValue::ShortInt(n) => Some(*n as u32),
+                    AMQPValue::ShortUInt(n) => Some(*n as u32),
+                    AMQPValue::LongInt(n) => Some(*n as u32),
+                    AMQPValue::LongUInt(n) => Some(*n as u32),
+                    AMQPValue::LongLongInt(n) => Some(*n as u32),
                     _ => None,
                 }),
                 timelimit: headers
@@ -495,7 +495,7 @@ impl TryIntoMessage for lapin::message::Delivery {
                     _ => None,
                 }),
             },
-            raw_data: self.data.clone(),
+            raw_body: self.data.clone(),
         })
     }
 }

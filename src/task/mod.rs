@@ -142,22 +142,66 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     async fn on_success(&mut self, returned: &Self::Returns) {}
 
     /// Default timeout for this task.
-    fn timeout(&self) -> Option<usize> {
+    fn timeout(&self) -> Option<u32> {
         None
     }
 
     /// Default maximum number of retries for this task.
-    fn max_retries(&self) -> Option<usize> {
+    fn max_retries(&self) -> Option<u32> {
         None
     }
 
     /// Default minimum retry delay (in seconds) for this task (default is 0).
-    fn min_retry_delay(&self) -> Option<usize> {
+    fn min_retry_delay(&self) -> Option<u32> {
         None
     }
 
     /// Default maximum retry delay (in seconds) for this task.
-    fn max_retry_delay(&self) -> Option<usize> {
+    fn max_retry_delay(&self) -> Option<u32> {
         None
+    }
+}
+
+/// General configuration options pertaining to a task.
+#[derive(Copy, Clone, Default)]
+pub struct TaskOptions {
+    pub timeout: Option<u32>,
+    pub max_retries: Option<u32>,
+    pub min_retry_delay: u32,
+    pub max_retry_delay: u32,
+}
+
+impl TaskOptions {
+    pub(crate) fn overrides<T: Task>(&self, task: &T) -> Self {
+        Self {
+            timeout: task.timeout().or(self.timeout),
+            max_retries: task.max_retries().or(self.max_retries),
+            min_retry_delay: task.min_retry_delay().unwrap_or(self.min_retry_delay),
+            max_retry_delay: task.max_retry_delay().unwrap_or(self.max_retry_delay),
+        }
+    }
+}
+
+/// Options for sending a task. Used to override the defaults.
+#[derive(Clone, Default)]
+pub struct TaskSendOptions {
+    pub timeout: Option<u32>,
+    pub queue: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum TaskStatus {
+    Pending,
+    Finished,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TaskEvent {
+    pub(crate) status: TaskStatus,
+}
+
+impl TaskEvent {
+    pub(crate) fn new(status: TaskStatus) -> Self {
+        Self { status }
     }
 }

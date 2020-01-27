@@ -7,45 +7,11 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 
 mod trace;
 
-use crate::protocol::{Message, MessageBody, TryIntoMessage};
-use crate::{Broker, BrokerBuilder, Error, ErrorKind, Task};
+use crate::broker::{Broker, BrokerBuilder};
+use crate::error::{Error, ErrorKind};
+use crate::protocol::{Message, TryIntoMessage};
+use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
-
-#[derive(Copy, Clone, Default)]
-struct TaskOptions {
-    timeout: Option<usize>,
-    max_retries: Option<usize>,
-    min_retry_delay: usize,
-    max_retry_delay: usize,
-}
-
-impl TaskOptions {
-    fn overrides<T: Task>(&self, task: &T) -> Self {
-        Self {
-            timeout: task.timeout().or(self.timeout),
-            max_retries: task.max_retries().or(self.max_retries),
-            min_retry_delay: task.min_retry_delay().unwrap_or(self.min_retry_delay),
-            max_retry_delay: task.max_retry_delay().unwrap_or(self.max_retry_delay),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-enum TaskStatus {
-    Pending,
-    Finished,
-}
-
-#[derive(Clone, Debug)]
-struct TaskEvent {
-    status: TaskStatus,
-}
-
-impl TaskEvent {
-    fn new(status: TaskStatus) -> Self {
-        Self { status }
-    }
-}
 
 struct Config<Bb>
 where
@@ -105,25 +71,25 @@ where
     }
 
     /// Set a default timeout for tasks.
-    pub fn task_timeout(mut self, task_timeout: usize) -> Self {
+    pub fn task_timeout(mut self, task_timeout: u32) -> Self {
         self.config.task_options.timeout = Some(task_timeout);
         self
     }
 
     /// Set a default maximum number of retries for tasks.
-    pub fn task_max_retries(mut self, task_max_retries: usize) -> Self {
+    pub fn task_max_retries(mut self, task_max_retries: u32) -> Self {
         self.config.task_options.max_retries = Some(task_max_retries);
         self
     }
 
     /// Set a default minimum retry delay for tasks.
-    pub fn task_min_retry_delay(mut self, task_min_retry_delay: usize) -> Self {
+    pub fn task_min_retry_delay(mut self, task_min_retry_delay: u32) -> Self {
         self.config.task_options.min_retry_delay = task_min_retry_delay;
         self
     }
 
     /// Set a default maximum retry delay for tasks.
-    pub fn task_max_retry_delay(mut self, task_max_retry_delay: usize) -> Self {
+    pub fn task_max_retry_delay(mut self, task_max_retry_delay: u32) -> Self {
         self.config.task_options.max_retry_delay = task_max_retry_delay;
         self
     }
@@ -155,12 +121,12 @@ pub struct Celery<B: Broker> {
     /// The default queue to send and receive from.
     pub default_queue_name: String,
 
+    /// Default task options.
+    pub task_options: TaskOptions,
+
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
     task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
-
-    /// Default task options.
-    task_options: TaskOptions,
 }
 
 impl<B> Celery<B>
@@ -172,12 +138,22 @@ where
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
-    /// Send a task to a remote worker.
-    pub async fn send_task<T: Task>(&self, task: T, queue: &str) -> Result<(), Error> {
-        let body = MessageBody::new(task);
-        let data = serde_json::to_vec(&body)?;
-        let message = Message::builder(T::NAME, data).build();
+    /// Send a task to a remote worker with default options.
+    pub async fn send_task<T: Task>(&self, task: T) -> Result<(), Error> {
+        let message = Message::builder(task)?.build();
         debug!("Sending message {:?}", message);
+        self.broker.send(&message, &self.default_queue_name).await
+    }
+
+    /// Send a task to a remote worker with custom options.
+    pub async fn send_task_with<T: Task>(
+        &self,
+        task: T,
+        options: &TaskSendOptions,
+    ) -> Result<(), Error> {
+        let message = Message::builder(task)?.task_send_options(options).build();
+        debug!("Sending message {:?}", message);
+        let queue = options.queue.as_ref().unwrap_or(&self.default_queue_name);
         self.broker.send(&message, queue).await
     }
 

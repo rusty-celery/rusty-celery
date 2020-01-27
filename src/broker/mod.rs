@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
 
+use crate::error::Error;
 use crate::protocol::{Message, TryIntoMessage};
-use crate::Error;
 
 pub mod amqp;
 
