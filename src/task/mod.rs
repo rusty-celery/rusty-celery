@@ -131,12 +131,12 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     /// This function defines how a task executes.
     async fn run(&mut self) -> Result<Self::Returns, Error>;
 
-    /// This function can be overriden to provide custom logic that will run after a task fails.
+    /// This is a callback function that will run after a task fails.
     /// The argument to the function is the error returned by the task.
     #[allow(unused_variables)]
     async fn on_failure(&mut self, err: &Error) {}
 
-    /// This function can be overriden to provide custom logic that will run after a task completes
+    /// This is a callback funtion that will run after a task completes
     /// successfully. The argument to the function is the returned value of the task.
     #[allow(unused_variables)]
     async fn on_success(&mut self, returned: &Self::Returns) {}

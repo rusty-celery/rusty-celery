@@ -27,7 +27,6 @@ Inspired by, well... Celery, but also [batch-rs](https://github.com/kureuil/batc
 - Send tasks from Python to Rust or vice versa ↔️
 - Use provided brokers and backends (coming soon) or implement your own 🔧
 - Natural async / await interface 🎇
-- Easily customizable with callbacks ☎️ (coming soon)
 - High performance and safe 🔥 🔥 🔥
 
 ## Quick links

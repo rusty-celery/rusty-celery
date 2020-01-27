@@ -112,6 +112,7 @@ where
                     returned
                 );
 
+                // Run success callback.
                 self.task.on_success(&returned).await;
 
                 self.event_tx
@@ -149,6 +150,7 @@ where
                     }
                 };
 
+                // Run failure callback.
                 self.task.on_failure(&e).await;
 
                 self.event_tx
