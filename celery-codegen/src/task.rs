@@ -370,7 +370,7 @@ impl ToTokens for Task {
 
                     type Returns = #ret_ty;
 
-                    async fn run(&mut self) -> Result<Self::Returns, #krate::Error> {
+                    async fn run(mut self) -> Result<Self::Returns, #krate::Error> {
                         #deserialized_bindings
                         Ok(#inner_block)
                     }
