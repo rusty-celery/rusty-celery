@@ -43,3 +43,8 @@ fn test_task_options() {
     assert_eq!(t.min_retry_delay(), Some(0));
     assert_eq!(t.max_retry_delay(), Some(60));
 }
+
+#[task]
+fn task_with_strings(s1: String, s2: String) {
+    println!("{}, {}", s1, s2);
+}

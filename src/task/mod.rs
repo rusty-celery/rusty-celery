@@ -38,7 +38,7 @@ use crate::error::Error;
 ///
 ///     type Returns = i32;
 ///
-///     async fn run(&mut self) -> Result<Self::Returns, Error> {
+///     async fn run(mut self) -> Result<Self::Returns, Error> {
 ///         Ok(self.x + self.y)
 ///     }
 /// }
@@ -87,7 +87,7 @@ use crate::error::Error;
 /// #     const NAME: &'static str = "add";
 /// #     const ARGS: &'static [&'static str] = &["x", "y"];
 /// #     type Returns = i32;
-/// #     async fn run(&mut self) -> Result<Self::Returns, Error> {
+/// #     async fn run(mut self) -> Result<Self::Returns, Error> {
 /// #         Ok(self.x + self.y)
 /// #     }
 /// # }
@@ -129,17 +129,17 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     type Returns: Send + Sync + std::fmt::Debug;
 
     /// This function defines how a task executes.
-    async fn run(&mut self) -> Result<Self::Returns, Error>;
+    async fn run(mut self) -> Result<Self::Returns, Error>;
 
     /// This is a callback function that will run after a task fails.
     /// The argument to the function is the error returned by the task.
     #[allow(unused_variables)]
-    async fn on_failure(&mut self, err: &Error) {}
+    async fn on_failure(err: &Error) {}
 
     /// This is a callback funtion that will run after a task completes
     /// successfully. The argument to the function is the returned value of the task.
     #[allow(unused_variables)]
-    async fn on_success(&mut self, returned: &Self::Returns) {}
+    async fn on_success(returned: &Self::Returns) {}
 
     /// Default timeout for this task.
     fn timeout(&self) -> Option<u32> {
