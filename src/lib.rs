@@ -14,6 +14,9 @@
 pub extern crate failure;
 pub use failure::ResultExt;
 
+#[cfg(feature = "codegen")]
+pub extern crate lazy_static;
+
 /////////////////
 // Submodules. //
 /////////////////
