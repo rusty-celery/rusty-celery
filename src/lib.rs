@@ -1,6 +1,6 @@
 //! Celery for Rust.
 
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 #![doc(
     html_favicon_url = "https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery.ico"
 )]
