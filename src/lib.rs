@@ -17,6 +17,10 @@ pub use failure::ResultExt;
 #[cfg(feature = "codegen")]
 pub extern crate lazy_static;
 
+/// Internally, the `celery_app` macro uses `lazy_static` to initialize the app.
+#[cfg(feature = "codegen")]
+pub use lazy_static::lazy_static;
+
 /////////////////
 // Submodules. //
 /////////////////
