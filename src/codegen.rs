@@ -39,9 +39,8 @@ macro_rules! celery_app {
         $( $x:ident = $y:expr, )*
     ) => {
         use celery::{Celery, Broker, BrokerBuilder};
-        use lazy_static::lazy_static;
 
-        lazy_static! {
+        lazy_static::lazy_static! {
             static ref $name: Celery<$broker_type> = {
                 let broker_url = $broker_url;
 
