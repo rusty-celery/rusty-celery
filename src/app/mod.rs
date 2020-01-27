@@ -277,7 +277,7 @@ where
     }
 
     /// Consume tasks from a queue.
-    pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
+    pub async fn consume(&'static self, queue: &str, limit: Option<u32>) -> Result<(), Error> {
         // Stream of deliveries from the queue.
         let mut deliveries = Box::pin(self.broker.consume(queue).await?.fuse());
 
@@ -290,6 +290,8 @@ where
         let (event_tx, event_rx) = mpsc::unbounded_channel::<TaskEvent>();
         let mut event_rx = event_rx.fuse();
         let mut pending_tasks = 0;
+
+        let mut tasks_handled = 0;
 
         // This is the main loop where we receive deliveries and pass them off
         // to be handled by spawning `self.handle_delivery`.
@@ -315,7 +317,15 @@ where
                         debug!("Received task event {:?}", event);
                         match event.status {
                             TaskStatus::Pending => pending_tasks += 1,
-                            TaskStatus::Finished => pending_tasks -= 1,
+                            TaskStatus::Finished => {
+                                pending_tasks -= 1;
+                                tasks_handled += 1;
+                                if let Some(limit) = limit {
+                                    if tasks_handled >= limit {
+                                        break;
+                                    }
+                                }
+                            },
                         };
                     }
                 },

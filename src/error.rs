@@ -147,3 +147,11 @@ impl From<tokio::time::Elapsed> for Error {
         }
     }
 }
+
+impl From<tokio::task::JoinError> for Error {
+    fn from(_err: tokio::task::JoinError) -> Error {
+        Error {
+            inner: Context::new(ErrorKind::SyncError),
+        }
+    }
+}

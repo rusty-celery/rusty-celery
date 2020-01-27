@@ -20,6 +20,9 @@ path = "src/lib.rs"
 [[example]]
 name = "celery_app"
 
+[[example]]
+name = "runtime_benchmark"
+
 [dependencies]
 chrono = "0.4"
 tokio = { version = "0.2", features = ["full"]}
@@ -40,6 +43,7 @@ lazy_static = { version = "1.4", optional = true }
 [dev-dependencies]
 exitfailure = "0.5.1"
 structopt = "0.3"
+tokenizers = "0.6"
 
 [features]
 default = ["codegen"]
