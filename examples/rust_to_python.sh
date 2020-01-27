@@ -13,7 +13,7 @@ echo ""
 echo "Consuming celery task from Python"
 echo "---------------------------------"
 cd examples && celery \
-    --app=celery_app.app worker \
+    --app=celery_app.my_app worker \
     -Q celery \
     --without-heartbeat \
     -Ofair \

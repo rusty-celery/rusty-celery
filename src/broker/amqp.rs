@@ -166,7 +166,7 @@ impl Broker for AMQPBroker {
                 "",
                 queue,
                 BasicPublishOptions::default(),
-                message.raw_data.clone(),
+                message.raw_body.clone(),
                 properties,
             )
             .await?;
@@ -495,7 +495,7 @@ impl TryIntoMessage for lapin::message::Delivery {
                     _ => None,
                 }),
             },
-            raw_data: self.data.clone(),
+            raw_body: self.data.clone(),
         })
     }
 }

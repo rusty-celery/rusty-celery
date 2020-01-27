@@ -40,7 +40,7 @@ impl MessageBuilder {
                     task: T::NAME.into(),
                     ..Default::default()
                 },
-                raw_data: data,
+                raw_body: data,
             },
         })
     }
@@ -61,11 +61,22 @@ impl MessageBuilder {
     }
 }
 
+/// A `Message` is the core of the Celery protocol and is built on top of a `Broker`'s protocol.
+/// Every message corresponds to a task.
+///
+/// Note that the `raw_body` field is the serialized form of a [`MessageBody`](struct.MessageBody.html)
+/// so that a worker can read the meta data of a message without having to deserialize the body
+/// first.
 #[derive(Eq, PartialEq, Debug)]
 pub struct Message {
+    /// Message properties correspond to the equivalent AMQP delivery properties.
     pub properties: MessageProperties,
+
+    /// Message headers contain additional meta data pertaining to the Celery protocol.
     pub headers: MessageHeaders,
-    pub raw_data: Vec<u8>,
+
+    /// A serialized [`MessageBody`](struct.MessageBody.html).
+    pub raw_body: Vec<u8>,
 }
 
 impl Message {
@@ -75,6 +86,36 @@ impl Message {
 
     pub fn new<T: Task>(task: T) -> Result<Self, Error> {
         Ok(Self::builder(task)?.build())
+    }
+
+    /// Try deserializing the body.
+    pub fn body<T: Task>(&self) -> Result<MessageBody<T>, Error> {
+        let value: Value = serde_json::from_slice(&self.raw_body)?;
+        if let Value::Array(ref vec) = value {
+            if let [Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] =
+                vec[..]
+            {
+                if !args.is_empty() {
+                    // Non-empty args, need to try to coerce them into kwargs.
+                    let mut kwargs = kwargs.clone();
+                    let embed = embed.clone();
+                    let arg_names = T::ARGS;
+                    for (i, arg) in args.iter().enumerate() {
+                        if let Some(arg_name) = arg_names.get(i) {
+                            kwargs.insert((*arg_name).into(), arg.clone());
+                        } else {
+                            break;
+                        }
+                    }
+                    return Ok(MessageBody(
+                        vec![],
+                        serde_json::from_value::<T>(Value::Object(kwargs))?,
+                        serde_json::from_value::<MessageBodyEmbed>(Value::Object(embed))?,
+                    ));
+                }
+            }
+        }
+        Ok(serde_json::from_value::<MessageBody<T>>(value)?)
     }
 
     /// Get the TTL countdown.
@@ -129,28 +170,65 @@ pub trait TryIntoMessage {
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct MessageProperties {
+    /// A unique ID associated with the task.
     pub correlation_id: String,
+
+    /// The MIME type of the body.
     pub content_type: String,
+
+    /// The encoding of the body.
     pub content_encoding: String,
+
+    /// Used by the RPC backend when failures are reported by the parent process.
     pub reply_to: Option<String>,
 }
 
 #[derive(Eq, PartialEq, Debug, Default)]
 pub struct MessageHeaders {
+    /// The correlation ID of the task.
     pub id: String,
+
+    /// The name of the task.
     pub task: String,
+
+    /// The programming language associated with the task.
     pub lang: Option<String>,
+
+    /// The first task in the work-flow.
     pub root_id: Option<String>,
+
+    /// The ID of the task that called this task within a work-flow.
     pub parent_id: Option<String>,
+
+    /// TODO
     pub group: Option<String>,
+
+    /// Currently unused but could be used in the future to specify class+method pairs.
     pub meth: Option<String>,
+
+    /// Modifies the task name that is used in logs.
     pub shadow: Option<String>,
+
+    /// A future time after which the task should be executed.
     pub eta: Option<DateTime<Utc>>,
+
+    /// A future time after which the task should be discarded if it hasn't executed
+    /// yet.
     pub expires: Option<DateTime<Utc>>,
+
+    /// The number of times the task has been retried without success.
     pub retries: Option<u32>,
+
+    /// A tuple specifying the soft and hard time limits.
     pub timelimit: (Option<u32>, Option<u32>),
+
+    /// A string representation of the positional arguments of the task.
     pub argsrepr: Option<String>,
+
+    /// A string representation of the keyword arguments of the task.
     pub kwargsrepr: Option<String>,
+
+    /// A string representing the node that produced the task.
     pub origin: Option<String>,
 }
 
@@ -164,48 +242,27 @@ where
     pub fn new(task: T) -> Self {
         Self(vec![], task, MessageBodyEmbed::default())
     }
-
-    pub fn from_raw_data(data: &[u8]) -> Result<Self, Error> {
-        let value: Value = serde_json::from_slice(&data)?;
-        if let Value::Array(ref vec) = value {
-            if let [Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] =
-                vec[..]
-            {
-                if !args.is_empty() {
-                    // Non-empty args, need to try to coerce them into kwargs.
-                    let mut kwargs = kwargs.clone();
-                    let embed = embed.clone();
-                    let arg_names = T::ARGS;
-                    for (i, arg) in args.iter().enumerate() {
-                        if let Some(arg_name) = arg_names.get(i) {
-                            kwargs.insert((*arg_name).into(), arg.clone());
-                        } else {
-                            break;
-                        }
-                    }
-                    return Ok(Self(
-                        vec![],
-                        serde_json::from_value::<T>(Value::Object(kwargs))?,
-                        serde_json::from_value::<MessageBodyEmbed>(Value::Object(embed))?,
-                    ));
-                }
-            }
-        }
-        Ok(serde_json::from_value::<Self>(value)?)
-    }
 }
 
 #[derive(Eq, PartialEq, Debug, Default, Serialize, Deserialize)]
 pub struct MessageBodyEmbed {
+    /// An array of serialized signatures of tasks to call with the result of this task.
     #[serde(default)]
-    callbacks: Option<String>,
+    callbacks: Option<Vec<String>>,
 
+    /// An array of serialized signatures of tasks to call if this task results in an error.
+    ///
+    /// Note that `errbacks` work differently from `callbacks` because the error returned by
+    /// a task may not be serializable. Therefore the `errbacks` tasks are passed the task ID
+    /// instead of the error itself.
     #[serde(default)]
-    errbacks: Option<String>,
+    errbacks: Option<Vec<String>>,
 
+    /// An array of serialized signatures of the remaining tasks in the chain.
     #[serde(default)]
-    chain: Option<String>,
+    chain: Option<Vec<String>>,
 
+    /// The serialized signature of the chord callback.
     #[serde(default)]
     chord: Option<String>,
 }
@@ -247,8 +304,21 @@ mod tests {
 
     #[test]
     fn test_deserialize_body_with_args() {
-        let data = "[[1],{},{}]";
-        let body = MessageBody::<TestTask>::from_raw_data(data.as_bytes()).unwrap();
+        let message = Message {
+            properties: MessageProperties {
+                correlation_id: "aaa".into(),
+                content_type: "application/json".into(),
+                content_encoding: "utf-8".into(),
+                reply_to: None,
+            },
+            headers: MessageHeaders {
+                id: "aaa".into(),
+                task: "TestTask".into(),
+                ..Default::default()
+            },
+            raw_body: Vec::from(&b"[[1],{},{}]"[..]),
+        };
+        let body = message.body::<TestTask>().unwrap();
         assert_eq!(body.1.a, 1);
     }
 }

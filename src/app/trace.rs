@@ -7,7 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
 use crate::error::{Error, ErrorKind};
-use crate::protocol::{Message, MessageBody};
+use crate::protocol::Message;
 use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
@@ -36,7 +36,7 @@ where
         options: TaskOptions,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Self, Error> {
-        let body = MessageBody::<T>::from_raw_data(&message.raw_data)?;
+        let body = message.body::<T>()?;
         let task = body.1;
         let options = options.overrides(&task);
         let countdown = message.countdown();
