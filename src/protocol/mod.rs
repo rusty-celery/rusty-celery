@@ -1,4 +1,9 @@
-//! Defines the [Celery protocol](http://docs.celeryproject.org/en/latest/internals/protocol.html).
+//! Defines the Celery protocol.
+//!
+//! The top part of the protocol is the [`Message` struct](struct.Message.html), which builds on
+//! top of the protocol for a broker. This is why a broker's [delivery
+//! type](../trait.Broker.html#associatedtype.Delivery) must implement
+//! [`TryIntoMessage`](trait.TryIntoMessage.html).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -168,6 +173,7 @@ pub trait TryIntoMessage {
     fn try_into_message(&self) -> Result<Message, Error>;
 }
 
+/// Message meta data pertaining to the broker.
 #[derive(Eq, PartialEq, Debug)]
 pub struct MessageProperties {
     /// A unique ID associated with the task.
@@ -183,6 +189,7 @@ pub struct MessageProperties {
     pub reply_to: Option<String>,
 }
 
+/// Additional meta data pertaining to the Celery protocol.
 #[derive(Eq, PartialEq, Debug, Default)]
 pub struct MessageHeaders {
     /// The correlation ID of the task.
@@ -232,8 +239,10 @@ pub struct MessageHeaders {
     pub origin: Option<String>,
 }
 
+/// The body of a message. Contains the task itself as well as callback / errback
+/// signatures and work-flow primitives.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
-pub struct MessageBody<T>(Vec<u8>, pub T, MessageBodyEmbed);
+pub struct MessageBody<T>(Vec<u8>, pub(crate) T, pub(crate) MessageBodyEmbed);
 
 impl<T> MessageBody<T>
 where
@@ -242,13 +251,18 @@ where
     pub fn new(task: T) -> Self {
         Self(vec![], task, MessageBodyEmbed::default())
     }
+
+    pub fn parts(self) -> (T, MessageBodyEmbed) {
+        (self.1, self.2)
+    }
 }
 
+/// Contains callback / errback signatures and work-flow primitives.
 #[derive(Eq, PartialEq, Debug, Default, Serialize, Deserialize)]
 pub struct MessageBodyEmbed {
     /// An array of serialized signatures of tasks to call with the result of this task.
     #[serde(default)]
-    callbacks: Option<Vec<String>>,
+    pub callbacks: Option<Vec<String>>,
 
     /// An array of serialized signatures of tasks to call if this task results in an error.
     ///
@@ -256,15 +270,15 @@ pub struct MessageBodyEmbed {
     /// a task may not be serializable. Therefore the `errbacks` tasks are passed the task ID
     /// instead of the error itself.
     #[serde(default)]
-    errbacks: Option<Vec<String>>,
+    pub errbacks: Option<Vec<String>>,
 
     /// An array of serialized signatures of the remaining tasks in the chain.
     #[serde(default)]
-    chain: Option<Vec<String>>,
+    pub chain: Option<Vec<String>>,
 
     /// The serialized signature of the chord callback.
     #[serde(default)]
-    chord: Option<String>,
+    pub chord: Option<String>,
 }
 
 #[cfg(test)]

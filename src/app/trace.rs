@@ -37,7 +37,7 @@ where
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Self, Error> {
         let body = message.body::<T>()?;
-        let task = body.1;
+        let (task, _) = body.parts();
         let options = options.overrides(&task);
         let countdown = message.countdown();
         Ok(Self {
