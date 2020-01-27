@@ -11,15 +11,17 @@
 // Re-exports. //
 /////////////////
 
-pub extern crate failure;
+extern crate failure;
 pub use failure::ResultExt;
 
 #[cfg(feature = "codegen")]
-pub extern crate lazy_static;
+extern crate lazy_static;
 
-/// Internally, the `celery_app` macro uses `lazy_static` to initialize the app.
 #[cfg(feature = "codegen")]
-pub use lazy_static::lazy_static;
+extern crate async_trait;
+
+#[cfg(feature = "codegen")]
+extern crate serde;
 
 /////////////////
 // Submodules. //
@@ -40,7 +42,8 @@ mod codegen;
 // Defines the `Error` type used across Rusty Celery.
 mod error;
 
-// Used only by the `celery-codegen` module.
+// Used only by the codegen modules.
+#[cfg(feature = "codegen")]
 #[doc(hidden)]
 pub mod export;
 
