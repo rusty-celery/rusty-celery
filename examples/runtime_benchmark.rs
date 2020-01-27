@@ -34,7 +34,6 @@ const N: u32 = 1000;
 
 #[task]
 fn tokenize(text: String) {
-    let text = text.clone();
     tokenizer.encode(EncodeInput::Single(text)).unwrap();
 }
 
