@@ -13,8 +13,8 @@ use log::debug;
 use std::collections::HashMap;
 
 use super::{Broker, BrokerBuilder};
+use crate::error::{Error, ErrorKind};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryIntoMessage};
-use crate::{Error, ErrorKind};
 
 struct Config {
     broker_url: String,

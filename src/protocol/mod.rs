@@ -7,7 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::Duration;
 use uuid::Uuid;
 
-use crate::{Error, Task};
+use crate::error::Error;
+use crate::task::Task;
 
 struct Config {
     correlation_id: String,

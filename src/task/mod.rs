@@ -161,3 +161,39 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
         None
     }
 }
+
+#[derive(Copy, Clone, Default)]
+pub struct TaskOptions {
+    pub timeout: Option<usize>,
+    pub max_retries: Option<usize>,
+    pub min_retry_delay: usize,
+    pub max_retry_delay: usize,
+}
+
+impl TaskOptions {
+    pub(crate) fn overrides<T: Task>(&self, task: &T) -> Self {
+        Self {
+            timeout: task.timeout().or(self.timeout),
+            max_retries: task.max_retries().or(self.max_retries),
+            min_retry_delay: task.min_retry_delay().unwrap_or(self.min_retry_delay),
+            max_retry_delay: task.max_retry_delay().unwrap_or(self.max_retry_delay),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum TaskStatus {
+    Pending,
+    Finished,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TaskEvent {
+    pub(crate) status: TaskStatus,
+}
+
+impl TaskEvent {
+    pub(crate) fn new(status: TaskStatus) -> Self {
+        Self { status }
+    }
+}

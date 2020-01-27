@@ -7,45 +7,11 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 
 mod trace;
 
+use crate::broker::{Broker, BrokerBuilder};
+use crate::error::{Error, ErrorKind};
 use crate::protocol::{Message, MessageBody, TryIntoMessage};
-use crate::{Broker, BrokerBuilder, Error, ErrorKind, Task};
+use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
-
-#[derive(Copy, Clone, Default)]
-struct TaskOptions {
-    timeout: Option<usize>,
-    max_retries: Option<usize>,
-    min_retry_delay: usize,
-    max_retry_delay: usize,
-}
-
-impl TaskOptions {
-    fn overrides<T: Task>(&self, task: &T) -> Self {
-        Self {
-            timeout: task.timeout().or(self.timeout),
-            max_retries: task.max_retries().or(self.max_retries),
-            min_retry_delay: task.min_retry_delay().unwrap_or(self.min_retry_delay),
-            max_retry_delay: task.max_retry_delay().unwrap_or(self.max_retry_delay),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-enum TaskStatus {
-    Pending,
-    Finished,
-}
-
-#[derive(Clone, Debug)]
-struct TaskEvent {
-    status: TaskStatus,
-}
-
-impl TaskEvent {
-    fn new(status: TaskStatus) -> Self {
-        Self { status }
-    }
-}
 
 struct Config<Bb>
 where
@@ -155,12 +121,12 @@ pub struct Celery<B: Broker> {
     /// The default queue to send and receive from.
     pub default_queue_name: String,
 
+    /// Default task options.
+    pub task_options: TaskOptions,
+
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
     task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
-
-    /// Default task options.
-    task_options: TaskOptions,
 }
 
 impl<B> Celery<B>

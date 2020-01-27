@@ -55,7 +55,7 @@ pub use broker::{
     Broker, BrokerBuilder,
 };
 pub use error::{Error, ErrorKind};
-pub use task::Task;
+pub use task::{Task, TaskOptions};
 
 // Proc macros for defining tasks.
 #[cfg(feature = "codegen")]

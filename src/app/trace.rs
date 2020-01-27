@@ -6,9 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
-use super::{TaskEvent, TaskOptions, TaskStatus};
+use crate::error::{Error, ErrorKind};
 use crate::protocol::{Message, MessageBody};
-use crate::{Error, ErrorKind, Task};
+use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
