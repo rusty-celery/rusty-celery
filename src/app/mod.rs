@@ -9,8 +9,8 @@ mod trace;
 
 use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{Error, ErrorKind};
-use crate::protocol::{Message, MessageBody, TryIntoMessage};
-use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::protocol::{Message, TryIntoMessage};
+use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -71,25 +71,25 @@ where
     }
 
     /// Set a default timeout for tasks.
-    pub fn task_timeout(mut self, task_timeout: usize) -> Self {
+    pub fn task_timeout(mut self, task_timeout: u32) -> Self {
         self.config.task_options.timeout = Some(task_timeout);
         self
     }
 
     /// Set a default maximum number of retries for tasks.
-    pub fn task_max_retries(mut self, task_max_retries: usize) -> Self {
+    pub fn task_max_retries(mut self, task_max_retries: u32) -> Self {
         self.config.task_options.max_retries = Some(task_max_retries);
         self
     }
 
     /// Set a default minimum retry delay for tasks.
-    pub fn task_min_retry_delay(mut self, task_min_retry_delay: usize) -> Self {
+    pub fn task_min_retry_delay(mut self, task_min_retry_delay: u32) -> Self {
         self.config.task_options.min_retry_delay = task_min_retry_delay;
         self
     }
 
     /// Set a default maximum retry delay for tasks.
-    pub fn task_max_retry_delay(mut self, task_max_retry_delay: usize) -> Self {
+    pub fn task_max_retry_delay(mut self, task_max_retry_delay: u32) -> Self {
         self.config.task_options.max_retry_delay = task_max_retry_delay;
         self
     }
@@ -138,12 +138,22 @@ where
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
-    /// Send a task to a remote worker.
-    pub async fn send_task<T: Task>(&self, task: T, queue: &str) -> Result<(), Error> {
-        let body = MessageBody::new(task);
-        let data = serde_json::to_vec(&body)?;
-        let message = Message::builder(T::NAME, data).build();
+    /// Send a task to a remote worker with default options.
+    pub async fn send_task<T: Task>(&self, task: T) -> Result<(), Error> {
+        let message = Message::builder(task)?.build();
         debug!("Sending message {:?}", message);
+        self.broker.send(&message, &self.default_queue_name).await
+    }
+
+    /// Send a task to a remote worker with custom options.
+    pub async fn send_task_with<T: Task>(
+        &self,
+        task: T,
+        options: &TaskSendOptions,
+    ) -> Result<(), Error> {
+        let message = Message::builder(task)?.task_send_options(options).build();
+        debug!("Sending message {:?}", message);
+        let queue = options.queue.as_ref().unwrap_or(&self.default_queue_name);
         self.broker.send(&message, queue).await
     }
 

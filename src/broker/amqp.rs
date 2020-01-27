@@ -435,13 +435,13 @@ impl TryIntoMessage for lapin::message::Delivery {
                     }
                 }),
                 retries: headers.inner().get("retries").and_then(|v| match v {
-                    AMQPValue::ShortShortInt(n) => Some(*n as usize),
-                    AMQPValue::ShortShortUInt(n) => Some(*n as usize),
-                    AMQPValue::ShortInt(n) => Some(*n as usize),
-                    AMQPValue::ShortUInt(n) => Some(*n as usize),
-                    AMQPValue::LongInt(n) => Some(*n as usize),
-                    AMQPValue::LongUInt(n) => Some(*n as usize),
-                    AMQPValue::LongLongInt(n) => Some(*n as usize),
+                    AMQPValue::ShortShortInt(n) => Some(*n as u32),
+                    AMQPValue::ShortShortUInt(n) => Some(*n as u32),
+                    AMQPValue::ShortInt(n) => Some(*n as u32),
+                    AMQPValue::ShortUInt(n) => Some(*n as u32),
+                    AMQPValue::LongInt(n) => Some(*n as u32),
+                    AMQPValue::LongUInt(n) => Some(*n as u32),
+                    AMQPValue::LongLongInt(n) => Some(*n as u32),
                     _ => None,
                 }),
                 timelimit: headers

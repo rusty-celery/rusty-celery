@@ -8,52 +8,56 @@ use tokio::time::Duration;
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::task::Task;
+use crate::task::{Task, TaskOptions, TaskSendOptions};
 
-struct Config {
-    correlation_id: String,
-    content_type: String,
-    content_encoding: String,
-    reply_to: Option<String>,
-    task: String,
-    raw_data: Vec<u8>,
-}
-
+/// Create a message with a custom configuration.
 pub struct MessageBuilder {
-    config: Config,
+    message: Message,
 }
 
 impl MessageBuilder {
-    pub fn new(task: &str, data: Vec<u8>) -> Self {
+    /// Get a new `MessageBuilder` from a task.
+    pub fn new<T: Task>(task: T) -> Result<Self, Error> {
+        // Serialize the task into the message body.
+        let body = MessageBody::new(task);
+        let data = serde_json::to_vec(&body).unwrap();
+
+        // Create random correlation id.
         let mut buffer = Uuid::encode_buffer();
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
-        Self {
-            config: Config {
-                correlation_id: uuid.to_owned(),
-                content_type: "application/json".into(),
-                content_encoding: "utf-8".into(),
-                reply_to: None,
-                task: task.into(),
+        let correlation_id = uuid.to_owned();
+
+        Ok(Self {
+            message: Message {
+                properties: MessageProperties {
+                    correlation_id: correlation_id.clone(),
+                    content_type: "application/json".into(),
+                    content_encoding: "utf-8".into(),
+                    reply_to: None,
+                },
+                headers: MessageHeaders {
+                    id: correlation_id,
+                    task: T::NAME.into(),
+                    ..Default::default()
+                },
                 raw_data: data,
             },
-        }
+        })
     }
 
+    pub fn task_options(mut self, options: &TaskOptions) -> Self {
+        self.message.headers.timelimit = (options.timeout, options.timeout);
+        self
+    }
+
+    pub fn task_send_options(mut self, options: &TaskSendOptions) -> Self {
+        self.message.headers.timelimit = (options.timeout, options.timeout);
+        self
+    }
+
+    /// Get the `Message` with the custom configuration.
     pub fn build(self) -> Message {
-        Message {
-            properties: MessageProperties {
-                correlation_id: self.config.correlation_id.clone(),
-                content_type: self.config.content_type,
-                content_encoding: self.config.content_encoding,
-                reply_to: self.config.reply_to,
-            },
-            headers: MessageHeaders {
-                id: self.config.correlation_id.clone(),
-                task: self.config.task,
-                ..Default::default()
-            },
-            raw_data: self.config.raw_data,
-        }
+        self.message
     }
 }
 
@@ -65,12 +69,12 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn builder(task: &str, data: Vec<u8>) -> MessageBuilder {
-        MessageBuilder::new(task, data)
+    pub fn builder<T: Task>(task: T) -> Result<MessageBuilder, Error> {
+        MessageBuilder::new::<T>(task)
     }
 
-    pub fn new(task: &str, data: Vec<u8>) -> Self {
-        Self::builder(task, data).build()
+    pub fn new<T: Task>(task: T) -> Result<Self, Error> {
+        Ok(Self::builder(task)?.build())
     }
 
     /// Get the TTL countdown.
@@ -143,7 +147,7 @@ pub struct MessageHeaders {
     pub shadow: Option<String>,
     pub eta: Option<DateTime<Utc>>,
     pub expires: Option<DateTime<Utc>>,
-    pub retries: Option<usize>,
+    pub retries: Option<u32>,
     pub timelimit: (Option<u32>, Option<u32>),
     pub argsrepr: Option<String>,
     pub kwargsrepr: Option<String>,

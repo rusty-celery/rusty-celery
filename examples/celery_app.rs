@@ -56,7 +56,7 @@ async fn main() -> Result<(), ExitFailure> {
             my_app.consume("celery").await?;
         }
         CeleryOpt::Produce => {
-            my_app.send_task(add(1, 2), "celery").await?;
+            my_app.send_task(add(1, 2)).await?;
         }
     };
 

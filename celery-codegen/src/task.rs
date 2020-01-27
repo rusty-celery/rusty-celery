@@ -273,28 +273,28 @@ impl ToTokens for Task {
         let wrapper = self.wrapper.as_ref().unwrap();
         let timeout = self.timeout.as_ref().map(|r| {
             quote! {
-                fn timeout(&self) -> Option<usize> {
+                fn timeout(&self) -> Option<u32> {
                     Some(#r)
                 }
             }
         });
         let max_retries = self.max_retries.as_ref().map(|r| {
             quote! {
-                fn max_retries(&self) -> Option<usize> {
+                fn max_retries(&self) -> Option<u32> {
                     Some(#r)
                 }
             }
         });
         let min_retry_delay = self.min_retry_delay.as_ref().map(|r| {
             quote! {
-                fn min_retry_delay(&self) -> Option<usize> {
+                fn min_retry_delay(&self) -> Option<u32> {
                     Some(#r)
                 }
             }
         });
         let max_retry_delay = self.max_retry_delay.as_ref().map(|r| {
             quote! {
-                fn max_retry_delay(&self) -> Option<usize> {
+                fn max_retry_delay(&self) -> Option<u32> {
                     Some(#r)
                 }
             }

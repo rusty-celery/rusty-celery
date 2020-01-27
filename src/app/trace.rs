@@ -196,8 +196,7 @@ where
     fn retry_eta(&self) -> Option<DateTime<Utc>> {
         let retries = self.message.headers.retries.unwrap_or(0);
         let delay_secs = std::cmp::min(
-            2usize
-                .checked_pow(retries as u32)
+            2u32.checked_pow(retries)
                 .unwrap_or_else(|| self.options.max_retry_delay),
             self.options.max_retry_delay,
         );
@@ -207,7 +206,7 @@ where
         let delay_millis = between.sample(&mut rng);
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(now) => {
-                let now_secs = now.as_secs() as usize;
+                let now_secs = now.as_secs() as u32;
                 let now_millis = now.subsec_millis();
                 let eta_secs = now_secs + delay_secs;
                 let eta_millis = now_millis + delay_millis;
