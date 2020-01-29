@@ -67,7 +67,7 @@ jobs:
         ports:
           - 5672:5672
         env:
-          - RABBITMQ_DEFAULT_VHOST: my_vhost
+          RABBITMQ_DEFAULT_VHOST: my_vhost
     steps:
     - uses: actions/checkout@v1
 
