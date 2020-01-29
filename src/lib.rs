@@ -1,4 +1,81 @@
-//! Celery for Rust.
+//! A Rust implementation of [Celery](http://www.celeryproject.org/) for producing and consuming
+//! asyncronous tasks with a distributed message queue.
+//!
+//! # Examples
+//!
+//! Create a task by decorating a function with the [`task`](attr.task.html) macro:
+//!
+//! ```rust
+//! use celery::{celery_app, task, AMQPBroker};
+//!
+//! #[task]
+//! fn add(x: i32, y: i32) -> i32 {
+//!     x + y
+//! }
+//! ```
+//!
+//! Then create a [`Celery`](struct.Celery.html) app and register your tasks with it:
+//!
+//! ```rust,no_run
+//! # use celery::{celery_app, task, AMQPBroker};
+//! # #[task]
+//! # fn add(x: i32, y: i32) -> i32 {
+//! #     x + y
+//! # }
+//! celery_app!(
+//!     my_app,
+//!     AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! );
+//! my_app.register_task::<add>();
+//! ```
+//!
+//! The Celery app can be used as either a producing or consumer (worker). To send tasks to a
+//! queue for a worker to consume use the [`Celery::send_task`](struct.Celery.html#method.send_task) method:
+//!
+//! ```rust,no_run
+//! # use celery::{celery_app, task, AMQPBroker};
+//! # #[task]
+//! # fn add(x: i32, y: i32) -> i32 {
+//! #     x + y
+//! # }
+//! # celery_app!(
+//! #     my_app,
+//! #     AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! #     tasks = [add],
+//! # );
+//! #[tokio::main]
+//! async fn main() -> Result<(), exitfailure::ExitFailure> {
+//!     env_logger::init();
+//!
+//!     my_app.send_task(add(1, 2)).await?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! And to act as worker and consume tasks sent to a queue by a producer, use the
+//! [`Celery::consume`](struct.Celery.html#method.consume) method:
+//!
+//! ```rust,no_run
+//! # use celery::{celery_app, task, AMQPBroker};
+//! # #[task]
+//! # fn add(x: i32, y: i32) -> i32 {
+//! #     x + y
+//! # }
+//! # celery_app!(
+//! #     my_app,
+//! #     AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! #     tasks = [add],
+//! # );
+//! #[tokio::main]
+//! async fn main() -> Result<(), exitfailure::ExitFailure> {
+//!     env_logger::init();
+//!
+//!     my_app.consume("celery").await?;
+//!
+//!     Ok(())
+//! }
+//! ```
 
 #![recursion_limit = "256"]
 #![doc(
@@ -12,8 +89,17 @@
 // Re-exports. //
 /////////////////
 
-pub extern crate failure;
+extern crate failure;
 pub use failure::ResultExt;
+
+#[cfg(feature = "codegen")]
+extern crate lazy_static;
+
+#[cfg(feature = "codegen")]
+extern crate async_trait;
+
+#[cfg(feature = "codegen")]
+extern crate serde;
 
 /////////////////
 // Submodules. //
@@ -34,7 +120,8 @@ mod codegen;
 // Defines the `Error` type used across Rusty Celery.
 mod error;
 
-// Used only by the `celery-codegen` module.
+// Used only by the codegen modules.
+#[cfg(feature = "codegen")]
 #[doc(hidden)]
 pub mod export;
 
