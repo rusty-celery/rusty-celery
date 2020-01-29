@@ -61,8 +61,9 @@ One of things that makes the Rust toolchain so awesome is it's simplicity. Every
 # Compile a dev version.
 cargo build
 
-# Run unit tests, doc tests, and integration tests.
-cargo test
+# Run unit tests and doc tests.
+cargo test --lib
+cargo test --doc
 
 # Build a local copy of the API documentation.
 cargo doc --open

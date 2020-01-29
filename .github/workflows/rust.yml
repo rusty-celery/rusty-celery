@@ -83,7 +83,7 @@ jobs:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
 
-    - name: Run Codegen Tests
+    - name: Run Broker Integration Tests
       uses: actions-rs/cargo@v1
       with:
         command: test
