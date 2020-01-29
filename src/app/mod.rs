@@ -1,7 +1,8 @@
-use futures::{select, StreamExt};
+use futures::StreamExt;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::RwLock;
+use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{self, UnboundedSender};
 
@@ -289,16 +290,15 @@ where
     /// Consume tasks from a queue.
     pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
         // Stream of deliveries from the queue.
-        let mut deliveries = Box::pin(self.broker.consume(queue).await?.fuse());
+        let mut deliveries = Box::pin(self.broker.consume(queue).await?);
 
         // Stream of OS signals.
-        let mut signals = signal(SignalKind::interrupt())?.fuse();
+        let mut signals = signal(SignalKind::interrupt())?;
 
         // A sender and receiver for task related events.
         // NOTE: we can use an unbounded channel since we already have backpressure
         // from the `prefetch_count` setting.
-        let (event_tx, event_rx) = mpsc::unbounded_channel::<TaskEvent>();
-        let mut event_rx = event_rx.fuse();
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel::<TaskEvent>();
         let mut pending_tasks = 0;
 
         // This is the main loop where we receive deliveries and pass them off
