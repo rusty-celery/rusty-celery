@@ -138,23 +138,27 @@ where
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
-    /// Send a task to a remote worker with default options.
-    pub async fn send_task<T: Task>(&self, task: T) -> Result<(), Error> {
+    /// Send a task to a remote worker with default options. Returns the correlation ID
+    /// of the task if successful.
+    pub async fn send_task<T: Task>(&self, task: T) -> Result<String, Error> {
         let message = Message::builder(task)?.build();
         debug!("Sending message {:?}", message);
-        self.broker.send(&message, &self.default_queue_name).await
+        self.broker.send(&message, &self.default_queue_name).await?;
+        Ok(message.properties.correlation_id)
     }
 
-    /// Send a task to a remote worker with custom options.
+    /// Send a task to a remote worker with custom options. Returns the correlation ID
+    /// of the task if successful.
     pub async fn send_task_with<T: Task>(
         &self,
         task: T,
         options: &TaskSendOptions,
-    ) -> Result<(), Error> {
+    ) -> Result<String, Error> {
         let message = Message::builder(task)?.task_send_options(options).build();
         debug!("Sending message {:?}", message);
         let queue = options.queue.as_ref().unwrap_or(&self.default_queue_name);
-        self.broker.send(&message, queue).await
+        self.broker.send(&message, queue).await?;
+        Ok(message.properties.correlation_id)
     }
 
     /// Register a task.
