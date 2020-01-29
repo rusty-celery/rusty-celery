@@ -4,9 +4,8 @@ on: [push]
 
 jobs:
   test:
-
+    name: test
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v1
 
@@ -41,8 +40,51 @@ jobs:
         command: clippy
         args: --workspace --all-targets --all-features -- -D warnings
 
-    - name: Run Tests
+    - name: Run Unit Tests
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --workspace --verbose
+        args: --workspace --lib
+
+    - name: Run Doc Tests
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --workspace --doc
+
+    - name: Run Codegen Tests
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --test codegen_test
+
+  broker_amqp_test:
+    name: Broker (AMQP)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Install Rust Stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+        override: true
+
+    - name: Cache Cargo Registry
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+
+    - name: Cache Cargo Build
+      uses: actions/cache@v1
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+
+    - name: Run Codegen Tests
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --test broker_amqp_test

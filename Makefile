@@ -21,14 +21,17 @@ lint :
 
 .PHONY : test
 test :
-	cargo test --workspace
+	@cargo test --workspace --lib
+	@cargo test --workspace --doc
+	@cargo test --test codegen_test
+
+.PHONY : broker-amqp-test
+broker-amqp-test :
+	@cargo test --test broker_amqp_test
 
 .PHONY : doc
 doc :
 	cargo doc --workspace
-
-.PHONY : all-checks
-all-checks : lint test doc
 
 level = alpha
 
