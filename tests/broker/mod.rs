@@ -1,1 +1,1 @@
-mod amqp_test;
+mod amqp;

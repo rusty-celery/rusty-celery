@@ -23,11 +23,11 @@ lint :
 test :
 	@cargo test --workspace --lib
 	@cargo test --workspace --doc
-	@cargo test --test codegen_test
+	@cargo test --test codegen
 
 .PHONY : broker-amqp-test
 broker-amqp-test :
-	@cargo test --test integrations broker::amqp_test
+	@cargo test --test integrations broker::amqp
 
 .PHONY : rabbitmq
 rabbitmq :
