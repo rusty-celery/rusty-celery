@@ -27,7 +27,7 @@ test :
 
 .PHONY : broker-amqp-test
 broker-amqp-test :
-	@cargo test --test broker_amqp_test
+	@cargo test --test integrations broker::amqp_test
 
 .PHONY : rabbitmq
 rabbitmq :
