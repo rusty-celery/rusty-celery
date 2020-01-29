@@ -58,7 +58,8 @@ And send a task from Rust to Python by running
 | Protocol         | 🟠      | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Protocol%20Feature?label=Issues)](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aissue+label%3A%22Protocol+Feature%22+is%3Aopen) |
 | Producers        | 🟢      | |
 | Consumers        | 🟢      | |
-| Scheduler (Beat) | 🔴      | |
+| [Beat](https://github.com/rusty-celery/rusty-celery/issues/55)    | 🔴      | |
+| [Baskets](https://github.com/rusty-celery/rusty-celery/issues/53) | 🔴      | |
 
 ### Brokers
 
