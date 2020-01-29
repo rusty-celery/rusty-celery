@@ -288,12 +288,14 @@ where
     }
 
     /// Consume tasks from a queue.
+    #[allow(clippy::cognitive_complexity)]
     pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
         // Stream of deliveries from the queue.
         let mut deliveries = Box::pin(self.broker.consume(queue).await?);
 
         // Stream of OS signals.
-        let mut signals = signal(SignalKind::interrupt())?;
+        let mut sigint = signal(SignalKind::interrupt())?;
+        let mut sigterm = signal(SignalKind::terminate())?;
 
         // A sender and receiver for task related events.
         // NOTE: we can use an unbounded channel since we already have backpressure
@@ -315,8 +317,12 @@ where
                         tokio::spawn(self.handle_delivery(delivery_result, event_tx));
                     }
                 },
-                _ = signals.next() => {
+                _ = sigint.next() => {
                     warn!("Ope! Hitting Ctrl+C again will terminate all running tasks!");
+                    info!("Warm shutdown...");
+                    break;
+                },
+                _ = sigterm.next() => {
                     info!("Warm shutdown...");
                     break;
                 },
@@ -339,7 +345,7 @@ where
             info!("Waiting on {} pending tasks...", pending_tasks);
             loop {
                 select! {
-                    _ = signals.next() => {
+                    _ = sigint.next() => {
                         warn!("Okay fine, shutting down now. See ya!");
                         return Err(ErrorKind::ForcedShutdown.into());
                     },
