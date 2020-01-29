@@ -33,6 +33,7 @@ celery_app!(
     AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
     tasks = [add, buggy_task, long_running_task],
     prefetch_count = 2,
+    heartbeat = Some(10),
 );
 
 #[derive(Debug, StructOpt)]

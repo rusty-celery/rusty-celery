@@ -1,6 +1,9 @@
 //! AMQP broker.
 
-use amq_protocol_types::{AMQPValue, FieldArray};
+use amq_protocol::{
+    types::{AMQPValue, FieldArray},
+    uri::AMQPUri,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::executor;
@@ -11,6 +14,7 @@ use lapin::types::FieldTable;
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{Error, ErrorKind};
@@ -20,6 +24,7 @@ struct Config {
     broker_url: String,
     prefetch_count: u16,
     queues: HashMap<String, QueueDeclareOptions>,
+    heartbeat: Option<u16>,
 }
 
 /// Builds an AMQP broker with a custom configuration.
@@ -37,6 +42,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
                 broker_url: broker_url.into(),
                 prefetch_count: 10,
                 queues: HashMap::new(),
+                heartbeat: Some(60),
             },
         }
     }
@@ -63,10 +69,19 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         self
     }
 
+    /// Set the heartbeat.
+    fn heartbeat(mut self, heartbeat: Option<u16>) -> Self {
+        self.config.heartbeat = heartbeat;
+        self
+    }
+
     /// Build an `AMQPBroker`.
     fn build(self) -> Result<AMQPBroker, Error> {
-        let conn = executor::block_on(Connection::connect(
-            &self.config.broker_url,
+        let mut uri = AMQPUri::from_str(&self.config.broker_url)
+            .map_err(|_| ErrorKind::InvalidBrokerUrl(self.config.broker_url.clone()))?;
+        uri.query.heartbeat = self.config.heartbeat;
+        let conn = executor::block_on(Connection::connect_uri(
+            uri,
             ConnectionProperties::default(),
         ))?;
         let channel = executor::block_on(conn.create_channel())?;

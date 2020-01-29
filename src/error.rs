@@ -19,9 +19,13 @@ pub enum ErrorKind {
     #[fail(display = "Received unregistered task named '{}'", _0)]
     UnregisteredTaskError(String),
 
-    /// Any type of error that can happen at the [`Broker`](trait.Broker.html) level.
-    #[fail(display = "{}", _0)]
-    BrokerError(lapin::Error),
+    /// An AMQP broker error.
+    #[fail(display = "{:?}", _0)]
+    AMQPError(Option<lapin::Error>),
+
+    /// Raised when broker URL can't be parsed.
+    #[fail(display = "Broker URL is invalid: {}", _0)]
+    InvalidBrokerUrl(String),
 
     /// An error occured while serializing or deserializing.
     #[fail(display = "{}", _0)]
@@ -119,7 +123,7 @@ impl From<Context<&str>> for Error {
 impl From<lapin::Error> for Error {
     fn from(err: lapin::Error) -> Error {
         Error {
-            inner: Context::new(ErrorKind::BrokerError(err)),
+            inner: Context::new(ErrorKind::AMQPError(Some(err))),
         }
     }
 }
