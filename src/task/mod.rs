@@ -134,12 +134,12 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     /// This is a callback function that will run after a task fails.
     /// The argument to the function is the error returned by the task.
     #[allow(unused_variables)]
-    async fn on_failure(err: &Error) {}
+    async fn on_failure(ctx: &TaskContext<'_>, err: &Error) {}
 
     /// This is a callback funtion that will run after a task completes
     /// successfully. The argument to the function is the returned value of the task.
     #[allow(unused_variables)]
-    async fn on_success(returned: &Self::Returns) {}
+    async fn on_success(ctx: &TaskContext<'_>, returned: &Self::Returns) {}
 
     /// Default timeout for this task.
     fn timeout(&self) -> Option<u32> {
@@ -160,6 +160,12 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     fn max_retry_delay(&self) -> Option<u32> {
         None
     }
+}
+
+/// Additional context sent to the `on_success` and `on_failure` task callbacks.
+pub struct TaskContext<'a> {
+    /// The correlation ID of the task.
+    pub correlation_id: &'a str,
 }
 
 /// General configuration options pertaining to a task.

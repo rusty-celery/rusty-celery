@@ -8,7 +8,7 @@ use tokio::time::{self, Duration, Instant};
 
 use crate::error::{Error, ErrorKind};
 use crate::protocol::Message;
-use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{Task, TaskContext, TaskEvent, TaskOptions, TaskStatus};
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
@@ -103,6 +103,9 @@ where
         };
         let duration = start.elapsed();
 
+        let context = TaskContext {
+            correlation_id: &self.message.properties.correlation_id,
+        };
         match result {
             Ok(returned) => {
                 info!(
@@ -114,7 +117,7 @@ where
                 );
 
                 // Run success callback.
-                T::on_success(&returned).await;
+                T::on_success(&context, &returned).await;
 
                 self.event_tx
                     .send(TaskEvent::new(TaskStatus::Finished))
@@ -152,7 +155,7 @@ where
                 };
 
                 // Run failure callback.
-                T::on_failure(&e).await;
+                T::on_failure(&context, &e).await;
 
                 self.event_tx
                     .send(TaskEvent::new(TaskStatus::Finished))

@@ -1,14 +1,15 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
-use celery::{celery_app, AMQPBroker, Error, Task};
+use celery::{celery_app, AMQPBroker, Error, Task, TaskContext};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::time::{self, Duration};
 
 lazy_static! {
-    static ref SUCCESSES: Mutex<Vec<i32>> = Mutex::new(vec![]);
+    static ref SUCCESSES: Mutex<HashMap<String, Result<i32, Error>>> = Mutex::new(HashMap::new());
 }
 
 #[allow(non_camel_case_types)]
@@ -29,8 +30,11 @@ impl Task for add {
         Ok(self.x + self.y)
     }
 
-    async fn on_success(returned: &Self::Returns) {
-        SUCCESSES.lock().unwrap().push(*returned);
+    async fn on_success(ctx: &TaskContext<'_>, returned: &Self::Returns) {
+        SUCCESSES
+            .lock()
+            .unwrap()
+            .insert(ctx.correlation_id.into(), Ok(*returned));
     }
 }
 
@@ -47,7 +51,9 @@ celery_app!(
 #[tokio::test]
 async fn test_rust_to_rust() {
     // Send task to queue.
-    assert!(my_app.send_task(add(1, 2)).await.is_ok());
+    let send_result = my_app.send_task(add(1, 2)).await;
+    assert!(send_result.is_ok());
+    let correlation_id = send_result.unwrap();
 
     // Consume task from queue. We wrap this in `time::timeout(...)` because otherwise
     // `consume` will keep waiting for more tasks indefinitely.
@@ -61,5 +67,6 @@ async fn test_rust_to_rust() {
 
     // Check that the "add" task succeeded.
     assert!(!successes.is_empty());
-    assert_eq!(successes[0], 3);
+    assert!(successes[&correlation_id].is_ok());
+    assert_eq!(successes[&correlation_id].as_ref().unwrap(), &3);
 }
