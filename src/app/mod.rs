@@ -70,6 +70,12 @@ where
         self
     }
 
+    /// Set the broker heartbeat.
+    pub fn heartbeat(mut self, heartbeat: Option<u16>) -> Self {
+        self.config.broker_builder = self.config.broker_builder.heartbeat(heartbeat);
+        self
+    }
+
     /// Set a default timeout for tasks.
     pub fn task_timeout(mut self, task_timeout: u32) -> Self {
         self.config.task_options.timeout = Some(task_timeout);

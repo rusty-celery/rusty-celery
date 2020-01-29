@@ -70,6 +70,9 @@ pub trait BrokerBuilder {
     /// Register a queue.
     fn queue(self, name: &str) -> Self;
 
+    /// Set the heartbeat.
+    fn heartbeat(self, heartbeat: Option<u16>) -> Self;
+
     /// Construct the `Broker` with the given configuration.
     fn build(self) -> Result<Self::Broker, Error>;
 }
