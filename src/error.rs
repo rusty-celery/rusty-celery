@@ -19,7 +19,7 @@ pub enum ErrorKind {
     #[fail(display = "Received unregistered task named '{}'", _0)]
     UnregisteredTaskError(String),
 
-    /// Any type of error that can happen at the [`Broker`](trait.Broker.html) level.
+    /// An AMQP broker error.
     #[fail(display = "{:?}", _0)]
     AMQPError(Option<lapin::Error>),
 
