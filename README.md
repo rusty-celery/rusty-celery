@@ -59,7 +59,7 @@ And send a task from Rust to Python by running
 | Producers        | 🟢      | |
 | Consumers        | 🟢      | |
 | Brokers          | 🟢      | |
-| Backends         | 🟠      | |
+| Backends         | 🔴      | |
 | [Beat](https://github.com/rusty-celery/rusty-celery/issues/55)    | 🔴      | |
 | [Baskets](https://github.com/rusty-celery/rusty-celery/issues/53) | 🔴      | |
 
