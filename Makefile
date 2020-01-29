@@ -21,14 +21,21 @@ lint :
 
 .PHONY : test
 test :
-	cargo test --workspace
+	@cargo test --workspace --lib
+	@cargo test --workspace --doc
+	@cargo test --test codegen
+
+.PHONY : broker-amqp-test
+broker-amqp-test :
+	@cargo test --test integrations broker::amqp
+
+.PHONY : rabbitmq
+rabbitmq :
+	@docker run -p 5672:5672 --rm -e RABBITMQ_DEFAULT_VHOST=my_vhost rabbitmq:3
 
 .PHONY : doc
 doc :
 	cargo doc --workspace
-
-.PHONY : all-checks
-all-checks : lint test doc
 
 level = alpha
 
