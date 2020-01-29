@@ -56,7 +56,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --test codegen_test
+        args: --test codegen
 
   broker_amqp_test:
     name: Broker (AMQP)
@@ -94,7 +94,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --test integrations broker::amqp_test
+        args: --test integrations broker::amqp
       env:
         AMQP_ADDR: amqp://127.0.0.1:5672/my_vhost
         RUST_LOG: info
