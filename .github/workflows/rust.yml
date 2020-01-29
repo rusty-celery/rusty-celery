@@ -61,6 +61,13 @@ jobs:
   broker_amqp_test:
     name: Broker (AMQP)
     runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq
+        ports:
+          - 5672:5672
+        env:
+          - RABBITMQ_DEFAULT_VHOST: my_vhost
     steps:
     - uses: actions/checkout@v1
 
@@ -88,3 +95,6 @@ jobs:
       with:
         command: test
         args: --test broker_amqp_test
+      env:
+        AMQP_ADDR: amqp://127.0.0.1:5672/my_vhost
+        RUST_LOG: info
