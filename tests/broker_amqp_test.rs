@@ -1,19 +1,65 @@
 #![allow(non_upper_case_globals)]
 
-use celery::{celery_app, task, AMQPBroker};
+use async_trait::async_trait;
+use celery::{celery_app, AMQPBroker, Error, Task};
+use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
+use tokio::time::{self, Duration};
 
-#[task]
-fn add(x: i32, y: i32) -> i32 {
-    x + y
+lazy_static! {
+    static ref SUCCESSES: Mutex<Vec<i32>> = Mutex::new(vec![]);
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Serialize, Deserialize)]
+struct add {
+    x: i32,
+    y: i32,
+}
+
+#[async_trait]
+impl Task for add {
+    const NAME: &'static str = "add";
+    const ARGS: &'static [&'static str] = &["x", "y"];
+
+    type Returns = i32;
+
+    async fn run(mut self) -> Result<Self::Returns, Error> {
+        Ok(self.x + self.y)
+    }
+
+    async fn on_success(returned: &Self::Returns) {
+        SUCCESSES.lock().unwrap().push(*returned);
+    }
+}
+
+fn add(x: i32, y: i32) -> add {
+    add { x, y }
 }
 
 celery_app!(
     my_app,
-    AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+    AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
     tasks = [add],
 );
 
 #[tokio::test]
-async fn test_send_task() {
+async fn test_rust_to_rust() {
+    // Send task to queue.
     assert!(my_app.send_task(add(1, 2)).await.is_ok());
+
+    // Consume task from queue. We wrap this in `time::timeout(...)` because otherwise
+    // `consume` will keep waiting for more tasks indefinitely.
+    let result = time::timeout(Duration::from_secs(1), my_app.consume("celery")).await;
+
+    // `result` should be a timeout error, otherwise `consume` ended early which means
+    // there must have been an error there.
+    assert!(result.is_err());
+
+    let successes = SUCCESSES.lock().unwrap();
+
+    // Check that the "add" task succeeded.
+    assert!(!successes.is_empty());
+    assert_eq!(successes[0], 3);
 }

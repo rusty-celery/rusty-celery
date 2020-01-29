@@ -29,6 +29,10 @@ test :
 broker-amqp-test :
 	@cargo test --test broker_amqp_test
 
+.PHONY : rabbitmq
+rabbitmq :
+	@docker run -p 5672:5672 --rm -e RABBITMQ_DEFAULT_VHOST=my_vhost rabbitmq:3
+
 .PHONY : doc
 doc :
 	cargo doc --workspace
