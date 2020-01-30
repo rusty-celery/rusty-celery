@@ -7,6 +7,7 @@ use amq_protocol::{
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::executor;
+use lapin::message::Delivery;
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
@@ -124,7 +125,7 @@ impl AMQPBroker {
 #[async_trait]
 impl Broker for AMQPBroker {
     type Builder = AMQPBrokerBuilder;
-    type Delivery = lapin::message::Delivery;
+    type Delivery = Delivery;
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
 
@@ -175,7 +176,7 @@ impl Broker for AMQPBroker {
 
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error> {
         let properties = message.delivery_properties();
-        debug!("properties: {:?}", properties);
+        debug!("Sending AMQP message with: {:?}", properties);
         self.channel
             .basic_publish(
                 "",
@@ -329,7 +330,7 @@ impl Message {
     }
 }
 
-impl TryIntoMessage for lapin::message::Delivery {
+impl TryIntoMessage for Delivery {
     fn try_into_message(&self) -> Result<Message, Error> {
         let headers = self
             .properties
@@ -367,98 +368,17 @@ impl TryIntoMessage for lapin::message::Delivery {
                 reply_to: self.properties.reply_to().as_ref().map(|v| v.to_string()),
             },
             headers: MessageHeaders {
-                id: headers
-                    .inner()
-                    .get("id")
-                    .and_then(|v| match v {
-                        AMQPValue::ShortString(s) => Some(s.to_string()),
-                        AMQPValue::LongString(s) => Some(s.to_string()),
-                        _ => None,
-                    })
-                    .ok_or_else::<Error, _>(|| {
-                        ErrorKind::AMQPMessageParseError("invalid or missing 'id'".into()).into()
-                    })?,
-                task: headers
-                    .inner()
-                    .get("task")
-                    .and_then(|v| match v {
-                        AMQPValue::ShortString(s) => Some(s.to_string()),
-                        AMQPValue::LongString(s) => Some(s.to_string()),
-                        _ => None,
-                    })
-                    .ok_or_else::<Error, _>(|| {
-                        ErrorKind::AMQPMessageParseError("invalid or missing 'task'".into()).into()
-                    })?,
-                lang: headers.inner().get("lang").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                root_id: headers.inner().get("root_id").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                parent_id: headers.inner().get("parent_id").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                group: headers.inner().get("group").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                meth: headers.inner().get("meth").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                shadow: headers.inner().get("shadow").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                eta: headers.inner().get("eta").and_then(|v| {
-                    let eta_string = match v {
-                        AMQPValue::ShortString(s) => Some(s.to_string()),
-                        AMQPValue::LongString(s) => Some(s.to_string()),
-                        _ => None,
-                    };
-                    if let Some(s) = eta_string {
-                        match DateTime::parse_from_rfc3339(&s) {
-                            Ok(dt) => Some(DateTime::<Utc>::from(dt)),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    }
-                }),
-                expires: headers.inner().get("expires").and_then(|v| {
-                    let expires_string = match v {
-                        AMQPValue::ShortString(s) => Some(s.to_string()),
-                        AMQPValue::LongString(s) => Some(s.to_string()),
-                        _ => None,
-                    };
-                    if let Some(s) = expires_string {
-                        match DateTime::parse_from_rfc3339(&s) {
-                            Ok(dt) => Some(DateTime::<Utc>::from(dt)),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    }
-                }),
-                retries: headers.inner().get("retries").and_then(|v| match v {
-                    AMQPValue::ShortShortInt(n) => Some(*n as u32),
-                    AMQPValue::ShortShortUInt(n) => Some(*n as u32),
-                    AMQPValue::ShortInt(n) => Some(*n as u32),
-                    AMQPValue::ShortUInt(n) => Some(*n as u32),
-                    AMQPValue::LongInt(n) => Some(*n as u32),
-                    AMQPValue::LongUInt(n) => Some(*n as u32),
-                    AMQPValue::LongLongInt(n) => Some(*n as u32),
-                    _ => None,
-                }),
+                id: get_header_str_required(headers, "id")?,
+                task: get_header_str_required(headers, "task")?,
+                lang: get_header_str(headers, "lang"),
+                root_id: get_header_str(headers, "root_id"),
+                parent_id: get_header_str(headers, "parent_id"),
+                group: get_header_str(headers, "group"),
+                meth: get_header_str(headers, "meth"),
+                shadow: get_header_str(headers, "shadow"),
+                eta: get_header_dt(headers, "eta"),
+                expires: get_header_dt(headers, "expires"),
+                retries: get_header_u32(headers, "retries"),
                 timelimit: headers
                     .inner()
                     .get("timelimit")
@@ -466,26 +386,8 @@ impl TryIntoMessage for lapin::message::Delivery {
                         AMQPValue::FieldArray(a) => {
                             let a = a.as_slice().to_vec();
                             if a.len() == 2 {
-                                let soft = match a[0] {
-                                    AMQPValue::ShortShortInt(n) => Some(n as u32),
-                                    AMQPValue::ShortShortUInt(n) => Some(n as u32),
-                                    AMQPValue::ShortInt(n) => Some(n as u32),
-                                    AMQPValue::ShortUInt(n) => Some(n as u32),
-                                    AMQPValue::LongInt(n) => Some(n as u32),
-                                    AMQPValue::LongUInt(n) => Some(n as u32),
-                                    AMQPValue::LongLongInt(n) => Some(n as u32),
-                                    _ => None,
-                                };
-                                let hard = match a[1] {
-                                    AMQPValue::ShortShortInt(n) => Some(n as u32),
-                                    AMQPValue::ShortShortUInt(n) => Some(n as u32),
-                                    AMQPValue::ShortInt(n) => Some(n as u32),
-                                    AMQPValue::ShortUInt(n) => Some(n as u32),
-                                    AMQPValue::LongInt(n) => Some(n as u32),
-                                    AMQPValue::LongUInt(n) => Some(n as u32),
-                                    AMQPValue::LongLongInt(n) => Some(n as u32),
-                                    _ => None,
-                                };
+                                let soft = amqp_value_to_u32(&a[0]);
+                                let hard = amqp_value_to_u32(&a[1]);
                                 Some((soft, hard))
                             } else {
                                 None
@@ -494,23 +396,113 @@ impl TryIntoMessage for lapin::message::Delivery {
                         _ => None,
                     })
                     .unwrap_or((None, None)),
-                argsrepr: headers.inner().get("argsrepr").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                kwargsrepr: headers.inner().get("kwargsrepr").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
-                origin: headers.inner().get("origin").and_then(|v| match v {
-                    AMQPValue::ShortString(s) => Some(s.to_string()),
-                    AMQPValue::LongString(s) => Some(s.to_string()),
-                    _ => None,
-                }),
+                argsrepr: get_header_str(headers, "argsrepr"),
+                kwargsrepr: get_header_str(headers, "kwargsrepr"),
+                origin: get_header_str(headers, "origin"),
             },
             raw_body: self.data.clone(),
         })
+    }
+}
+
+fn get_header_str(headers: &FieldTable, key: &str) -> Option<String> {
+    headers.inner().get(key).and_then(|v| match v {
+        AMQPValue::ShortString(s) => Some(s.to_string()),
+        AMQPValue::LongString(s) => Some(s.to_string()),
+        _ => None,
+    })
+}
+
+fn get_header_str_required(headers: &FieldTable, key: &str) -> Result<String, Error> {
+    get_header_str(headers, key).ok_or_else::<Error, _>(|| {
+        ErrorKind::AMQPMessageParseError(format!("invalid or missing '{}'", key)).into()
+    })
+}
+
+fn get_header_dt(headers: &FieldTable, key: &str) -> Option<DateTime<Utc>> {
+    if let Some(s) = get_header_str(headers, key) {
+        match DateTime::parse_from_rfc3339(&s) {
+            Ok(dt) => Some(DateTime::<Utc>::from(dt)),
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+fn get_header_u32(headers: &FieldTable, key: &str) -> Option<u32> {
+    headers.inner().get(key).and_then(amqp_value_to_u32)
+}
+
+fn amqp_value_to_u32(v: &AMQPValue) -> Option<u32> {
+    match v {
+        AMQPValue::ShortShortInt(n) => Some(*n as u32),
+        AMQPValue::ShortShortUInt(n) => Some(*n as u32),
+        AMQPValue::ShortInt(n) => Some(*n as u32),
+        AMQPValue::ShortUInt(n) => Some(*n as u32),
+        AMQPValue::LongInt(n) => Some(*n as u32),
+        AMQPValue::LongUInt(n) => Some(*n as u32),
+        AMQPValue::LongLongInt(n) => Some(*n as u32),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lapin::types::ShortString;
+    use std::time::SystemTime;
+
+    #[test]
+    /// Tests conversion between Message -> Delivery -> Message.
+    fn test_conversion() {
+        let now = DateTime::<Utc>::from(SystemTime::now());
+
+        // HACK: round this to milliseconds because that will happen during conversion
+        // from message -> delivery.
+        let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, false);
+        let now = DateTime::<Utc>::from(DateTime::parse_from_rfc3339(&now_str).unwrap());
+
+        let message = Message {
+            properties: MessageProperties {
+                correlation_id: "aaa".into(),
+                content_type: "application/json".into(),
+                content_encoding: "utf-8".into(),
+                reply_to: Some("bbb".into()),
+            },
+            headers: MessageHeaders {
+                id: "aaa".into(),
+                task: "add".into(),
+                lang: Some("rust".into()),
+                root_id: Some("aaa".into()),
+                parent_id: Some("000".into()),
+                group: Some("A".into()),
+                meth: Some("method_name".into()),
+                shadow: Some("add-these".into()),
+                eta: Some(now.clone()),
+                expires: Some(now.clone()),
+                retries: Some(1),
+                timelimit: (Some(30), Some(60)),
+                argsrepr: Some("(1)".into()),
+                kwargsrepr: Some("{'y': 2}".into()),
+                origin: Some("gen123@piper".into()),
+            },
+            raw_body: vec![],
+        };
+
+        let delivery = Delivery {
+            delivery_tag: 0,
+            exchange: ShortString::from(""),
+            routing_key: ShortString::from("celery"),
+            redelivered: false,
+            properties: message.delivery_properties(),
+            data: vec![],
+        };
+
+        let message2 = delivery.try_into_message();
+        assert!(message2.is_ok());
+
+        let message2 = message2.unwrap();
+        assert_eq!(message, message2);
     }
 }

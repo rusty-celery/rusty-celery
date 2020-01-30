@@ -6,6 +6,7 @@
 //! [`TryIntoMessage`](trait.TryIntoMessage.html).
 
 use chrono::{self, DateTime, Utc};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::SystemTime;
@@ -115,6 +116,7 @@ impl Message {
     /// Try deserializing the body.
     pub fn body<T: Task>(&self) -> Result<MessageBody<T>, Error> {
         let value: Value = serde_json::from_slice(&self.raw_body)?;
+        debug!("Deserialized message body: {:?}", value);
         if let Value::Array(ref vec) = value {
             if let [Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] =
                 vec[..]
