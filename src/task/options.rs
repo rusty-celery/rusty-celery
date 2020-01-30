@@ -43,8 +43,8 @@ impl TaskSendOptionsBuilder {
     }
 
     /// Set the queue to send the task to.
-    pub fn queue(mut self, queue: String) -> Self {
-        self.config.queue = Some(queue);
+    pub fn queue(mut self, queue: &str) -> Self {
+        self.config.queue = Some(queue.into());
         self
     }
 
