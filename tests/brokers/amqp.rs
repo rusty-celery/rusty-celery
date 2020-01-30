@@ -57,7 +57,7 @@ async fn test_rust_to_rust() {
 
     // Consume task from queue. We wrap this in `time::timeout(...)` because otherwise
     // `consume` will keep waiting for more tasks indefinitely.
-    let result = time::timeout(Duration::from_secs(1), my_app.consume("celery")).await;
+    let result = time::timeout(Duration::from_secs(1), my_app.consume()).await;
 
     // `result` should be a timeout error, otherwise `consume` ended early which means
     // there must have been an error there.

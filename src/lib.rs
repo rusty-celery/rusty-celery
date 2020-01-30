@@ -71,7 +71,7 @@
 //! async fn main() -> Result<(), exitfailure::ExitFailure> {
 //!     env_logger::init();
 //!
-//!     my_app.consume("celery").await?;
+//!     my_app.consume().await?;
 //!
 //!     Ok(())
 //! }

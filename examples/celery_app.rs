@@ -55,7 +55,7 @@ async fn main() -> Result<(), ExitFailure> {
 
     match opt {
         CeleryOpt::Consume => {
-            my_app.consume("celery").await?;
+            my_app.consume().await?;
         }
         CeleryOpt::Produce => {
             // Basic sending.

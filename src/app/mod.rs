@@ -287,9 +287,14 @@ where
         }
     }
 
+    /// Consume tasks from the default queue.
+    pub async fn consume(&'static self) -> Result<(), Error> {
+        Ok(self.consume_from(&self.default_queue_name).await?)
+    }
+
     /// Consume tasks from a queue.
     #[allow(clippy::cognitive_complexity)]
-    pub async fn consume(&'static self, queue: &str) -> Result<(), Error> {
+    pub async fn consume_from(&'static self, queue: &str) -> Result<(), Error> {
         // Stream of deliveries from the queue.
         let mut deliveries = Box::pin(self.broker.consume(queue).await?);
 
