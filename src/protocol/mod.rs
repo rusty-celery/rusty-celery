@@ -5,10 +5,10 @@
 //! type](../trait.Broker.html#associatedtype.Delivery) must implement
 //! [`TryIntoMessage`](trait.TryIntoMessage.html).
 
-use chrono::{DateTime, Utc};
+use chrono::{self, DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use tokio::time::Duration;
 use uuid::Uuid;
 
@@ -57,6 +57,11 @@ impl MessageBuilder {
 
     pub fn task_send_options(mut self, options: &TaskSendOptions) -> Self {
         self.message.headers.timelimit = (options.timeout, options.timeout);
+        if let Some(countdown) = options.countdown {
+            let now = DateTime::<Utc>::from(SystemTime::now());
+            let eta = now + chrono::Duration::seconds(countdown as i64);
+            self.message.headers.eta = Some(eta);
+        }
         self
     }
 
@@ -126,22 +131,12 @@ impl Message {
     /// Get the TTL countdown.
     pub fn countdown(&self) -> Option<Duration> {
         if let Some(eta) = self.headers.eta {
-            let eta_millis = eta.timestamp_millis();
-            if eta_millis < 0 {
-                // Invalid ETA.
-                return None;
-            }
-            let eta_millis = eta_millis as u64;
-            match SystemTime::now().duration_since(UNIX_EPOCH) {
-                Ok(now) => {
-                    let now_millis = now.as_millis() as u64;
-                    if eta_millis < now_millis {
-                        None
-                    } else {
-                        Some(Duration::from_millis(eta_millis - now_millis))
-                    }
-                }
-                Err(_) => None,
+            let now = DateTime::<Utc>::from(SystemTime::now());
+            let countdown = (eta - now).num_milliseconds();
+            if countdown < 0 {
+                None
+            } else {
+                Some(Duration::from_millis(countdown as u64))
             }
         } else {
             None
@@ -150,19 +145,9 @@ impl Message {
 
     /// Check if the message is expired.
     pub fn is_expired(&self) -> bool {
-        if let Some(dt) = self.headers.expires {
-            let expires_millis = dt.timestamp_millis();
-            if expires_millis < 0 {
-                // Invalid.
-                return false;
-            }
-            let expires_millis = expires_millis as u64;
-            if let Ok(now) = SystemTime::now().duration_since(UNIX_EPOCH) {
-                let now_millis = now.as_millis() as u64;
-                now_millis >= expires_millis
-            } else {
-                false
-            }
+        if let Some(expires) = self.headers.expires {
+            let now = DateTime::<Utc>::from(SystemTime::now());
+            (now - expires).num_milliseconds() >= 0
         } else {
             false
         }

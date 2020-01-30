@@ -142,7 +142,7 @@ pub use broker::{
     Broker, BrokerBuilder,
 };
 pub use error::{Error, ErrorKind};
-pub use task::{Task, TaskContext, TaskOptions, TaskSendOptions};
+pub use task::{Task, TaskContext, TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
 
 // Proc macros for defining tasks.
 #[cfg(feature = "codegen")]
