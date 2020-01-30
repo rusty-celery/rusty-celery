@@ -20,13 +20,13 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-test-registry-${{ hashFiles('**/Cargo.toml') }}
 
     - name: Cache Cargo Build
       uses: actions/cache@v1
       with:
         path: target
-        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-test-build-${{ hashFiles('**/Cargo.toml') }}
 
     - name: Lint with RustFmt
       uses: actions-rs/cargo@v1
@@ -82,13 +82,13 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-amqp-registry-${{ hashFiles('**/Cargo.toml') }}
 
     - name: Cache Cargo Build
       uses: actions/cache@v1
       with:
         path: target
-        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-amqp-build-target-${{ hashFiles('**/Cargo.toml') }}
 
     - name: Run Broker Integration Tests
       uses: actions-rs/cargo@v1
