@@ -94,7 +94,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --test integrations broker::amqp
+        args: --test integrations brokers::amqp
       env:
         AMQP_ADDR: amqp://127.0.0.1:5672/my_vhost
         RUST_LOG: info

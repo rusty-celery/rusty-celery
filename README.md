@@ -31,15 +31,19 @@ If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-ce
 
 The `./examples` directory contains a simple Celery app that is implemented in both Rust ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)) and Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)) using an AMQP broker. 
 
-Before running the examples you'll need to have an AMQP broker running. [RabbitMQ](https://www.rabbitmq.com/) is a popular choice and provides a [Docker image](https://hub.docker.com/_/rabbitmq) that you can run locally. Another option would be to use a hosting provider like [CloudAMQP](https://www.cloudamqp.com/), which provides a free tier broker for development purposes.
+If you already have an AMQP broker running you can set the environment variable `AMQP_URL` to your broker's URL. Otherwise simply run the helper script:
 
-Once you have your broker running, set the environment variable `AMQP_ADDR` to your broker URL. I also recommend setting `RUST_LOG=info`. Then you can send a task from Python to Rust by running the script
+```bash
+./scripts/brokers/amqp.sh
+```
+
+This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) image (RabbitMQ is a popular AMQP broker). Then from a separate terminal run the script:
 
 ```bash
 ./examples/python_to_rust.sh
 ```
 
-And send a task from Rust to Python by running
+This sends a series of tasks from the Python app to the Rust app. You can also send tasks from Rust to Python by running:
 
 ```bash
 ./examples/rust_to_python.sh

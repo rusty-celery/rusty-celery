@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use celery::{celery_app, task, AMQPBroker, ErrorKind, TaskSendOptions};
+use env_logger::Env;
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
 use tokio::time::{self, Duration};
@@ -30,7 +31,7 @@ fn long_running_task() {
 // Initialize a Celery app bound to `my_app`.
 celery_app!(
     my_app,
-    AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+    AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
     tasks = [add, buggy_task, long_running_task],
     prefetch_count = 2,
     heartbeat = Some(10),
@@ -49,7 +50,7 @@ enum CeleryOpt {
 
 #[tokio::main]
 async fn main() -> Result<(), ExitFailure> {
-    env_logger::init();
+    env_logger::from_env(Env::default().default_filter_or("info")).init();
     let opt = CeleryOpt::from_args();
 
     match opt {
@@ -57,8 +58,12 @@ async fn main() -> Result<(), ExitFailure> {
             my_app.consume("celery").await?;
         }
         CeleryOpt::Produce => {
+            // Basic sending.
+            my_app.send_task(add(1, 2)).await?;
+
+            // Demonstrates sending a task with additional options.
             let send_options = TaskSendOptions::builder().countdown(10).build();
-            my_app.send_task_with(add(1, 2), &send_options).await?;
+            my_app.send_task_with(add(1, 3), &send_options).await?;
         }
     };
 
