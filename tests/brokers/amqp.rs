@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
-use celery::{celery_app, AMQPBroker, Error, Task, TaskContext};
+use celery::{celery_app, AMQPBroker, Error, Rule, Task, TaskContext};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -48,6 +48,11 @@ celery_app!(
     my_app,
     AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
     tasks = [add],
+    queue = "backend",
+    queue = "ml",
+    task_route = Rule::new("add", "celery").unwrap(),
+    task_route = Rule::new("backend*", "backend").unwrap(),
+    task_route = Rule::new("ml*", "ml").unwrap(),
 );
 
 #[tokio::test]

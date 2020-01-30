@@ -36,6 +36,7 @@ uuid = { version = "0.8", features = ["v4"]}
 rand = "0.7"
 celery-codegen = { version = "0.1.0-alpha.1", path = "./celery-codegen", optional = true }
 lazy_static = { version = "1.4", optional = true }
+globset = "0.4"
 
 [dev-dependencies]
 exitfailure = "0.5.1"

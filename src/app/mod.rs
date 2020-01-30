@@ -6,12 +6,14 @@ use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{self, UnboundedSender};
 
+mod routing;
 mod trace;
 
 use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{Error, ErrorKind};
 use crate::protocol::{Message, TryIntoMessage};
 use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
+pub use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -22,6 +24,7 @@ where
     broker_builder: Bb,
     default_queue_name: String,
     task_options: TaskOptions,
+    task_routes: Vec<Rule>,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
@@ -49,6 +52,7 @@ where
                     min_retry_delay: 0,
                     max_retry_delay: 3600,
                 },
+                task_routes: vec![],
             },
         }
     }
@@ -101,18 +105,32 @@ where
         self
     }
 
+    /// Add a routing rule.
+    pub fn task_route(mut self, rule: Rule) -> Self {
+        self.config.task_routes.push(rule);
+        self
+    }
+
     /// Construct a `Celery` app with the current configuration .
     pub fn build(self) -> Result<Celery<Bb::Broker>, Error> {
-        let broker_builder = self
+        // Declare default queue to broker.
+        let mut broker_builder = self
             .config
             .broker_builder
             .queue(&self.config.default_queue_name);
+
+        // Ensure all other queues mentioned in task_routes are declared to the broker.
+        for rule in &self.config.task_routes {
+            broker_builder = broker_builder.queue(&rule.queue);
+        }
+
         Ok(Celery {
             name: self.config.name,
             broker: broker_builder.build()?,
             default_queue_name: self.config.default_queue_name,
             task_trace_builders: RwLock::new(HashMap::new()),
             task_options: self.config.task_options,
+            task_routes: self.config.task_routes,
         })
     }
 }
@@ -134,6 +152,9 @@ pub struct Celery<B: Broker> {
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
     task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
+
+    /// A vector of routing rules in the order of their importance.
+    task_routes: Vec<Rule>,
 }
 
 impl<B> Celery<B>
@@ -148,10 +169,9 @@ where
     /// Send a task to a remote worker with default options. Returns the correlation ID
     /// of the task if successful.
     pub async fn send_task<T: Task>(&self, task: T) -> Result<String, Error> {
-        let message = Message::builder(task)?.build();
-        debug!("Sending message {:?}", message);
-        self.broker.send(&message, &self.default_queue_name).await?;
-        Ok(message.properties.correlation_id)
+        let queue = routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue_name);
+        let options = TaskSendOptions::builder().queue(queue).build();
+        self.send_task_with(task, &options).await
     }
 
     /// Send a task to a remote worker with custom options. Returns the correlation ID

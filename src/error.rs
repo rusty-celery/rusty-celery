@@ -71,6 +71,10 @@ pub enum ErrorKind {
     /// Task timed out.
     #[fail(display = "Task timed out")]
     TimeoutError,
+
+    /// Invalid routing glob pattern.
+    #[fail(display = "Bad routing rule pattern: {:?}", _0)]
+    BadRoutingRulePatternError(Option<String>),
 }
 
 impl Fail for Error {
@@ -148,6 +152,16 @@ impl From<tokio::time::Elapsed> for Error {
     fn from(_err: tokio::time::Elapsed) -> Error {
         Error {
             inner: Context::new(ErrorKind::TimeoutError),
+        }
+    }
+}
+
+impl From<globset::Error> for Error {
+    fn from(_err: globset::Error) -> Error {
+        Error {
+            inner: Context::new(ErrorKind::BadRoutingRulePatternError(
+                _err.glob().map(|s| s.into()),
+            )),
         }
     }
 }

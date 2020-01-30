@@ -136,7 +136,7 @@ mod task;
 // Public API. //
 /////////////////
 
-pub use app::{Celery, CeleryBuilder};
+pub use app::{Celery, CeleryBuilder, Rule};
 pub use broker::{
     amqp::{AMQPBroker, AMQPBrokerBuilder},
     Broker, BrokerBuilder,
