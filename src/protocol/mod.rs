@@ -57,7 +57,9 @@ impl MessageBuilder {
 
     pub fn task_send_options(mut self, options: &TaskSendOptions) -> Self {
         self.message.headers.timelimit = (options.timeout, options.timeout);
-        if let Some(countdown) = options.countdown {
+        if let Some(eta) = options.eta {
+            self.message.headers.eta = Some(eta);
+        } else if let Some(countdown) = options.countdown {
             let now = DateTime::<Utc>::from(SystemTime::now());
             let eta = now + chrono::Duration::seconds(countdown as i64);
             self.message.headers.eta = Some(eta);

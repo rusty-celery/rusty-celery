@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -193,6 +194,7 @@ struct TaskSendOptionsConfig {
     pub queue: Option<String>,
     pub timeout: Option<u32>,
     pub countdown: Option<u32>,
+    pub eta: Option<DateTime<Utc>>,
 }
 
 /// Used to create custom `TaskSendOptions`.
@@ -218,19 +220,24 @@ impl TaskSendOptionsBuilder {
         self
     }
 
-    /// Set a countdown (in seconds) for the task. This will set the ETA of the task
-    /// to `now + countdown`.
+    /// Set a countdown (in seconds) for the task. This is equivalent to setting
+    /// the `eta` field to `now + countdown`.
     pub fn countdown(mut self, countdown: u32) -> Self {
         self.config.countdown = Some(countdown);
         self
     }
 
+    pub fn eta(mut self, eta: DateTime<Utc>) -> Self {
+        self.config.eta = Some(eta);
+        self
+    }
     /// Get a `TaskSendOptions` object with this configuration.
     pub fn build(self) -> TaskSendOptions {
         TaskSendOptions {
             queue: self.config.queue,
             timeout: self.config.timeout,
             countdown: self.config.countdown,
+            eta: self.config.eta,
         }
     }
 }
@@ -241,6 +248,7 @@ pub struct TaskSendOptions {
     pub queue: Option<String>,
     pub timeout: Option<u32>,
     pub countdown: Option<u32>,
+    pub eta: Option<DateTime<Utc>>,
 }
 
 impl TaskSendOptions {
