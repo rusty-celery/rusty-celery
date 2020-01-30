@@ -38,8 +38,10 @@ impl Task for add {
     }
 }
 
-fn add(x: i32, y: i32) -> add {
-    add { x, y }
+impl add {
+    fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
 }
 
 celery_app!(
@@ -51,7 +53,7 @@ celery_app!(
 #[tokio::test]
 async fn test_rust_to_rust() {
     // Send task to queue.
-    let send_result = my_app.send_task(add(1, 2)).await;
+    let send_result = my_app.send_task(add::new(1, 2)).await;
     assert!(send_result.is_ok());
     let correlation_id = send_result.unwrap();
 
