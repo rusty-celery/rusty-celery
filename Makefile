@@ -27,11 +27,11 @@ test :
 
 .PHONY : broker-amqp-test
 broker-amqp-test :
-	@cargo test --test integrations broker::amqp
+	@cargo test --test integrations brokers::amqp
 
 .PHONY : rabbitmq
 rabbitmq :
-	@docker run -p 5672:5672 --rm -e RABBITMQ_DEFAULT_VHOST=my_vhost rabbitmq:3
+	@./scripts/brokers/amqp.sh
 
 .PHONY : doc
 doc :
