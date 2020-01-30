@@ -107,7 +107,6 @@ where
 
     /// Add a routing rule.
     pub fn task_route(mut self, rule: Rule) -> Self {
-        self.config.broker_builder = self.config.broker_builder.queue(&rule.queue);
         self.config.task_routes.push(rule);
         self
     }
