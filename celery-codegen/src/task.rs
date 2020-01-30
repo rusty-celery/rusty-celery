@@ -2,11 +2,11 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
+use syn::token::Comma;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, Token};
+use syn::{parse, FnArg, Token};
 
 use crate::error::Error;
 
@@ -36,6 +36,7 @@ struct Task {
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
     original_args: Vec<syn::FnArg>,
+    inputs: Option<Punctuated<FnArg, Comma>>,
     inner_block: Option<syn::Block>,
     ret: Option<syn::Type>,
 }
@@ -167,6 +168,7 @@ impl Task {
         let min_retry_delay = attrs.min_retry_delay();
         let max_retry_delay = attrs.max_retry_delay();
         let original_args = Vec::new();
+        let inputs = None;
         let inner_block = None;
         let ret = None;
         Ok(Task {
@@ -179,6 +181,7 @@ impl Task {
             min_retry_delay,
             max_retry_delay,
             original_args,
+            inputs,
             inner_block,
             ret,
         })
@@ -202,28 +205,6 @@ impl VisitMut for Task {
         }
         self.visit_fn_decl_mut(&mut *node.decl);
         self.inner_block = Some((*node.block).clone());
-        let wrapper = self.wrapper.as_ref().unwrap();
-        let serialized_fields = self
-            .original_args
-            .iter()
-            .fold(TokenStream::new(), |acc, arg| match arg {
-                syn::FnArg::Captured(cap) => match cap.pat {
-                    syn::Pat::Ident(ref pat) => {
-                        let ident = &pat.ident;
-                        quote! {
-                            #acc
-                            #ident,
-                        }
-                    }
-                    _ => acc,
-                },
-                _ => acc,
-            });
-        node.block = Box::new(parse_quote!({
-            #wrapper {
-                #serialized_fields
-            }
-        }));
     }
 
     fn visit_fn_decl_mut(&mut self, node: &mut syn::FnDecl) {
@@ -235,15 +216,13 @@ impl VisitMut for Task {
                 .push(Error::spanned(ERR_GENERICS, node.generics.span()));
         }
         self.original_args = node.inputs.clone().into_iter().collect();
+        self.inputs = Some(node.inputs.clone());
         if let Some(ref mut it) = node.variadic {
             self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
         }
         if let syn::ReturnType::Type(_arr, ref ty) = node.output {
             self.ret = Some((**ty).clone());
         }
-        // Unwrapping is safe here because we did set it while visiting `ItemFn`.
-        let wrapper = self.wrapper.as_ref().unwrap();
-        node.output = parse_quote!(-> #wrapper);
     }
 }
 
@@ -299,7 +278,7 @@ impl ToTokens for Task {
                 }
             }
         });
-        let job_name = &self.name;
+        let task_name = &self.name;
         let arg_names = self
             .original_args
             .iter()
@@ -349,11 +328,36 @@ impl ToTokens for Task {
             Span::call_site(),
         );
 
+        let original_args = self.inputs.clone();
+        let wrapper_fields =
+            self.original_args
+                .iter()
+                .fold(TokenStream::new(), |acc, arg| match arg {
+                    syn::FnArg::Captured(cap) => match cap.pat {
+                        syn::Pat::Ident(ref pat) => {
+                            let ident = &pat.ident;
+                            quote! {
+                                #acc
+                                #ident,
+                            }
+                        }
+                        _ => acc,
+                    },
+                    _ => acc,
+                });
         let wrapper_struct = quote! {
             #[allow(non_camel_case_types)]
             #[derive(#export::Deserialize, #export::Serialize)]
             #vis struct #wrapper {
                 #serialized_fields
+            }
+
+            impl #wrapper {
+                #vis fn s(#original_args) -> Self {
+                    #wrapper {
+                        #wrapper_fields
+                    }
+                }
             }
         };
 
@@ -365,7 +369,7 @@ impl ToTokens for Task {
 
                 #[async_trait]
                 impl #krate::Task for #wrapper {
-                    const NAME: &'static str = #job_name;
+                    const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
 
                     type Returns = #ret_ty;
@@ -395,13 +399,13 @@ pub(crate) fn impl_macro(
 ) -> proc_macro::TokenStream {
     let attrs = syn::parse_macro_input!(args as TaskAttrs);
     let mut item = syn::parse_macro_input!(input as syn::ItemFn);
-    let mut job = match Task::new(attrs) {
-        Ok(job) => job,
+    let mut task = match Task::new(attrs) {
+        Ok(task) => task,
         Err(e) => return quote!(#e).into(),
     };
-    job.visit_item_fn_mut(&mut item);
-    if !job.errors.is_empty() {
-        job.errors
+    task.visit_item_fn_mut(&mut item);
+    if !task.errors.is_empty() {
+        task.errors
             .iter()
             .fold(TokenStream::new(), |mut acc, err| {
                 err.to_tokens(&mut acc);
@@ -410,8 +414,7 @@ pub(crate) fn impl_macro(
             .into()
     } else {
         let output = quote! {
-            #job
-            #item
+            #task
         };
         output.into()
     }

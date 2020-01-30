@@ -37,7 +37,7 @@ fn task_with_options() -> String {
 
 #[test]
 fn test_task_options() {
-    let t = task_with_options();
+    let t = task_with_options::s();
     assert_eq!(t.timeout(), Some(2));
     assert_eq!(t.max_retries(), Some(3));
     assert_eq!(t.min_retry_delay(), Some(0));
@@ -63,7 +63,7 @@ fn task_with_strings(s1: String, s2: String) -> String {
 
 #[test]
 fn test_task_with_strings() {
-    let t = task_with_strings("hi".into(), "there".into());
+    let t = task_with_strings::s("hi".into(), "there".into());
     let result = futures::executor::block_on(t.run()).unwrap();
     assert_eq!(result, "hi, there");
 }

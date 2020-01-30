@@ -24,7 +24,7 @@ fn buggy_task() {
 // Demonstrates a long running IO-bound task. By increasing the prefetch count, an arbitrary
 // number of these number can execute concurrently.
 #[task]
-fn long_running_task() {
+async fn long_running_task() {
     time::delay_for(Duration::from_secs(10)).await;
 }
 
@@ -59,11 +59,11 @@ async fn main() -> Result<(), ExitFailure> {
         }
         CeleryOpt::Produce => {
             // Basic sending.
-            my_app.send_task(add(1, 2)).await?;
+            my_app.send_task(add::s(1, 2)).await?;
 
             // Demonstrates sending a task with additional options.
             let send_options = TaskSendOptions::builder().countdown(10).build();
-            my_app.send_task_with(add(1, 3), &send_options).await?;
+            my_app.send_task_with(add::s(1, 3), &send_options).await?;
         }
     };
 
