@@ -47,7 +47,7 @@
 //! async fn main() -> Result<(), exitfailure::ExitFailure> {
 //!     env_logger::init();
 //!
-//!     my_app.send_task(add::s(1, 2)).await?;
+//!     my_app.send_task(add::new(1, 2)).await?;
 //!
 //!     Ok(())
 //! }

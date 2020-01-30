@@ -353,7 +353,7 @@ impl ToTokens for Task {
             }
 
             impl #wrapper {
-                #vis fn s(#original_args) -> Self {
+                #vis fn new(#original_args) -> Self {
                     #wrapper {
                         #wrapper_fields
                     }
