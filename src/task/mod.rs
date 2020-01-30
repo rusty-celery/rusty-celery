@@ -191,10 +191,12 @@ impl TaskOptions {
 
 #[derive(Default)]
 struct TaskSendOptionsConfig {
-    pub queue: Option<String>,
-    pub timeout: Option<u32>,
-    pub countdown: Option<u32>,
-    pub eta: Option<DateTime<Utc>>,
+    queue: Option<String>,
+    timeout: Option<u32>,
+    countdown: Option<u32>,
+    eta: Option<DateTime<Utc>>,
+    expires_in: Option<u32>,
+    expires: Option<DateTime<Utc>>,
 }
 
 /// Used to create custom `TaskSendOptions`.
@@ -221,16 +223,30 @@ impl TaskSendOptionsBuilder {
     }
 
     /// Set a countdown (in seconds) for the task. This is equivalent to setting
-    /// the `eta` field to `now + countdown`.
+    /// the ETA to `now + countdown`.
     pub fn countdown(mut self, countdown: u32) -> Self {
         self.config.countdown = Some(countdown);
         self
     }
 
+    /// Set task ETA. The task will be executed on or after the ETA.
     pub fn eta(mut self, eta: DateTime<Utc>) -> Self {
         self.config.eta = Some(eta);
         self
     }
+
+    /// Set the task to expire in the given number of seconds from now.
+    pub fn expires_in(mut self, seconds: u32) -> Self {
+        self.config.expires_in = Some(seconds);
+        self
+    }
+
+    /// Set the task to expire at the given time.
+    pub fn expires(mut self, expires: DateTime<Utc>) -> Self {
+        self.config.expires = Some(expires);
+        self
+    }
+
     /// Get a `TaskSendOptions` object with this configuration.
     pub fn build(self) -> TaskSendOptions {
         TaskSendOptions {
@@ -238,6 +254,8 @@ impl TaskSendOptionsBuilder {
             timeout: self.config.timeout,
             countdown: self.config.countdown,
             eta: self.config.eta,
+            expires_in: self.config.expires_in,
+            expires: self.config.expires,
         }
     }
 }
@@ -249,6 +267,8 @@ pub struct TaskSendOptions {
     pub timeout: Option<u32>,
     pub countdown: Option<u32>,
     pub eta: Option<DateTime<Utc>>,
+    pub expires_in: Option<u32>,
+    pub expires: Option<DateTime<Utc>>,
 }
 
 impl TaskSendOptions {
