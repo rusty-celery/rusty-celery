@@ -188,11 +188,70 @@ impl TaskOptions {
     }
 }
 
+#[derive(Default)]
+struct TaskSendOptionsConfig {
+    pub queue: Option<String>,
+    pub timeout: Option<u32>,
+    pub countdown: Option<u32>,
+}
+
+/// Used to create custom `TaskSendOptions`.
+#[derive(Default)]
+pub struct TaskSendOptionsBuilder {
+    config: TaskSendOptionsConfig,
+}
+
+impl TaskSendOptionsBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the queue to send the task to.
+    pub fn queue(mut self, queue: String) -> Self {
+        self.config.queue = Some(queue);
+        self
+    }
+
+    /// Set a timeout (in seconds) for the task.
+    pub fn timeout(mut self, timeout: u32) -> Self {
+        self.config.timeout = Some(timeout);
+        self
+    }
+
+    /// Set a countdown (in seconds) for the task. This will set the ETA of the task
+    /// to `now + countdown`.
+    pub fn countdown(mut self, countdown: u32) -> Self {
+        self.config.countdown = Some(countdown);
+        self
+    }
+
+    /// Get a `TaskSendOptions` object with this configuration.
+    pub fn build(self) -> TaskSendOptions {
+        TaskSendOptions {
+            queue: self.config.queue,
+            timeout: self.config.timeout,
+            countdown: self.config.countdown,
+        }
+    }
+}
+
 /// Options for sending a task. Used to override the defaults.
 #[derive(Clone, Default)]
 pub struct TaskSendOptions {
-    pub timeout: Option<u32>,
     pub queue: Option<String>,
+    pub timeout: Option<u32>,
+    pub countdown: Option<u32>,
+}
+
+impl TaskSendOptions {
+    pub fn new() -> Self {
+        Self::builder().build()
+    }
+
+    /// Get a builder for creating a custom `TaskSendOptions` object.
+    pub fn builder() -> TaskSendOptionsBuilder {
+        TaskSendOptionsBuilder::new()
+    }
 }
 
 #[derive(Clone, Debug)]

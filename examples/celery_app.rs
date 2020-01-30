@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
-use celery::{celery_app, task, AMQPBroker, ErrorKind};
+use celery::{celery_app, task, AMQPBroker, ErrorKind, TaskSendOptions};
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
 use tokio::time::{self, Duration};
@@ -57,7 +57,8 @@ async fn main() -> Result<(), ExitFailure> {
             my_app.consume("celery").await?;
         }
         CeleryOpt::Produce => {
-            my_app.send_task(add(1, 2)).await?;
+            let send_options = TaskSendOptions::builder().countdown(10).build();
+            my_app.send_task_with(add(1, 2), &send_options).await?;
         }
     };
 
