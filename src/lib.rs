@@ -138,6 +138,5 @@ pub use broker::{
 pub use error::{Error, ErrorKind};
 pub use task::{Task, TaskContext, TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
 
-// Proc macros for defining tasks.
 #[cfg(feature = "codegen")]
 pub use celery_codegen::task;
