@@ -67,8 +67,8 @@ pub trait BrokerBuilder {
     /// Set the prefetch count.
     fn prefetch_count(self, prefetch_count: u16) -> Self;
 
-    /// Register a queue.
-    fn queue(self, name: &str) -> Self;
+    /// Declare a queue.
+    fn declare_queue(self, name: &str) -> Self;
 
     /// Set the heartbeat.
     fn heartbeat(self, heartbeat: Option<u16>) -> Self;

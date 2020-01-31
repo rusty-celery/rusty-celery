@@ -48,8 +48,6 @@ celery_app!(
     my_app,
     AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
     tasks = [add],
-    queue = "backend",
-    queue = "ml",
     task_route = Rule::new("add", "celery").unwrap(),
     task_route = Rule::new("backend*", "backend").unwrap(),
     task_route = Rule::new("ml*", "ml").unwrap(),
