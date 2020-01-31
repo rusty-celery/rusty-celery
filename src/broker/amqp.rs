@@ -96,6 +96,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             queues.insert(queue_name.into(), queue);
         }
         let broker = AMQPBroker {
+            conn,
             channel,
             queues,
             prefetch_count: std::sync::Mutex::new(self.config.prefetch_count),
@@ -107,6 +108,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
 
 /// An AMQP broker.
 pub struct AMQPBroker {
+    conn: Connection,
     channel: Channel,
     queues: HashMap<String, Queue>,
     prefetch_count: std::sync::Mutex<u16>,
@@ -134,7 +136,12 @@ impl Broker for AMQPBroker {
         AMQPBrokerBuilder::new(broker_url)
     }
 
-    async fn consume(&self, queue: &str) -> Result<Self::DeliveryStream, Error> {
+    async fn consume<E: Fn() + Send + 'static>(
+        &self,
+        queue: &str,
+        handler: Box<E>,
+    ) -> Result<Self::DeliveryStream, Error> {
+        self.conn.on_error(handler);
         let queue = self
             .queues
             .get(queue)
@@ -225,6 +232,14 @@ impl Broker for AMQPBroker {
         if new_count > 0 {
             self.set_prefetch_count(new_count).await?;
         }
+        Ok(())
+    }
+
+    async fn close(&self) -> Result<(), Error> {
+        // 320 reply-code = "connection-forced", operator intervened.
+        // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
+        self.channel.close(320, "").await?;
+        self.conn.close(320, "").await?;
         Ok(())
     }
 }

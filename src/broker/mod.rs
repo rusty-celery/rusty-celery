@@ -33,7 +33,11 @@ pub trait Broker: Send + Sync + Sized {
     /// and an `Err` value is a
     /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError)
     /// type that can be coerced into an [`Error`](struct.Error.html).
-    async fn consume(&self, queue: &str) -> Result<Self::DeliveryStream, Error>;
+    async fn consume<E: Fn() + Send + 'static>(
+        &self,
+        queue: &str,
+        handler: Box<E>,
+    ) -> Result<Self::DeliveryStream, Error>;
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
     async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error>;
@@ -55,6 +59,9 @@ pub trait Broker: Send + Sync + Sized {
     /// Decrease the `prefetch_count`. This has to be done after a task with a future
     /// ETA is executed.
     async fn decrease_prefetch_count(&self) -> Result<(), Error>;
+
+    /// Clone all channels and connection.
+    async fn close(&self) -> Result<(), Error>;
 }
 
 /// A `BrokerBuilder` is used to create a type of broker with a custom configuration.
