@@ -33,7 +33,11 @@ pub trait Broker: Send + Sync + Sized {
     /// and an `Err` value is a
     /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError)
     /// type that can be coerced into an [`Error`](struct.Error.html).
-    async fn consume(&self, queue: &str) -> Result<Self::DeliveryStream, Error>;
+    async fn consume<E: Fn() + Send + 'static>(
+        &self,
+        queue: &str,
+        handler: Box<E>,
+    ) -> Result<Self::DeliveryStream, Error>;
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
     async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error>;

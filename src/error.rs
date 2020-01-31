@@ -20,7 +20,7 @@ pub enum ErrorKind {
     UnregisteredTaskError(String),
 
     /// An AMQP broker error.
-    #[fail(display = "{:?}", _0)]
+    #[fail(display = "AMQP error: {:?}", _0)]
     AMQPError(Option<lapin::Error>),
 
     /// Raised when broker URL can't be parsed.
@@ -28,11 +28,11 @@ pub enum ErrorKind {
     InvalidBrokerUrl(String),
 
     /// An error occured while serializing or deserializing.
-    #[fail(display = "{}", _0)]
+    #[fail(display = "Serialization error: {}", _0)]
     SerializationError(serde_json::Error),
 
     /// A consumed delivery was in an unknown format.
-    #[fail(display = "Failed to parse message ({})", _0)]
+    #[fail(display = "Failed to parse message: ({})", _0)]
     AMQPMessageParseError(String),
 
     /// The queue you're attempting to use has not been defined.
@@ -75,6 +75,10 @@ pub enum ErrorKind {
     /// Invalid routing glob pattern.
     #[fail(display = "Bad routing rule pattern: {:?}", _0)]
     BadRoutingRulePatternError(Option<String>),
+
+    /// Broker connection failed.
+    #[fail(display = "Broker connection error")]
+    BrokerConnectionError,
 }
 
 impl Fail for Error {

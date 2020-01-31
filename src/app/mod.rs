@@ -309,8 +309,22 @@ where
     /// Consume tasks from a queue.
     #[allow(clippy::cognitive_complexity)]
     pub async fn consume_from(&'static self, queue: &str) -> Result<(), Error> {
+        // Stream of errors from broker.
+        let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
+
         // Stream of deliveries from the queue.
-        let mut deliveries = Box::pin(self.broker.consume(queue).await?);
+        let mut deliveries = Box::pin(
+            self.broker
+                .consume(
+                    queue,
+                    Box::new(move || {
+                        if broker_error_tx.clone().try_send(()).is_err() {
+                            error!("Failed to send broker error event");
+                        };
+                    }),
+                )
+                .await?,
+        );
 
         // Stream of OS signals.
         let mut sigint = signal(SignalKind::interrupt())?;
@@ -319,7 +333,7 @@ where
         // A sender and receiver for task related events.
         // NOTE: we can use an unbounded channel since we already have backpressure
         // from the `prefetch_count` setting.
-        let (event_tx, mut event_rx) = mpsc::unbounded_channel::<TaskEvent>();
+        let (task_event_tx, mut task_event_rx) = mpsc::unbounded_channel::<TaskEvent>();
         let mut pending_tasks = 0;
 
         // This is the main loop where we receive deliveries and pass them off
@@ -332,8 +346,8 @@ where
             select! {
                 maybe_delivery_result = deliveries.next() => {
                     if let Some(delivery_result) = maybe_delivery_result {
-                        let event_tx = event_tx.clone();
-                        tokio::spawn(self.handle_delivery(delivery_result, event_tx));
+                        let task_event_tx = task_event_tx.clone();
+                        tokio::spawn(self.handle_delivery(delivery_result, task_event_tx));
                     }
                 },
                 _ = sigint.next() => {
@@ -345,8 +359,8 @@ where
                     info!("Warm shutdown...");
                     break;
                 },
-                maybe_event = event_rx.next() => {
-                    if let Some(event) = maybe_event {
+                maybe_task_event = task_event_rx.next() => {
+                    if let Some(event) = maybe_task_event {
                         debug!("Received task event {:?}", event);
                         match event.status {
                             TaskStatus::Pending => pending_tasks += 1,
@@ -354,12 +368,18 @@ where
                         };
                     }
                 },
+                maybe_broker_error = broker_error_rx.next() => {
+                    if maybe_broker_error.is_some() {
+                        error!("Broker lost connection");
+                        return Err(ErrorKind::BrokerConnectionError.into());
+                    }
+                }
             };
         }
 
         if pending_tasks > 0 {
             // Warm shutdown loop. When there are still pendings tasks we wait for them
-            // to finish. We get updates about pending tasks through the `event_rx` channel.
+            // to finish. We get updates about pending tasks through the `task_event_rx` channel.
             // We also watch for a second SIGINT, in which case we immediately shutdown.
             info!("Waiting on {} pending tasks...", pending_tasks);
             loop {
@@ -368,7 +388,7 @@ where
                         warn!("Okay fine, shutting down now. See ya!");
                         return Err(ErrorKind::ForcedShutdown.into());
                     },
-                    maybe_event = event_rx.next() => {
+                    maybe_event = task_event_rx.next() => {
                         if let Some(event) = maybe_event {
                             debug!("Received task event {:?}", event);
                             match event.status {
