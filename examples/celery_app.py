@@ -16,5 +16,8 @@ def add(x, y):
 
 if __name__ == "__main__":
     print(f"Sending task add[{add.apply_async(args=[1, 0], countdown=5)}]")
-    print(f"Sending task buggy_task[{my_app.send_task('buggy_task')}]")
+    #  print(f"Sending task buggy_task[{my_app.send_task('buggy_task')}]")
     print(f"Sending task long_running_task[{my_app.send_task('long_running_task')}]")
+    print(
+        f"Sending task long_running_task[{my_app.send_task('long_running_task', args=[3])}]"
+    )

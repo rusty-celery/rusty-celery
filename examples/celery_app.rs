@@ -24,8 +24,9 @@ fn buggy_task() {
 // Demonstrates a long running IO-bound task. By increasing the prefetch count, an arbitrary
 // number of these number can execute concurrently.
 #[task]
-async fn long_running_task() {
-    time::delay_for(Duration::from_secs(10)).await;
+async fn long_running_task(secs: Option<u64>) {
+    let secs = secs.unwrap_or(10);
+    time::delay_for(Duration::from_secs(secs)).await;
 }
 
 #[derive(Debug, StructOpt)]
