@@ -22,7 +22,7 @@ where
 {
     name: String,
     broker_builder: Bb,
-    default_queue_name: String,
+    default_queue: String,
     task_options: TaskOptions,
     task_routes: Vec<Rule>,
 }
@@ -45,7 +45,7 @@ where
             config: Config {
                 name: name.into(),
                 broker_builder: Bb::new(broker_url),
-                default_queue_name: "celery".into(),
+                default_queue: "celery".into(),
                 task_options: TaskOptions {
                     timeout: None,
                     max_retries: None,
@@ -58,20 +58,14 @@ where
     }
 
     /// Set the name of the default queue.
-    pub fn default_queue_name(mut self, queue_name: &str) -> Self {
-        self.config.default_queue_name = queue_name.into();
+    pub fn default_queue(mut self, queue_name: &str) -> Self {
+        self.config.default_queue = queue_name.into();
         self
     }
 
     /// Set the prefetch count.
     pub fn prefetch_count(mut self, prefetch_count: u16) -> Self {
         self.config.broker_builder = self.config.broker_builder.prefetch_count(prefetch_count);
-        self
-    }
-
-    /// Register a queue.
-    pub fn queue(mut self, name: &str) -> Self {
-        self.config.broker_builder = self.config.broker_builder.queue(name);
         self
     }
 
@@ -117,17 +111,17 @@ where
         let mut broker_builder = self
             .config
             .broker_builder
-            .queue(&self.config.default_queue_name);
+            .declare_queue(&self.config.default_queue);
 
         // Ensure all other queues mentioned in task_routes are declared to the broker.
         for rule in &self.config.task_routes {
-            broker_builder = broker_builder.queue(&rule.queue);
+            broker_builder = broker_builder.declare_queue(&rule.queue);
         }
 
         Ok(Celery {
             name: self.config.name,
             broker: broker_builder.build()?,
-            default_queue_name: self.config.default_queue_name,
+            default_queue: self.config.default_queue,
             task_trace_builders: RwLock::new(HashMap::new()),
             task_options: self.config.task_options,
             task_routes: self.config.task_routes,
@@ -144,7 +138,7 @@ pub struct Celery<B: Broker> {
     pub broker: B,
 
     /// The default queue to send and receive from.
-    pub default_queue_name: String,
+    pub default_queue: String,
 
     /// Default task options.
     pub task_options: TaskOptions,
@@ -169,7 +163,7 @@ where
     /// Send a task to a remote worker with default options. Returns the correlation ID
     /// of the task if successful.
     pub async fn send_task<T: Task>(&self, task: T) -> Result<String, Error> {
-        let queue = routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue_name);
+        let queue = routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue);
         let options = TaskSendOptions::builder().queue(queue).build();
         self.send_task_with(task, &options).await
     }
@@ -183,7 +177,7 @@ where
     ) -> Result<String, Error> {
         let message = Message::builder(task)?.task_send_options(options).build();
         debug!("Sending message {:?}", message);
-        let queue = options.queue.as_ref().unwrap_or(&self.default_queue_name);
+        let queue = options.queue.as_ref().unwrap_or(&self.default_queue);
         self.broker.send(&message, queue).await?;
         Ok(message.properties.correlation_id)
     }
@@ -309,7 +303,7 @@ where
 
     /// Consume tasks from the default queue.
     pub async fn consume(&'static self) -> Result<(), Error> {
-        Ok(self.consume_from(&self.default_queue_name).await?)
+        Ok(self.consume_from(&self.default_queue).await?)
     }
 
     /// Consume tasks from a queue.

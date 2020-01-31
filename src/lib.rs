@@ -24,9 +24,10 @@
 //! # }
 //! celery_app!(
 //!     my_app,
-//!     AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//!     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//!     tasks = [add],
+//!     task_routes = [],
 //! );
-//! my_app.register_task::<add>();
 //! ```
 //!
 //! The Celery app can be used as either a producing or consumer (worker). To send tasks to a
@@ -40,8 +41,9 @@
 //! # }
 //! # celery_app!(
 //! #     my_app,
-//! #     AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
+//! #     task_routes = [],
 //! # );
 //! #[tokio::main]
 //! async fn main() -> Result<(), exitfailure::ExitFailure> {
@@ -64,8 +66,9 @@
 //! # }
 //! # celery_app!(
 //! #     my_app,
-//! #     AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
+//! #     task_routes = [],
 //! # );
 //! #[tokio::main]
 //! async fn main() -> Result<(), exitfailure::ExitFailure> {

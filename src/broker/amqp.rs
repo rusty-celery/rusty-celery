@@ -55,8 +55,8 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         self
     }
 
-    /// Add / register a queue.
-    fn queue(mut self, name: &str) -> Self {
+    /// Declare a queue.
+    fn declare_queue(mut self, name: &str) -> Self {
         self.config.queues.insert(
             name.into(),
             QueueDeclareOptions {
