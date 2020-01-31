@@ -29,6 +29,38 @@ If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-ce
 
 ## Quick start
 
+Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
+
+```rust
+#[task]
+fn add(x: i32, y: i32) -> i32 {
+    x + y
+}
+```
+
+Create an app with the [`celery_app`](https://docs.rs/celery/*/celery/macro.celery_app.html) macro
+and register your tasks with it:
+
+```rust
+let my_app = celery_app!(
+    broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+    tasks = [add],
+    task_routes = [],
+);
+```
+
+Then send tasks to a queue with
+
+```rust
+my_app.send_task(add::new(1, 2)).await?;
+```
+
+And consume tasks as a worker from a queue with
+
+```rust
+my_app.consume().await?;
+```
+
 The `./examples` directory contains a simple Celery app that is implemented in both Rust ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)) and Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)) using an AMQP broker. 
 
 If you already have an AMQP broker running you can set the environment variable `AMQP_URL` to your broker's URL. Otherwise simply run the helper script:
