@@ -3,18 +3,18 @@
 //!
 //! # Examples
 //!
-//! Create a task by decorating a function with the [`task`](attr.task.html) macro:
+//! Create a task by decorating a function with the [`task`](attr.task.html) attribute:
 //!
 //! ```rust
-//! use celery::{celery_app, task, AMQPBroker};
-//!
+//! # use celery::task;
 //! #[task]
 //! fn add(x: i32, y: i32) -> i32 {
 //!     x + y
 //! }
 //! ```
 //!
-//! Then create a [`Celery`](struct.Celery.html) app and register your tasks with it:
+//! Then create a [`Celery`](struct.Celery.html) app with the [`celery_app`](macro.celery_app.html)
+//! and register your tasks with it:
 //!
 //! ```rust,no_run
 //! # use celery::{celery_app, task, AMQPBroker};
@@ -22,16 +22,15 @@
 //! # fn add(x: i32, y: i32) -> i32 {
 //! #     x + y
 //! # }
-//! celery_app!(
-//!     my_app,
+//! let my_app = celery_app!(
 //!     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //!     tasks = [add],
 //!     task_routes = [],
 //! );
 //! ```
 //!
-//! The Celery app can be used as either a producing or consumer (worker). To send tasks to a
-//! queue for a worker to consume use the [`Celery::send_task`](struct.Celery.html#method.send_task) method:
+//! The Celery app can be used as either a producer or consumer (worker). To send tasks to a
+//! queue for a worker to consume, use the [`Celery::send_task`](struct.Celery.html#method.send_task) method:
 //!
 //! ```rust,no_run
 //! # use celery::{celery_app, task, AMQPBroker};
@@ -39,20 +38,16 @@
 //! # fn add(x: i32, y: i32) -> i32 {
 //! #     x + y
 //! # }
-//! # celery_app!(
-//! #     my_app,
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
+//! # let my_app = celery_app!(
 //! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
 //! # );
-//! #[tokio::main]
-//! async fn main() -> Result<(), exitfailure::ExitFailure> {
-//!     env_logger::init();
-//!
-//!     my_app.send_task(add::new(1, 2)).await?;
-//!
-//!     Ok(())
-//! }
+//! my_app.send_task(add::new(1, 2)).await?;
+//! #   Ok(())
+//! # }
 //! ```
 //!
 //! And to act as worker and consume tasks sent to a queue by a producer, use the
@@ -64,20 +59,16 @@
 //! # fn add(x: i32, y: i32) -> i32 {
 //! #     x + y
 //! # }
-//! # celery_app!(
-//! #     my_app,
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
+//! # let my_app = celery_app!(
 //! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
 //! # );
-//! #[tokio::main]
-//! async fn main() -> Result<(), exitfailure::ExitFailure> {
-//!     env_logger::init();
-//!
-//!     my_app.consume().await?;
-//!
-//!     Ok(())
-//! }
+//! my_app.consume().await?;
+//! # Ok(())
+//! # }
 //! ```
 
 #![doc(
@@ -95,7 +86,7 @@ extern crate failure;
 pub use failure::ResultExt;
 
 #[cfg(feature = "codegen")]
-extern crate lazy_static;
+extern crate once_cell;
 
 #[cfg(feature = "codegen")]
 extern crate async_trait;
