@@ -45,7 +45,9 @@ and register your tasks with it:
 let my_app = celery_app!(
     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
     tasks = [add],
-    task_routes = [],
+    task_routes = [
+        "*" => "celery",
+    ],
 );
 ```
 

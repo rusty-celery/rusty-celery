@@ -3,7 +3,7 @@
 //!
 //! # Examples
 //!
-//! Create a task by decorating a function with the [`task`](attr.task.html) attribute:
+//! Define tasks by decorating functions with the [`task`](attr.task.html) attribute:
 //!
 //! ```rust
 //! # use celery::task;
@@ -14,7 +14,7 @@
 //! ```
 //!
 //! Then create a [`Celery`](struct.Celery.html) app with the [`celery_app`](macro.celery_app.html)
-//! and register your tasks with it:
+//! macro and register your tasks with it:
 //!
 //! ```rust,no_run
 //! # use celery::{celery_app, task, AMQPBroker};
