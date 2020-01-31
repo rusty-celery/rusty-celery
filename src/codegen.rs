@@ -2,49 +2,44 @@
 #[macro_export]
 macro_rules! __celery_app_internal {
     (
-        ($($vis:tt)*) $name:ident,
         $broker_type:ty { $broker_url:expr },
         [ $( $t:ty ),* ],
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
-    ) => {
-        use celery::{Celery, Broker, BrokerBuilder};
+    ) => {{
+        static CELERY_APP: $crate::export::OnceCell<$crate::Celery<$broker_type>> =
+            $crate::export::OnceCell::new();
+        CELERY_APP.get_or_init(|| {
+            let broker_url = $broker_url;
 
-        celery::export::lazy_static! {
-            static ref $name: Celery<$broker_type> = {
-                let broker_url = $broker_url;
+            let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
 
-                let mut builder = Celery::<$broker_type>::builder("celery", &broker_url);
+            $(
+                builder = builder.$x($y);
+            )*
 
-                $(
-                    builder = builder.$x($y);
-                )*
+            $(
+                let rule = $crate::Rule::new($pattern, $queue).unwrap();
+                builder = builder.task_route(rule);
+            )*
 
-                $(
-                    let rule = celery::Rule::new($pattern, $queue).unwrap();
-                    builder = builder.task_route(rule);
-                )*
+            let celery: $crate::Celery<$broker_type> = builder.build().unwrap();
 
-                let celery: Celery<$broker_type> = builder.build().unwrap();
+            $(
+                celery.register_task::<$t>().unwrap();
+            )*
 
-                $(
-                    celery.register_task::<$t>().unwrap();
-                )*
-
-                celery
-            };
-        }
-    };
+            celery
+        })
+    }};
 }
 
 /// A macro for creating a `Celery` app.
 ///
-/// At a minimum the `celery_app!` macro requires 4 arguments:
-/// - an identifier to assign the application to (`app` in this case becomes a static reference variable to
-/// the application),
+/// At a minimum the `celery_app!` macro requires 3 arguments:
 /// - a broker type with an expression for the broker URL in brackets,
 /// - a list of tasks to register, and
-/// - a list of routing rules.
+/// - a list of routing rules in the form of `pattern => queue`.
 ///
 /// For example:
 ///
@@ -58,8 +53,7 @@ macro_rules! __celery_app_internal {
 /// }
 ///
 /// # fn main() {
-/// celery_app!(
-///     app,
+/// let app = celery_app!(
 ///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     tasks = [ add ],
 ///     task_routes = [ "*" => "celery" ],
@@ -75,8 +69,7 @@ macro_rules! __celery_app_internal {
 /// # #[macro_use] extern crate celery;
 /// # use celery::{celery_app, AMQPBroker};
 /// # fn main() {
-/// celery_app!(
-///     app,
+/// let app = celery_app!(
 ///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     tasks = [],
 ///     task_routes = [],
@@ -84,32 +77,15 @@ macro_rules! __celery_app_internal {
 /// );
 /// # }
 /// ```
-///
-/// It also valid to prefix the app identifier with visibility qualifiers:
-///
-/// ```rust,no_run
-/// # #[macro_use] extern crate celery;
-/// # use celery::{celery_app, AMQPBroker};
-/// # fn main() {
-/// celery_app!(
-///     pub(crate) app,
-///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
-///     tasks = [],
-///     task_routes = [],
-/// );
-/// # }
-/// ```
 #[macro_export]
 macro_rules! celery_app {
     (
-        $name:ident,
         broker = $broker_type:ty { $broker_url:expr },
         tasks = [ $( $t:ty ),* $(,)? ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
         $crate::__celery_app_internal!(
-            () $name,
             $broker_type { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
@@ -117,14 +93,12 @@ macro_rules! celery_app {
         );
     };
     (
-        pub $name:ident,
         broker = $broker_type:ty { $broker_url:expr },
         tasks = [ $( $t:ty ),* $(,)? ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
         $crate::__celery_app_internal!(
-            (pub) $name,
             $broker_type { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
@@ -132,14 +106,12 @@ macro_rules! celery_app {
         );
     };
     (
-        pub ($($vis:tt)+) $name:ident,
         broker = $broker_type:ty { $broker_url:expr },
         tasks = [ $( $t:ty ),* $(,)? ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
         $crate::__celery_app_internal!(
-            (pub ($($vis)+)) $name,
             $broker_type { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],

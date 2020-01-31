@@ -28,20 +28,6 @@ async fn long_running_task() {
     time::delay_for(Duration::from_secs(10)).await;
 }
 
-// Initialize a Celery app bound to `my_app`.
-celery_app!(
-    my_app,
-    broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
-    tasks = [
-        add,
-        buggy_task,
-        long_running_task,
-    ],
-    task_routes = [],
-    prefetch_count = 2,
-    heartbeat = Some(10),
-);
-
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "celery_app",
@@ -57,6 +43,17 @@ enum CeleryOpt {
 async fn main() -> Result<(), ExitFailure> {
     env_logger::from_env(Env::default().default_filter_or("info")).init();
     let opt = CeleryOpt::from_args();
+    let my_app = celery_app!(
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        tasks = [
+            add,
+            buggy_task,
+            long_running_task,
+        ],
+        task_routes = [],
+        prefetch_count = 2,
+        heartbeat = Some(10),
+    );
 
     match opt {
         CeleryOpt::Consume => {

@@ -44,19 +44,18 @@ impl add {
     }
 }
 
-celery_app!(
-    my_app,
-    broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
-    tasks = [add],
-    task_routes = [
-        "add" => "celery",
-        "backend.*" => "backend",
-        "ml.*" => "ml"
-    ],
-);
-
 #[tokio::test]
 async fn test_rust_to_rust() {
+    let my_app = celery_app!(
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        tasks = [add],
+        task_routes = [
+            "add" => "celery",
+            "backend.*" => "backend",
+            "ml.*" => "ml"
+        ],
+    );
+
     // Send task to queue.
     let send_result = my_app.send_task(add::new(1, 2)).await;
     assert!(send_result.is_ok());
