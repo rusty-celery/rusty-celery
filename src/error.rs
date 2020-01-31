@@ -131,7 +131,10 @@ impl From<Context<&str>> for Error {
 impl From<lapin::Error> for Error {
     fn from(err: lapin::Error) -> Error {
         Error {
-            inner: Context::new(ErrorKind::AMQPError(Some(err))),
+            inner: Context::new(match err {
+                lapin::Error::NotConnected => ErrorKind::BrokerConnectionError,
+                _ => ErrorKind::AMQPError(Some(err)),
+            }),
         }
     }
 }

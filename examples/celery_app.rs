@@ -61,6 +61,10 @@ async fn main() -> Result<(), ExitFailure> {
             my_app.consume().await?;
         }
         CeleryOpt::Produce => {
+            use std::io::Write;
+            let mut s = String::new();
+            let _ = std::io::stdout().flush();
+            let _ = std::io::stdin().read_line(&mut s).expect("Did not enter s");
             // Basic sending.
             my_app.send_task(add::new(1, 2)).await?;
 
