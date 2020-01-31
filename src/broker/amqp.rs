@@ -236,6 +236,8 @@ impl Broker for AMQPBroker {
     }
 
     async fn close(&self) -> Result<(), Error> {
+        // 320 reply-code = "connection-forced", operator intervened.
+        // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
         self.channel.close(320, "").await?;
         self.conn.close(320, "").await?;
         Ok(())
