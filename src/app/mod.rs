@@ -408,4 +408,9 @@ where
 
         Ok(())
     }
+
+    /// Close channels and connections.
+    pub async fn close(&self) -> Result<(), Error> {
+        Ok(self.broker.close().await?)
+    }
 }

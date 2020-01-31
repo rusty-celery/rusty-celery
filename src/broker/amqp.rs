@@ -234,6 +234,12 @@ impl Broker for AMQPBroker {
         }
         Ok(())
     }
+
+    async fn close(&self) -> Result<(), Error> {
+        self.channel.close(320, "").await?;
+        self.conn.close(320, "").await?;
+        Ok(())
+    }
 }
 
 impl Message {

@@ -59,6 +59,9 @@ pub trait Broker: Send + Sync + Sized {
     /// Decrease the `prefetch_count`. This has to be done after a task with a future
     /// ETA is executed.
     async fn decrease_prefetch_count(&self) -> Result<(), Error>;
+
+    /// Clone all channels and connection.
+    async fn close(&self) -> Result<(), Error>;
 }
 
 /// A `BrokerBuilder` is used to create a type of broker with a custom configuration.

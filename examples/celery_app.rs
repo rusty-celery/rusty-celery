@@ -70,5 +70,7 @@ async fn main() -> Result<(), ExitFailure> {
         }
     };
 
+    my_app.close().await?;
+
     Ok(())
 }
