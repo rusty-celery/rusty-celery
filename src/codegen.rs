@@ -104,8 +104,8 @@ macro_rules! celery_app {
     (
         $name:ident,
         broker = $broker_type:ty { $broker_url:expr },
-        tasks = [ $( $t:ty ),* ],
-        task_routes = [ $( $pattern:expr => $queue:expr ),* ],
+        tasks = [ $( $t:ty ),* $(,)? ],
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
         $crate::__celery_app_internal!(
@@ -119,8 +119,8 @@ macro_rules! celery_app {
     (
         pub $name:ident,
         broker = $broker_type:ty { $broker_url:expr },
-        tasks = [ $( $t:ty ),* ],
-        task_routes = [ $( $pattern:expr => $queue:expr ),* ],
+        tasks = [ $( $t:ty ),* $(,)? ],
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
         $crate::__celery_app_internal!(
@@ -134,8 +134,8 @@ macro_rules! celery_app {
     (
         pub ($($vis:tt)+) $name:ident,
         broker = $broker_type:ty { $broker_url:expr },
-        tasks = [ $( $t:ty ),* ],
-        task_routes = [ $( $pattern:expr => $queue:expr ),* ],
+        tasks = [ $( $t:ty ),* $(,)? ],
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
         $crate::__celery_app_internal!(

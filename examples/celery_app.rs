@@ -32,7 +32,11 @@ async fn long_running_task() {
 celery_app!(
     my_app,
     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
-    tasks = [add, buggy_task, long_running_task],
+    tasks = [
+        add,
+        buggy_task,
+        long_running_task,
+    ],
     task_routes = [],
     prefetch_count = 2,
     heartbeat = Some(10),
