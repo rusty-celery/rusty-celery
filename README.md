@@ -25,7 +25,7 @@ A Rust implementation of [Celery](https://github.com/celery/celery) for producin
 
 We welcome contributions from everyone regardless of your experience level with Rust. For complete beginners, see [HACKING_QUICKSTART.md](https://github.com/rusty-celery/rusty-celery/blob/master/HACKING_QUICKSTART.md).
 
-If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-celery.github.io/) is the best place to start. It contains numerous examples and guides to best practices. If you're coming from Python you may also be interested to know [what's different](https://rusty-celery.github.io/coming-from-python/index.html). And if you've never heard of Celery, the official [Celery Project](http://www.celeryproject.org/) is a great source of tutorials and overviews.
+If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-celery.github.io/) is the best place to start. If you're coming from Python you may also be interested to know [what's different](https://rusty-celery.github.io/coming-from-python/index.html). And if you've never heard of Celery, the official [Celery Project](http://www.celeryproject.org/) is a great source of tutorials and overviews.
 
 ## Quick start
 
