@@ -10,8 +10,9 @@ echo ""
 
 echo "Consuming celery task from Python"
 echo "---------------------------------"
-cd examples && celery \
+celery \
     --app=celery_app.my_app worker \
+    --workdir=examples \
     -Q celery \
     -Ofair \
     --loglevel=info
