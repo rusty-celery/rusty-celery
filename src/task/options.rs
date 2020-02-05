@@ -8,6 +8,7 @@ pub struct TaskOptions {
     pub max_retries: Option<u32>,
     pub min_retry_delay: u32,
     pub max_retry_delay: u32,
+    pub acks_late: bool,
 }
 
 impl TaskOptions {
@@ -17,6 +18,7 @@ impl TaskOptions {
             max_retries: task.max_retries().or(self.max_retries),
             min_retry_delay: task.min_retry_delay().unwrap_or(self.min_retry_delay),
             max_retry_delay: task.max_retry_delay().unwrap_or(self.max_retry_delay),
+            acks_late: task.acks_late().unwrap_or(self.acks_late),
         }
     }
 }
