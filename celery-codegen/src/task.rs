@@ -23,6 +23,7 @@ enum TaskAttr {
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
     MaxRetryDelay(syn::LitInt),
+    AcksLate(syn::LitBool),
 }
 
 #[derive(Clone)]
@@ -35,6 +36,7 @@ struct Task {
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
+    acks_late: Option<syn::LitBool>,
     original_args: Vec<syn::FnArg>,
     inputs: Option<Punctuated<FnArg, Comma>>,
     inner_block: Option<syn::Block>,
@@ -101,6 +103,16 @@ impl TaskAttrs {
             })
             .next()
     }
+
+    fn acks_late(&self) -> Option<syn::LitBool> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::AcksLate(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
 }
 
 impl parse::Parse for TaskAttrs {
@@ -119,6 +131,7 @@ mod kw {
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
     syn::custom_keyword!(max_retry_delay);
+    syn::custom_keyword!(acks_late);
 }
 
 impl parse::Parse for TaskAttr {
@@ -148,6 +161,10 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::max_retry_delay>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::MaxRetryDelay(input.parse()?))
+        } else if lookahead.peek(kw::acks_late) {
+            input.parse::<kw::acks_late>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::AcksLate(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -167,6 +184,7 @@ impl Task {
         let max_retries = attrs.max_retries();
         let min_retry_delay = attrs.min_retry_delay();
         let max_retry_delay = attrs.max_retry_delay();
+        let acks_late = attrs.acks_late();
         let original_args = Vec::new();
         let inputs = None;
         let inner_block = None;
@@ -180,6 +198,7 @@ impl Task {
             max_retries,
             min_retry_delay,
             max_retry_delay,
+            acks_late,
             original_args,
             inputs,
             inner_block,
@@ -274,6 +293,13 @@ impl ToTokens for Task {
         let max_retry_delay = self.max_retry_delay.as_ref().map(|r| {
             quote! {
                 fn max_retry_delay(&self) -> Option<u32> {
+                    Some(#r)
+                }
+            }
+        });
+        let acks_late = self.acks_late.as_ref().map(|r| {
+            quote! {
+                fn acks_late(&self) -> Option<bool> {
                     Some(#r)
                 }
             }
@@ -386,6 +412,8 @@ impl ToTokens for Task {
                     #min_retry_delay
 
                     #max_retry_delay
+
+                    #acks_late
                 }
             };
         };
