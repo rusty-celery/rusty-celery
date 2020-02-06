@@ -15,6 +15,7 @@ mod task;
 /// - `max_retries`: Corresponds to [`Task::max_retries`](trait.Task.html#method.max_retries).
 /// - `min_retry_delay`: Corresponds to [`Task::min_retry_delay`](trait.Task.html#method.min_retry_delay).
 /// - `max_retry_delay`: Corresponds to [`Task::max_retry_delay`](trait.Task.html#method.max_retry_delay).
+/// - `acks_late`: Corresponds to [`Task::acks_late`](trait.Task.html#method.acks_late).
 #[proc_macro_attribute]
 pub fn task(args: TokenStream, input: TokenStream) -> TokenStream {
     task::impl_macro(args, input)

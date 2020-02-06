@@ -51,6 +51,7 @@ where
                     max_retries: None,
                     min_retry_delay: 0,
                     max_retry_delay: 3600,
+                    acks_late: false,
                 },
                 task_routes: vec![],
             },
@@ -99,6 +100,12 @@ where
         self
     }
 
+    /// Set whether by default a task is acknowledged before or after execution.
+    pub fn acks_late(mut self, acks_late: bool) -> Self {
+        self.config.task_options.acks_late = acks_late;
+        self
+    }
+
     /// Add a routing rule.
     pub fn task_route(mut self, rule: Rule) -> Self {
         self.config.task_routes.push(rule);
@@ -129,7 +136,7 @@ where
     }
 }
 
-/// A `Celery` app is used to produce or consume tasks asyncronously.
+/// A `Celery` app is used to produce or consume tasks asynchronously.
 pub struct Celery<B: Broker> {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
@@ -229,7 +236,7 @@ where
             Err(e) => {
                 // This is a naughty message that we can't handle, so we'll ack it with
                 // the broker so it gets deleted.
-                self.broker.ack(delivery).await?;
+                self.broker.ack(&delivery).await?;
                 return Err(e);
             }
         };
@@ -243,7 +250,7 @@ where
                 // Even though the message meta data was okay, we failed to deserialize
                 // the body of the message for some reason, so ack it with the broker
                 // to delete it and return an error.
-                self.broker.ack(delivery).await?;
+                self.broker.ack(&delivery).await?;
                 return Err(e);
             }
         };
@@ -257,29 +264,33 @@ where
                 // Otherwise we could reach the prefetch_count and end up blocking
                 // other deliveries if there are a high number of messages with a
                 // future ETA.
-                self.broker.retry(delivery, None).await?;
+                self.broker.retry(&delivery, None).await?;
+                self.broker.ack(&delivery).await?;
                 return Err(e);
             };
+        }
+
+        // If acks_late is false, we acknowledge the message before tracing it.
+        if !tracer.get_task_options().acks_late {
+            self.broker.ack(&delivery).await?;
         }
 
         // Try tracing the task now.
         // NOTE: we don't need to log errors from the trace here since the tracer
         // handles all errors at it's own level or the task level. In this function
         // we only log errors at the broker and delivery level.
-        match tracer.trace().await {
-            Ok(_) => {
-                self.broker.ack(delivery).await?;
+        if let Err(e) = tracer.trace().await {
+            // If retriable error -> retry the task.
+            if let ErrorKind::Retry = e.kind() {
+                let retry_eta = tracer.retry_eta();
+                self.broker.retry(&delivery, retry_eta).await?
             }
-            Err(e) => match e.kind() {
-                // Retriable error -> retry the task.
-                ErrorKind::Retry => {
-                    let retry_eta = tracer.retry_eta();
-                    self.broker.retry(delivery, retry_eta).await?
-                }
-                // Some other kind of error -> ack / delete the task.
-                _ => self.broker.ack(delivery).await?,
-            },
-        };
+        }
+
+        // If we have not done it before, we have to acknowledge the message now.
+        if tracer.get_task_options().acks_late {
+            self.broker.ack(&delivery).await?;
+        }
 
         // If we had increased the prefetch count above due to a future ETA, we have
         // to decrease it back down to restore balance to the universe.

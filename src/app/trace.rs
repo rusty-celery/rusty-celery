@@ -230,6 +230,10 @@ where
     fn is_expired(&self) -> bool {
         self.message.is_expired()
     }
+
+    fn get_task_options(&self) -> &TaskOptions {
+        &self.options
+    }
 }
 
 #[async_trait]
@@ -244,6 +248,8 @@ pub(super) trait TracerTrait: Send {
     fn is_delayed(&self) -> bool;
 
     fn is_expired(&self) -> bool;
+
+    fn get_task_options(&self) -> &TaskOptions;
 }
 
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, Error>;
