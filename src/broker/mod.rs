@@ -65,6 +65,7 @@ pub trait Broker: Send + Sync + Sized {
 }
 
 /// A `BrokerBuilder` is used to create a type of broker with a custom configuration.
+#[async_trait]
 pub trait BrokerBuilder {
     type Broker: Broker;
 
@@ -81,5 +82,5 @@ pub trait BrokerBuilder {
     fn heartbeat(self, heartbeat: Option<u16>) -> Self;
 
     /// Construct the `Broker` with the given configuration.
-    fn build(self) -> Result<Self::Broker, Error>;
+    async fn build(&self) -> Result<Self::Broker, Error>;
 }

@@ -6,7 +6,6 @@ use amq_protocol::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
-use futures::executor;
 use lapin::message::Delivery;
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
@@ -16,6 +15,7 @@ use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
+use tokio::time::{self, Duration};
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{Error, ErrorKind};
@@ -33,6 +33,7 @@ pub struct AMQPBrokerBuilder {
     config: Config,
 }
 
+#[async_trait]
 impl BrokerBuilder for AMQPBrokerBuilder {
     type Broker = AMQPBroker;
 
@@ -77,22 +78,24 @@ impl BrokerBuilder for AMQPBrokerBuilder {
     }
 
     /// Build an `AMQPBroker`.
-    fn build(self) -> Result<AMQPBroker, Error> {
+    async fn build(&self) -> Result<AMQPBroker, Error> {
         let mut uri = AMQPUri::from_str(&self.config.broker_url)
             .map_err(|_| ErrorKind::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
-        let conn = executor::block_on(Connection::connect_uri(
-            uri,
-            ConnectionProperties::default(),
-        ))?;
-        let channel = executor::block_on(conn.create_channel())?;
+        let conn = 
+            time::timeout(Duration::from_secs(1), Connection::connect_uri(
+                    uri,
+                    ConnectionProperties::default(),
+            )).await.map_err(|_| Error::from(ErrorKind::BrokerConnectionError))?;
+        let conn = conn?;
+        let channel = conn.create_channel().await?;
         let mut queues: HashMap<String, Queue> = HashMap::new();
         for (queue_name, queue_options) in &self.config.queues {
-            let queue = executor::block_on(channel.queue_declare(
+            let queue = channel.queue_declare(
                 queue_name,
                 queue_options.clone(),
                 FieldTable::default(),
-            ))?;
+            ).await?;
             queues.insert(queue_name.into(), queue);
         }
         let broker = AMQPBroker {
@@ -101,7 +104,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             queues,
             prefetch_count: std::sync::Mutex::new(self.config.prefetch_count),
         };
-        executor::block_on(broker.set_prefetch_count(self.config.prefetch_count))?;
+        broker.set_prefetch_count(self.config.prefetch_count).await?;
         Ok(broker)
     }
 }

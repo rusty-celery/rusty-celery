@@ -133,6 +133,8 @@ impl From<lapin::Error> for Error {
         Error {
             inner: Context::new(match err {
                 lapin::Error::NotConnected => ErrorKind::BrokerConnectionError,
+                lapin::Error::ConnectionRefused => ErrorKind::BrokerConnectionError,
+                lapin::Error::IOError(_) => ErrorKind::BrokerConnectionError,
                 _ => ErrorKind::AMQPError(Some(err)),
             }),
         }
