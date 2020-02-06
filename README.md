@@ -5,7 +5,7 @@
 <p>
 <p align="center">
     <a href="https://github.com/rusty-celery/rusty-celery/actions">
-        <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg">
+        <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg?event=push&branch=master">
     </a>
     <a href="https://github.com/rusty-celery/rusty-celery/blob/master/LICENSE">
         <img alt="License" src="https://img.shields.io/github/license/rusty-celery/rusty-celery.svg?color=blue&cachedrop">

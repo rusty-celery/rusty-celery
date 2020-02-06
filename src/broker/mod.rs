@@ -40,12 +40,12 @@ pub trait Broker: Send + Sync + Sized {
     ) -> Result<Self::DeliveryStream, Error>;
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
-    async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error>;
+    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), Error>;
 
     /// Retry a delivery.
     async fn retry(
         &self,
-        delivery: Self::Delivery,
+        delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
     ) -> Result<(), Error>;
 

@@ -29,7 +29,8 @@ fn test_auto_name() {
     timeout = 2,
     max_retries = 3,
     min_retry_delay = 0,
-    max_retry_delay = 60
+    max_retry_delay = 60,
+    acks_late = true
 )]
 fn task_with_options() -> String {
     "it worked!".into()
@@ -42,6 +43,7 @@ fn test_task_options() {
     assert_eq!(t.max_retries(), Some(3));
     assert_eq!(t.min_retry_delay(), Some(0));
     assert_eq!(t.max_retry_delay(), Some(60));
+    assert_eq!(t.acks_late(), Some(true));
 }
 
 // This didn't work before since Task::run took a reference to self

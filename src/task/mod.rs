@@ -56,6 +56,12 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     fn max_retry_delay(&self) -> Option<u32> {
         None
     }
+
+    /// Whether messages for this task will be acknowledged after the task has been executed,
+    /// or before (the default behavior).
+    fn acks_late(&self) -> Option<bool> {
+        None
+    }
 }
 
 /// Additional context sent to the `on_success` and `on_failure` task callbacks.

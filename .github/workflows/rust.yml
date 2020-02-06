@@ -1,6 +1,6 @@
 name: CI
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   test:
@@ -29,30 +29,35 @@ jobs:
         key: ${{ runner.os }}-cargo-test-build-${{ hashFiles('**/Cargo.toml') }}
 
     - name: Lint with RustFmt
+      if: always()
       uses: actions-rs/cargo@v1
       with:
         command: fmt
         args: -- --check
 
     - name: Lint with Clippy
+      if: always()
       uses: actions-rs/cargo@v1
       with:
         command: clippy
         args: --workspace --all-targets --all-features -- -D warnings
 
     - name: Run Unit Tests
+      if: always()
       uses: actions-rs/cargo@v1
       with:
         command: test
         args: --workspace --lib
 
     - name: Run Doc Tests
+      if: always()
       uses: actions-rs/cargo@v1
       with:
         command: test
         args: --workspace --doc
 
     - name: Run Codegen Tests
+      if: always()
       uses: actions-rs/cargo@v1
       with:
         command: test

@@ -160,7 +160,7 @@ impl Broker for AMQPBroker {
             .map_err(|e| e.into())
     }
 
-    async fn ack(&self, delivery: Self::Delivery) -> Result<(), Error> {
+    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), Error> {
         self.channel
             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
             .await
@@ -169,7 +169,7 @@ impl Broker for AMQPBroker {
 
     async fn retry(
         &self,
-        delivery: Self::Delivery,
+        delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
     ) -> Result<(), Error> {
         let mut message = delivery.try_into_message()?;
@@ -180,8 +180,7 @@ impl Broker for AMQPBroker {
         if let Some(dt) = eta {
             message.headers.eta = Some(dt);
         };
-        self.send(&message, delivery.routing_key.as_str()).await?;
-        self.ack(delivery).await
+        self.send(&message, delivery.routing_key.as_str()).await
     }
 
     async fn send(&self, message: &Message, queue: &str) -> Result<(), Error> {
