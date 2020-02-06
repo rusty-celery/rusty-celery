@@ -264,14 +264,14 @@ where
                 // Otherwise we could reach the prefetch_count and end up blocking
                 // other deliveries if there are a high number of messages with a
                 // future ETA.
-                self.broker.ack(&delivery).await?;
                 self.broker.retry(&delivery, None).await?;
+                self.broker.ack(&delivery).await?;
                 return Err(e);
             };
         }
 
         // If acks_late is false, we acknowledge the message before tracing it.
-        if !self.task_options.acks_late {
+        if !tracer.get_task_options().acks_late {
             self.broker.ack(&delivery).await?;
         }
 
@@ -280,19 +280,15 @@ where
         // handles all errors at it's own level or the task level. In this function
         // we only log errors at the broker and delivery level.
         if let Err(e) = tracer.trace().await {
-            match e.kind() {
-                // Retriable error -> retry the task.
-                ErrorKind::Retry => {
-                    let retry_eta = tracer.retry_eta();
-                    self.broker.retry(&delivery, retry_eta).await?
-                }
-                // Some other kind of error -> ignore it.
-                _ => (),
+            // If retriable error -> retry the task.
+            if let ErrorKind::Retry = e.kind() {
+                let retry_eta = tracer.retry_eta();
+                self.broker.retry(&delivery, retry_eta).await?
             }
         }
 
         // If we have not done it before, we have to acknowledge the message now.
-        if self.task_options.acks_late {
+        if tracer.get_task_options().acks_late {
             self.broker.ack(&delivery).await?;
         }
 
