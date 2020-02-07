@@ -86,6 +86,9 @@ extern crate failure;
 pub use failure::ResultExt;
 
 #[cfg(feature = "codegen")]
+extern crate futures;
+
+#[cfg(feature = "codegen")]
 extern crate once_cell;
 
 #[cfg(feature = "codegen")]
