@@ -23,7 +23,7 @@ macro_rules! __celery_app_internal {
                 builder = builder.task_route(rule);
             )*
 
-            let celery: $crate::Celery<$broker_type> = builder.build().unwrap();
+            let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
 
             $(
                 celery.register_task::<$t>().unwrap();

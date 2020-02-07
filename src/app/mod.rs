@@ -1,4 +1,4 @@
-use futures::{executor, StreamExt};
+use futures::StreamExt;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -23,6 +23,7 @@ where
 {
     name: String,
     broker_builder: Bb,
+    broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
     default_queue: String,
@@ -48,6 +49,7 @@ where
             config: Config {
                 name: name.into(),
                 broker_builder: Bb::new(broker_url),
+                broker_connection_timeout: 2,
                 broker_connection_retry: true,
                 broker_connection_max_retries: 100,
                 default_queue: "celery".into(),
@@ -117,6 +119,12 @@ where
         self
     }
 
+    /// Set a timeout in seconds before giving up establishing a connection to a broker.
+    pub fn broker_connection_timeout(mut self, timeout: u32) -> Self {
+        self.config.broker_connection_timeout = timeout;
+        self
+    }
+
     /// Set whether or not to automatically try to re-establish connection to the AMQP broker.
     pub fn broker_connection_retry(mut self, retry: bool) -> Self {
         self.config.broker_connection_retry = retry;
@@ -130,8 +138,8 @@ where
         self
     }
 
-    /// Construct a `Celery` app with the current configuration .
-    pub fn build(self) -> Result<Celery<Bb::Broker>, Error> {
+    /// Construct a `Celery` app with the current configuration.
+    pub async fn build(self) -> Result<Celery<Bb::Broker>, Error> {
         // Declare default queue to broker.
         let mut broker_builder = self
             .config
@@ -145,24 +153,30 @@ where
 
         // Try building / connecting to broker.
         let mut broker: Option<Bb::Broker> = None;
-        let max_retries = match self.config.broker_connection_retry {
-            true => self.config.broker_connection_max_retries,
-            false => 0,
+        let max_retries = if self.config.broker_connection_retry {
+            self.config.broker_connection_max_retries
+        } else {
+            0
         };
-        for _ in 0..=max_retries {
-            warn!("Trying again");
-            let broker_result = executor::block_on(
-                broker_builder.build()
-            );
-            info!("Got result");
-            match broker_result {
+        for i in 0..=max_retries {
+            match time::timeout(
+                Duration::from_secs(self.config.broker_connection_timeout as u64),
+                broker_builder.build(),
+            )
+            .await
+            .map_err(|_| Error::from(ErrorKind::BrokerConnectionError))
+            .and_then(|res| res)
+            {
                 Err(err) => match err.kind() {
                     ErrorKind::BrokerConnectionError => {
-                        thread::sleep(Duration::from_millis(200));
+                        if i < max_retries {
+                            error!("Failed to establish connection with broker, trying again in 200ms...")
+                        }
+                        time::delay_for(Duration::from_millis(200)).await;
                         continue;
                     }
                     _ => return Err(err),
-                }
+                },
                 Ok(b) => {
                     broker = Some(b);
                     break;
@@ -172,7 +186,8 @@ where
 
         Ok(Celery {
             name: self.config.name,
-            broker: broker.ok_or(Error::from(ErrorKind::BrokerConnectionError))?,
+            broker: broker.ok_or_else(|| Error::from(ErrorKind::BrokerConnectionError))?,
+            broker_connection_timeout: self.config.broker_connection_timeout,
             broker_connection_retry: self.config.broker_connection_retry,
             broker_connection_max_retries: self.config.broker_connection_max_retries,
             default_queue: self.config.default_queue,
@@ -190,6 +205,10 @@ pub struct Celery<B: Broker> {
 
     /// The app's broker.
     pub broker: B,
+
+    /// A timeout in seconds to wait before giving up trying to establish a connection
+    /// to the broker.
+    pub broker_connection_timeout: u32,
 
     /// Automatically try to re-establish connection to the AMQP broker.
     pub broker_connection_retry: bool,

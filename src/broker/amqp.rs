@@ -15,7 +15,6 @@ use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
-use tokio::time::{self, Duration};
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{Error, ErrorKind};
@@ -82,20 +81,13 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         let mut uri = AMQPUri::from_str(&self.config.broker_url)
             .map_err(|_| ErrorKind::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
-        let conn = 
-            time::timeout(Duration::from_secs(1), Connection::connect_uri(
-                    uri,
-                    ConnectionProperties::default(),
-            )).await.map_err(|_| Error::from(ErrorKind::BrokerConnectionError))?;
-        let conn = conn?;
+        let conn = Connection::connect_uri(uri, ConnectionProperties::default()).await?;
         let channel = conn.create_channel().await?;
         let mut queues: HashMap<String, Queue> = HashMap::new();
         for (queue_name, queue_options) in &self.config.queues {
-            let queue = channel.queue_declare(
-                queue_name,
-                queue_options.clone(),
-                FieldTable::default(),
-            ).await?;
+            let queue = channel
+                .queue_declare(queue_name, queue_options.clone(), FieldTable::default())
+                .await?;
             queues.insert(queue_name.into(), queue);
         }
         let broker = AMQPBroker {
@@ -104,7 +96,9 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             queues,
             prefetch_count: std::sync::Mutex::new(self.config.prefetch_count),
         };
-        broker.set_prefetch_count(self.config.prefetch_count).await?;
+        broker
+            .set_prefetch_count(self.config.prefetch_count)
+            .await?;
         Ok(broker)
     }
 }
