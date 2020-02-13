@@ -2,10 +2,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
 
-use crate::error::Error;
+use crate::error::BrokerError;
 use crate::protocol::{Message, TryIntoMessage};
 
-pub mod amqp;
+mod amqp;
+pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
 
 /// A message `Broker` is used as the transport for producing or consuming tasks.
 #[async_trait]
@@ -17,7 +18,7 @@ pub trait Broker: Send + Sync + Sized {
     type Delivery: TryIntoMessage + Send + Sync + Clone + std::fmt::Debug;
 
     /// The error type of an unsuccessful delivery.
-    type DeliveryError: Into<Error> + Send + Sync;
+    type DeliveryError: std::fmt::Display + Send + Sync;
 
     /// The stream type that the `Celery` app will consume deliveries from.
     type DeliveryStream: Stream<Item = Result<Self::Delivery, Self::DeliveryError>>;
@@ -31,37 +32,36 @@ pub trait Broker: Send + Sync + Sized {
     /// value is a [`Self::Delivery`](trait.Broker.html#associatedtype.Delivery)
     /// type that can be coerced into a [`Message`](protocol/struct.Message.html)
     /// and an `Err` value is a
-    /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError)
-    /// type that can be coerced into an [`Error`](struct.Error.html).
+    /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError) type.
     async fn consume<E: Fn() + Send + 'static>(
         &self,
         queue: &str,
         handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, Error>;
+    ) -> Result<Self::DeliveryStream, BrokerError>;
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
-    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), Error>;
+    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError>;
 
     /// Retry a delivery.
     async fn retry(
         &self,
         delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
-    ) -> Result<(), Error>;
+    ) -> Result<(), BrokerError>;
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
-    async fn send(&self, message: &Message, queue: &str) -> Result<(), Error>;
+    async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError>;
 
     /// Increase the `prefetch_count`. This has to be done when a task with a future
     /// ETA is consumed.
-    async fn increase_prefetch_count(&self) -> Result<(), Error>;
+    async fn increase_prefetch_count(&self) -> Result<(), BrokerError>;
 
     /// Decrease the `prefetch_count`. This has to be done after a task with a future
     /// ETA is executed.
-    async fn decrease_prefetch_count(&self) -> Result<(), Error>;
+    async fn decrease_prefetch_count(&self) -> Result<(), BrokerError>;
 
     /// Clone all channels and connection.
-    async fn close(&self) -> Result<(), Error>;
+    async fn close(&self) -> Result<(), BrokerError>;
 }
 
 /// A `BrokerBuilder` is used to create a type of broker with a custom configuration.
@@ -82,5 +82,5 @@ pub trait BrokerBuilder {
     fn heartbeat(self, heartbeat: Option<u16>) -> Self;
 
     /// Construct the `Broker` with the given configuration.
-    async fn build(&self) -> Result<Self::Broker, Error>;
+    async fn build(&self) -> Result<Self::Broker, BrokerError>;
 }

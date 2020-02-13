@@ -1,6 +1,6 @@
 use globset::{Glob, GlobMatcher};
 
-use crate::Error;
+use crate::error::CeleryError;
 
 /// A rule for routing tasks to a queue based on a glob pattern.
 pub struct Rule {
@@ -9,7 +9,7 @@ pub struct Rule {
 }
 
 impl Rule {
-    pub fn new(pattern: &str, queue: &str) -> Result<Self, Error> {
+    pub fn new(pattern: &str, queue: &str) -> Result<Self, CeleryError> {
         Ok(Self {
             pattern: Glob::new(pattern)?.compile_matcher(),
             queue: queue.into(),

@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
-use crate::error::{Error, ErrorKind};
+use crate::error::{ProtocolError, TaskError};
 use crate::protocol::Message;
 use crate::task::{Task, TaskContext, TaskEvent, TaskOptions, TaskStatus};
 
@@ -35,7 +35,7 @@ where
         message: Message,
         options: TaskOptions,
         event_tx: UnboundedSender<TaskEvent>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, ProtocolError> {
         let body = message.body::<T>()?;
         let (task, _) = body.parts();
         let options = options.overrides(&task);
@@ -55,7 +55,7 @@ impl<T> TracerTrait for Tracer<T>
 where
     T: Task,
 {
-    async fn trace(&mut self) -> Result<(), Error> {
+    async fn trace(&mut self) -> Result<(), TaskError> {
         if let Some(countdown) = self.countdown {
             info!(
                 "Task {}[{}] received, ETA: {}",
@@ -78,7 +78,7 @@ where
                 T::NAME,
                 self.message.properties.correlation_id,
             );
-            return Err(ErrorKind::TaskExpiredError.into());
+            return Err(TaskError::ExpirationError);
         }
 
         self.event_tx
@@ -97,7 +97,7 @@ where
                 let duration = Duration::from_secs(secs as u64);
                 time::timeout(duration, task.run())
                     .await
-                    .unwrap_or_else(|_| Err(Error::from(ErrorKind::TimeoutError)))
+                    .unwrap_or_else(|_| Err(TaskError::TimeoutError))
             }
             None => task.run().await,
         };
@@ -128,8 +128,8 @@ where
                 Ok(())
             }
             Err(e) => {
-                match e.kind() {
-                    ErrorKind::ExpectedError(reason) => {
+                match e {
+                    TaskError::ExpectedError(ref reason) => {
                         warn!(
                             "Task {}[{}] failed with expected error: {}",
                             T::NAME,
@@ -137,7 +137,7 @@ where
                             reason
                         );
                     }
-                    ErrorKind::TimeoutError => {
+                    TaskError::TimeoutError => {
                         error!(
                             "Task {}[{}] timed out",
                             T::NAME,
@@ -192,7 +192,7 @@ where
                     );
                 }
 
-                Err(ErrorKind::Retry.into())
+                Err(TaskError::Retry)
             }
         }
     }
@@ -240,7 +240,7 @@ where
 pub(super) trait TracerTrait: Send {
     /// Wraps the execution of a task, catching and logging errors and then running
     /// the appropriate post-execution functions.
-    async fn trace(&mut self) -> Result<(), Error>;
+    async fn trace(&mut self) -> Result<(), TaskError>;
 
     /// Get the ETA for a retry with exponential backoff.
     fn retry_eta(&self) -> Option<DateTime<Utc>>;
@@ -252,7 +252,7 @@ pub(super) trait TracerTrait: Send {
     fn get_task_options(&self) -> &TaskOptions;
 }
 
-pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, Error>;
+pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, ProtocolError>;
 
 pub(super) type TraceBuilder = Box<
     dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>) -> TraceBuilderResult

@@ -6,8 +6,7 @@
 //! Define tasks by decorating functions with the [`task`](attr.task.html) attribute:
 //!
 //! ```rust
-//! # use celery::task;
-//! #[task]
+//! #[celery::task]
 //! fn add(x: i32, y: i32) -> i32 {
 //!     x + y
 //! }
@@ -17,13 +16,12 @@
 //! macro and register your tasks with it:
 //!
 //! ```rust,no_run
-//! # use celery::{celery_app, task, AMQPBroker};
-//! # #[task]
+//! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> i32 {
 //! #     x + y
 //! # }
-//! let my_app = celery_app!(
-//!     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! let my_app = celery::app!(
+//!     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //!     tasks = [add],
 //!     task_routes = [],
 //! );
@@ -33,15 +31,14 @@
 //! queue for a worker to consume, use the [`Celery::send_task`](struct.Celery.html#method.send_task) method:
 //!
 //! ```rust,no_run
-//! # use celery::{celery_app, task, AMQPBroker};
-//! # #[task]
+//! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> i32 {
 //! #     x + y
 //! # }
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), exitfailure::ExitFailure> {
-//! # let my_app = celery_app!(
-//! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! # let my_app = celery::app!(
+//! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
 //! # );
@@ -54,15 +51,14 @@
 //! [`Celery::consume`](struct.Celery.html#method.consume) method:
 //!
 //! ```rust,no_run
-//! # use celery::{celery_app, task, AMQPBroker};
-//! # #[task]
+//! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> i32 {
 //! #     x + y
 //! # }
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), exitfailure::ExitFailure> {
-//! # let my_app = celery_app!(
-//! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+//! # let my_app = celery::app!(
+//! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
 //! # );
@@ -97,24 +93,27 @@ extern crate async_trait;
 #[cfg(feature = "codegen")]
 extern crate serde;
 
+#[cfg(feature = "codegen")]
+pub use celery_codegen::task;
+
 /////////////////
 // Submodules. //
 /////////////////
 
 // Defines the `Celery` app struct which the primary publich interface to Rusty Celery,
 // used to produce or consume tasks.
-mod app;
+pub mod app;
 
 // The broker is an integral part of a `Celery` app. It provides the transport for
 // producing and consuming tasks.
-mod broker;
+pub mod broker;
 
-// Macro rules for quickly defining apps.
+// Macros for defining apps and tasks.
 #[cfg(feature = "codegen")]
 mod codegen;
 
 // Defines the `Error` type used across Rusty Celery.
-mod error;
+pub mod error;
 
 // Used only by the codegen modules.
 #[cfg(feature = "codegen")]
@@ -127,19 +126,4 @@ pub mod protocol;
 // Provides the `Task` trait. Tasks are then created by defining a struct and implementing
 // this trait for the struct. However the `#[task]` macro provided by `celery-codegen`
 // abstracts most of this away.
-mod task;
-
-/////////////////
-// Public API. //
-/////////////////
-
-pub use app::{Celery, CeleryBuilder, Rule};
-pub use broker::{
-    amqp::{AMQPBroker, AMQPBrokerBuilder},
-    Broker, BrokerBuilder,
-};
-pub use error::{Error, ErrorKind};
-pub use task::{Task, TaskContext, TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
-
-#[cfg(feature = "codegen")]
-pub use celery_codegen::task;
+pub mod task;

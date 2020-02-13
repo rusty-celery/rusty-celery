@@ -1,29 +1,30 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
-use celery::{celery_app, task, AMQPBroker, ErrorKind, TaskSendOptions};
+use celery::error::TaskError;
+use celery::task::TaskSendOptions;
 use env_logger::Env;
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
 use tokio::time::{self, Duration};
 
 // This generates the task struct and impl with the name set to the function name "add"
-#[task]
+#[celery::task]
 fn add(x: i32, y: i32) -> i32 {
     x + y
 }
 
 // Demonstrates a task that raises an error, and also how to customize task options.
 // In this case we override the default `max_retries`.
-#[task(max_retries = 3)]
+#[celery::task(max_retries = 3)]
 fn buggy_task() {
     #[allow(clippy::try_err)]
-    Err(ErrorKind::UnexpectedError("a bug caused this".into()))?
+    Err(TaskError::UnexpectedError("a bug caused this".into()))?
 }
 
 // Demonstrates a long running IO-bound task. By increasing the prefetch count, an arbitrary
 // number of these number can execute concurrently.
-#[task]
+#[celery::task]
 async fn long_running_task(secs: Option<u64>) {
     let secs = secs.unwrap_or(10);
     time::delay_for(Duration::from_secs(secs)).await;
@@ -44,8 +45,8 @@ enum CeleryOpt {
 async fn main() -> Result<(), ExitFailure> {
     env_logger::from_env(Env::default().default_filter_or("info")).init();
     let opt = CeleryOpt::from_args();
-    let my_app = celery_app!(
-        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+    let my_app = celery::app!(
+        broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [
             add,
             buggy_task,

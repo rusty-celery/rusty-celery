@@ -394,13 +394,13 @@ impl ToTokens for Task {
                 use #export::async_trait;
 
                 #[async_trait]
-                impl #krate::Task for #wrapper {
+                impl #krate::task::Task for #wrapper {
                     const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
 
                     type Returns = #ret_ty;
 
-                    async fn run(mut self) -> Result<Self::Returns, #krate::Error> {
+                    async fn run(mut self) -> Result<Self::Returns, #krate::error::TaskError> {
                         #deserialized_bindings
                         Ok(#inner_block)
                     }
