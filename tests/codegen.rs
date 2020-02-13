@@ -1,4 +1,4 @@
-use celery::task::Task;
+use celery::Task;
 
 #[celery::task(name = "add")]
 fn add(x: i32, y: i32) -> i32 {

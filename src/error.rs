@@ -1,4 +1,4 @@
-use failure::Fail;
+use failure::{Context, Fail};
 
 /// Errors that can occur while creating or using a `Celery` app.
 #[derive(Debug, Fail)]
@@ -158,5 +158,11 @@ impl From<lapin::Error> for BrokerError {
             lapin::Error::ConnectionRefused => BrokerError::ConnectionRefused,
             _ => BrokerError::AMQPError(err),
         }
+    }
+}
+
+impl From<Context<&str>> for TaskError {
+    fn from(ctx: Context<&str>) -> Self {
+        Self::UnexpectedError((*ctx.get_context()).into())
     }
 }

@@ -7,23 +7,22 @@ macro_rules! __app_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        static CELERY_APP: $crate::export::OnceCell<$crate::app::Celery<$broker_type>> =
+        static CELERY_APP: $crate::export::OnceCell<$crate::Celery<$broker_type>> =
             $crate::export::OnceCell::new();
         CELERY_APP.get_or_init(|| {
             let broker_url = $broker_url;
 
-            let mut builder = $crate::app::Celery::<$broker_type>::builder("celery", &broker_url);
+            let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
 
             $(
                 builder = builder.$x($y);
             )*
 
             $(
-                let rule = $crate::app::Rule::new($pattern, $queue).unwrap();
-                builder = builder.task_route(rule);
+                builder = builder.task_route($pattern, $queue).unwrap();
             )*
 
-            let celery: $crate::app::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
+            let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
 
             $(
                 celery.register_task::<$t>().unwrap();
@@ -34,7 +33,7 @@ macro_rules! __app_internal {
     }};
 }
 
-/// A macro for creating a `Celery` app.
+/// A macro for creating a [`Celery`](struct.Celery.html) app.
 ///
 /// At a minimum the `app!` macro requires 3 arguments:
 /// - a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,

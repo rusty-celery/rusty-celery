@@ -15,7 +15,7 @@ use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TaskError};
 use crate::protocol::{Message, TryIntoMessage};
 use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
-pub use routing::Rule;
+use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -115,9 +115,10 @@ where
     }
 
     /// Add a routing rule.
-    pub fn task_route(mut self, rule: Rule) -> Self {
+    pub fn task_route(mut self, pattern: &str, queue: &str) -> Result<Self, CeleryError> {
+        let rule = Rule::new(pattern, queue)?;
         self.config.task_routes.push(rule);
-        self
+        Ok(self)
     }
 
     /// Set a timeout in seconds before giving up establishing a connection to a broker.
@@ -202,7 +203,8 @@ where
     }
 }
 
-/// A `Celery` app is used to produce or consume tasks asynchronously.
+/// A `Celery` app is used to produce or consume tasks asynchronously. This is the struct that is
+/// created with the [`app`](macro.app.html) macro.
 pub struct Celery<B: Broker> {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
@@ -228,7 +230,7 @@ pub struct Celery<B: Broker> {
     pub task_options: TaskOptions,
 
     /// A vector of routing rules in the order of their importance.
-    pub task_routes: Vec<Rule>,
+    task_routes: Vec<Rule>,
 
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
