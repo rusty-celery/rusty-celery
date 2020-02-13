@@ -394,7 +394,7 @@ impl ToTokens for Task {
                 use #export::async_trait;
 
                 #[async_trait]
-                impl #krate::Task for #wrapper {
+                impl #krate::task::Task for #wrapper {
                     const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
 

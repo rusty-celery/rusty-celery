@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::TaskSendOptions;
+use celery::task::TaskSendOptions;
 use env_logger::Env;
 use exitfailure::ExitFailure;
 use structopt::StructOpt;

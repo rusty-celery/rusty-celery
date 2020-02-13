@@ -192,9 +192,6 @@ where
         Ok(Celery {
             name: self.config.name,
             broker: broker.ok_or_else(|| BrokerError::NotConnected)?,
-            broker_connection_timeout: self.config.broker_connection_timeout,
-            broker_connection_retry: self.config.broker_connection_retry,
-            broker_connection_max_retries: self.config.broker_connection_max_retries,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
             task_routes: self.config.task_routes,
@@ -210,24 +207,13 @@ pub struct Celery<B: Broker> {
     pub name: String,
 
     /// The app's broker.
-    pub broker: B,
-
-    /// A timeout in seconds to wait before giving up trying to establish a connection
-    /// to the broker.
-    pub broker_connection_timeout: u32,
-
-    /// Automatically try to re-establish connection to the AMQP broker.
-    pub broker_connection_retry: bool,
-
-    /// Maximum number of retries before we give up trying to re-establish connection
-    /// to the AMQP broker.
-    pub broker_connection_max_retries: u32,
+    broker: B,
 
     /// The default queue to send and receive from.
-    pub default_queue: String,
+    default_queue: String,
 
     /// Default task options.
-    pub task_options: TaskOptions,
+    task_options: TaskOptions,
 
     /// A vector of routing rules in the order of their importance.
     task_routes: Vec<Rule>,

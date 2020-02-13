@@ -121,14 +121,13 @@ pub mod export;
 pub mod protocol;
 
 /// Provides the `Task` trait as well as options for configuring tasks.
-mod task;
+pub mod task;
 
 /////////////////
 // Public API. //
 /////////////////
 
 pub use app::{Celery, CeleryBuilder};
-pub use task::{Task, TaskContext, TaskOptions, TaskSendOptions};
 
 #[cfg(feature = "codegen")]
 pub use celery_codegen::task;

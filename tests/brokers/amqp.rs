@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::{Task, TaskContext};
+use celery::task::{Task, TaskContext};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
