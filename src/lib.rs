@@ -78,9 +78,6 @@
 // Re-exports. //
 /////////////////
 
-extern crate failure;
-pub use failure::ResultExt;
-
 #[cfg(feature = "codegen")]
 extern crate futures;
 

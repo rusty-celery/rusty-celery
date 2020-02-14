@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Several error enums: `CeleryError`, `TaskError`, `BrokerError`, `ProtocolError`.
+- `TaskResultExt` for easily converting the error type in a `Result` to a `TaskError` variant.
 
 ### Changed
 
@@ -20,3 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `Error` type.
 - The `celery_app` macro has been renamed to just `app`.
+- The `ResultExt` re-export.
