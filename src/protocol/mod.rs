@@ -7,14 +7,22 @@
 
 use chrono::{DateTime, Duration, Utc};
 use log::debug;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::convert::TryFrom;
+use std::process;
 use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::error::ProtocolError;
 use crate::task::{Signature, Task};
+
+static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
+    hostname::get()
+        .ok()
+        .map(|sys_hostname| format!("gen{}@{:?}", process::id(), sys_hostname))
+});
 
 /// Create a message with a custom configuration.
 pub struct MessageBuilder<T>
@@ -42,6 +50,7 @@ where
                 headers: MessageHeaders {
                     id,
                     task: T::NAME.into(),
+                    origin: ORIGIN.to_owned(),
                     ..Default::default()
                 },
                 raw_body: Vec::new(),
