@@ -1,3 +1,5 @@
+//! Provides the `Task` trait as well as options for configuring tasks.
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 

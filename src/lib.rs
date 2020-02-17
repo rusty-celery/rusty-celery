@@ -94,30 +94,21 @@ extern crate serde;
 // Submodules. //
 /////////////////
 
-/// Provides the `Celery` struct that is created by the [`app`](macro.app.html). This is the
-/// primary API for producing and consuming tasks.
 mod app;
 
-/// The broker is an integral part of a `Celery` app. It provides the transport for messages that
-/// encode tasks.
 pub mod broker;
 
-/// Macros for defining apps and tasks.
 #[cfg(feature = "codegen")]
 mod codegen;
 
-/// Error types.
 pub mod error;
 
-/// Used only by the codegen modules.
 #[cfg(feature = "codegen")]
 #[doc(hidden)]
 pub mod export;
 
-/// Defines the Celery protocol.
 pub mod protocol;
 
-/// Provides the `Task` trait as well as options for configuring tasks.
 pub mod task;
 
 /////////////////

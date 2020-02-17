@@ -1,3 +1,5 @@
+//! Error types.
+
 use failure::{Context, Fail};
 
 /// Errors that can occur while creating or using a `Celery` app.

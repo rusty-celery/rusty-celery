@@ -1,3 +1,6 @@
+//! The broker is an integral part of a `Celery` app. It provides the transport for messages that
+//! encode tasks.
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
