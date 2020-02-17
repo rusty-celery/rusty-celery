@@ -1,6 +1,6 @@
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __celery_app_internal {
+macro_rules! __app_internal {
     (
         $broker_type:ty { $broker_url:expr },
         [ $( $t:ty ),* ],
@@ -19,8 +19,7 @@ macro_rules! __celery_app_internal {
             )*
 
             $(
-                let rule = $crate::Rule::new($pattern, $queue).unwrap();
-                builder = builder.task_route(rule);
+                builder = builder.task_route($pattern, $queue).unwrap();
             )*
 
             let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
@@ -34,10 +33,10 @@ macro_rules! __celery_app_internal {
     }};
 }
 
-/// A macro for creating a `Celery` app.
+/// A macro for creating a [`Celery`](struct.Celery.html) app.
 ///
-/// At a minimum the `celery_app!` macro requires 3 arguments:
-/// - a broker type with an expression for the broker URL in brackets,
+/// At a minimum the `app!` macro requires 3 arguments:
+/// - a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
 /// - a list of tasks to register, and
 /// - a list of routing rules in the form of `pattern => queue`.
 ///
@@ -45,16 +44,14 @@ macro_rules! __celery_app_internal {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// use celery::{celery_app, task, AMQPBroker};
-///
-/// #[task]
+/// #[celery::task]
 /// fn add(x: i32, y: i32) -> i32 {
 ///     x + y
 /// }
 ///
 /// # fn main() {
-/// let app = celery_app!(
-///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+/// let app = celery::app!(
+///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 ///     tasks = [ add ],
 ///     task_routes = [ "*" => "celery" ],
 /// );
@@ -67,10 +64,9 @@ macro_rules! __celery_app_internal {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// # use celery::{celery_app, AMQPBroker};
 /// # fn main() {
-/// let app = celery_app!(
-///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+/// let app = celery::app!(
+///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 ///     tasks = [],
 ///     task_routes = [],
 ///     task_timeout = 2,
@@ -78,41 +74,41 @@ macro_rules! __celery_app_internal {
 /// # }
 /// ```
 #[macro_export]
-macro_rules! celery_app {
+macro_rules! app {
     (
-        broker = $broker_type:ty { $broker_url:expr },
+        broker = AMQP { $broker_url:expr },
         tasks = [ $( $t:ty ),* $(,)? ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
-        $crate::__celery_app_internal!(
-            $broker_type { $broker_url },
+        $crate::__app_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );
     };
     (
-        broker = $broker_type:ty { $broker_url:expr },
+        broker = AMQP { $broker_url:expr },
         tasks = [ $( $t:ty ),* $(,)? ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
-        $crate::__celery_app_internal!(
-            $broker_type { $broker_url },
+        $crate::__app_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );
     };
     (
-        broker = $broker_type:ty { $broker_url:expr },
+        broker = AMQP { $broker_url:expr },
         tasks = [ $( $t:ty ),* $(,)? ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr, )*
     ) => {
-        $crate::__celery_app_internal!(
-            $broker_type { $broker_url },
+        $crate::__app_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*

@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use super::{Broker, BrokerBuilder};
-use crate::error::{Error, ErrorKind};
+use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryIntoMessage};
 
 struct Config {
@@ -77,9 +77,9 @@ impl BrokerBuilder for AMQPBrokerBuilder {
     }
 
     /// Build an `AMQPBroker`.
-    async fn build(&self) -> Result<AMQPBroker, Error> {
+    async fn build(&self) -> Result<AMQPBroker, BrokerError> {
         let mut uri = AMQPUri::from_str(&self.config.broker_url)
-            .map_err(|_| ErrorKind::InvalidBrokerUrl(self.config.broker_url.clone()))?;
+            .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
         let conn = Connection::connect_uri(uri, ConnectionProperties::default()).await?;
         let channel = conn.create_channel().await?;
@@ -112,7 +112,7 @@ pub struct AMQPBroker {
 }
 
 impl AMQPBroker {
-    async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), Error> {
+    async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), BrokerError> {
         debug!("Setting prefetch count to {}", prefetch_count);
         self.channel
             .basic_qos(prefetch_count, BasicQosOptions { global: true })
@@ -137,12 +137,12 @@ impl Broker for AMQPBroker {
         &self,
         queue: &str,
         handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, Error> {
+    ) -> Result<Self::DeliveryStream, BrokerError> {
         self.conn.on_error(handler);
         let queue = self
             .queues
             .get(queue)
-            .ok_or_else::<Error, _>(|| ErrorKind::UnknownQueueError(queue.into()).into())?;
+            .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
         self.channel
             .basic_consume(
                 queue,
@@ -154,7 +154,7 @@ impl Broker for AMQPBroker {
             .map_err(|e| e.into())
     }
 
-    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), Error> {
+    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
         self.channel
             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
             .await
@@ -165,19 +165,43 @@ impl Broker for AMQPBroker {
         &self,
         delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
-    ) -> Result<(), Error> {
-        let mut message = delivery.try_into_message()?;
-        message.headers.retries = match message.headers.retries {
-            Some(retries) => Some(retries + 1),
-            None => Some(1),
+    ) -> Result<(), BrokerError> {
+        let mut headers = delivery
+            .properties
+            .headers()
+            .clone()
+            .unwrap_or_else(FieldTable::default);
+
+        // Increment the number of retries.
+        let retries = match get_header_u32(&headers, "retries") {
+            Some(retries) => retries + 1,
+            None => 1,
         };
+        headers.insert("retries".into(), AMQPValue::LongUInt(retries));
+
+        // Set the ETA.
         if let Some(dt) = eta {
-            message.headers.eta = Some(dt);
+            headers.insert(
+                "eta".into(),
+                AMQPValue::LongString(dt.to_rfc3339_opts(SecondsFormat::Millis, false).into()),
+            );
         };
-        self.send(&message, delivery.routing_key.as_str()).await
+
+        let properties = delivery.properties.clone().with_headers(headers);
+        self.channel
+            .basic_publish(
+                "",
+                delivery.routing_key.as_str(),
+                BasicPublishOptions::default(),
+                delivery.data.clone(),
+                properties,
+            )
+            .await?;
+
+        Ok(())
     }
 
-    async fn send(&self, message: &Message, queue: &str) -> Result<(), Error> {
+    async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
         let properties = message.delivery_properties();
         debug!("Sending AMQP message with: {:?}", properties);
         self.channel
@@ -193,12 +217,12 @@ impl Broker for AMQPBroker {
         Ok(())
     }
 
-    async fn increase_prefetch_count(&self) -> Result<(), Error> {
+    async fn increase_prefetch_count(&self) -> Result<(), BrokerError> {
         let new_count = {
             let mut prefetch_count = self
                 .prefetch_count
                 .lock()
-                .map_err(|_| Error::from(ErrorKind::SyncError))?;
+                .map_err(|_| BrokerError::SyncError)?;
             if *prefetch_count < std::u16::MAX {
                 let new_count = *prefetch_count + 1;
                 *prefetch_count = new_count;
@@ -211,12 +235,12 @@ impl Broker for AMQPBroker {
         Ok(())
     }
 
-    async fn decrease_prefetch_count(&self) -> Result<(), Error> {
+    async fn decrease_prefetch_count(&self) -> Result<(), BrokerError> {
         let new_count = {
             let mut prefetch_count = self
                 .prefetch_count
                 .lock()
-                .map_err(|_| Error::from(ErrorKind::SyncError))?;
+                .map_err(|_| BrokerError::SyncError)?;
             if *prefetch_count > 1 {
                 let new_count = *prefetch_count - 1;
                 *prefetch_count = new_count;
@@ -231,7 +255,7 @@ impl Broker for AMQPBroker {
         Ok(())
     }
 
-    async fn close(&self) -> Result<(), Error> {
+    async fn close(&self) -> Result<(), BrokerError> {
         // 320 reply-code = "connection-forced", operator intervened.
         // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
         self.channel.close(320, "").await?;
@@ -305,7 +329,7 @@ impl Message {
             );
         }
         if let Some(retries) = self.headers.retries {
-            headers.insert("retries".into(), AMQPValue::LongUInt(retries as u32));
+            headers.insert("retries".into(), AMQPValue::LongUInt(retries));
         }
         let mut timelimit = FieldArray::default();
         if let Some(t) = self.headers.timelimit.0 {
@@ -342,14 +366,12 @@ impl Message {
 }
 
 impl TryIntoMessage for Delivery {
-    fn try_into_message(&self) -> Result<Message, Error> {
+    fn try_into_message(&self) -> Result<Message, ProtocolError> {
         let headers = self
             .properties
             .headers()
             .as_ref()
-            .ok_or_else::<Error, _>(|| {
-                ErrorKind::AMQPMessageParseError("missing headers".into()).into()
-            })?;
+            .ok_or_else(|| ProtocolError::MissingHeaders)?;
         Ok(Message {
             properties: MessageProperties {
                 correlation_id: self
@@ -357,24 +379,22 @@ impl TryIntoMessage for Delivery {
                     .correlation_id()
                     .as_ref()
                     .map(|v| v.to_string())
-                    .ok_or_else::<Error, _>(|| {
-                        ErrorKind::AMQPMessageParseError("missing correlation_id".into()).into()
+                    .ok_or_else(|| {
+                        ProtocolError::MissingRequiredProperty("correlation_id".into())
                     })?,
                 content_type: self
                     .properties
                     .content_type()
                     .as_ref()
                     .map(|v| v.to_string())
-                    .ok_or_else::<Error, _>(|| {
-                        ErrorKind::AMQPMessageParseError("missing content_type".into()).into()
-                    })?,
+                    .ok_or_else(|| ProtocolError::MissingRequiredProperty("content_type".into()))?,
                 content_encoding: self
                     .properties
                     .content_encoding()
                     .as_ref()
                     .map(|v| v.to_string())
-                    .ok_or_else::<Error, _>(|| {
-                        ErrorKind::AMQPMessageParseError("missing content_encoding".into()).into()
+                    .ok_or_else(|| {
+                        ProtocolError::MissingRequiredProperty("content_encoding".into())
                     })?,
                 reply_to: self.properties.reply_to().as_ref().map(|v| v.to_string()),
             },
@@ -424,10 +444,8 @@ fn get_header_str(headers: &FieldTable, key: &str) -> Option<String> {
     })
 }
 
-fn get_header_str_required(headers: &FieldTable, key: &str) -> Result<String, Error> {
-    get_header_str(headers, key).ok_or_else::<Error, _>(|| {
-        ErrorKind::AMQPMessageParseError(format!("invalid or missing '{}'", key)).into()
-    })
+fn get_header_str_required(headers: &FieldTable, key: &str) -> Result<String, ProtocolError> {
+    get_header_str(headers, key).ok_or_else(|| ProtocolError::MissingRequiredHeader(key.into()))
 }
 
 fn get_header_dt(headers: &FieldTable, key: &str) -> Option<DateTime<Utc>> {

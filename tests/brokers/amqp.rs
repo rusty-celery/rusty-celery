@@ -1,7 +1,8 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
-use celery::{celery_app, AMQPBroker, Error, Task, TaskContext};
+use celery::error::TaskError;
+use celery::task::{Task, TaskContext};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,7 +10,8 @@ use std::sync::Mutex;
 use tokio::time::{self, Duration};
 
 lazy_static! {
-    static ref SUCCESSES: Mutex<HashMap<String, Result<i32, Error>>> = Mutex::new(HashMap::new());
+    static ref SUCCESSES: Mutex<HashMap<String, Result<i32, TaskError>>> =
+        Mutex::new(HashMap::new());
 }
 
 #[allow(non_camel_case_types)]
@@ -26,7 +28,7 @@ impl Task for add {
 
     type Returns = i32;
 
-    async fn run(mut self) -> Result<Self::Returns, Error> {
+    async fn run(mut self) -> Result<Self::Returns, TaskError> {
         Ok(self.x + self.y)
     }
 
@@ -46,8 +48,8 @@ impl add {
 
 #[tokio::test]
 async fn test_rust_to_rust() {
-    let my_app = celery_app!(
-        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+    let my_app = celery::app!(
+        broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [add],
         task_routes = [
             "add" => "celery",

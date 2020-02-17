@@ -1,44 +1,47 @@
-use std::fmt;
+use failure::{Context, Fail};
 
-use failure::{Backtrace, Context, Fail};
-
-/// Any error that can occur while using `celery`.
-#[derive(Debug)]
-pub struct Error {
-    inner: Context<ErrorKind>,
-}
-
-/// Error kinds that can occur while using `celery`.
+/// Errors that can occur while creating or using a `Celery` app.
 #[derive(Debug, Fail)]
-pub enum ErrorKind {
-    /// You tried to register a task but a task by that name already exists.
-    #[fail(display = "Task named '{}' already exists", _0)]
-    TaskAlreadyExists(String),
-
-    /// Received an unregistered task.
-    #[fail(display = "Received unregistered task named '{}'", _0)]
-    UnregisteredTaskError(String),
-
-    /// An AMQP broker error.
-    #[fail(display = "AMQP error: {:?}", _0)]
-    AMQPError(Option<lapin::Error>),
-
-    /// Raised when broker URL can't be parsed.
-    #[fail(display = "Broker URL is invalid: {}", _0)]
-    InvalidBrokerUrl(String),
-
-    /// An error occured while serializing or deserializing.
-    #[fail(display = "Serialization error: {}", _0)]
-    SerializationError(serde_json::Error),
-
-    /// A consumed delivery was in an unknown format.
-    #[fail(display = "Failed to parse message: ({})", _0)]
-    AMQPMessageParseError(String),
-
+pub enum CeleryError {
     /// The queue you're attempting to use has not been defined.
     #[fail(display = "Unknown queue '{}'", _0)]
-    UnknownQueueError(String),
+    UnknownQueue(String),
 
+    /// When a mutex is poisened, for example.
+    #[fail(display = "Sync error")]
+    SyncError,
+
+    /// Forced shutdown.
+    #[fail(display = "Forced shutdown")]
+    ForcedShutdown,
+
+    /// Any other broker-level error that could happen when initializing.
+    #[fail(display = "{}", _0)]
+    BrokerError(#[fail(cause)] BrokerError),
+
+    /// Any other IO error that could occur.
+    #[fail(display = "{}", _0)]
+    IoError(#[fail(cause)] std::io::Error),
+
+    /// A protocol error.
+    #[fail(display = "Protocol error: {}", _0)]
+    ProtocolError(#[fail(cause)] ProtocolError),
+
+    /// An invalid glob pattern for a routing rule.
+    #[fail(display = "Invalid glob routing rule '{}'", _0)]
+    BadRoutingPattern(#[fail(cause)] globset::Error),
+
+    /// There is already a task registerd to this name.
+    #[fail(display = "There is already a task registered as '{}'", _0)]
+    TaskRegistrationError(String),
+
+    #[fail(display = "Received unregistered task {}", _0)]
+    UnregisteredTaskError(String),
+}
+
+/// Errors that can occur while running or tracing a task.
+#[derive(Debug, Fail)]
+pub enum TaskError {
     /// An error that is expected to happen every once in a while and should trigger
     /// the task to be retried without causes a fit.
     #[fail(display = "{}", _0)]
@@ -48,129 +51,145 @@ pub enum ErrorKind {
     #[fail(display = "{}", _0)]
     UnexpectedError(String),
 
-    /// Should be used when an expired task is received.
+    /// Raised when an expired task is received.
     #[fail(display = "Task expired")]
-    TaskExpiredError,
+    ExpirationError,
 
-    /// Raise when a task should be retried.
+    /// Raised when a task should be retried.
     #[fail(display = "Retrying task")]
     Retry,
+
+    /// Raised when a task runs over its time limit.
+    #[fail(display = "Task timed out")]
+    TimeoutError,
+}
+
+/// Errors that can occur at the broker level.
+#[derive(Debug, Fail)]
+pub enum BrokerError {
+    /// Raised when a broker URL can't be parsed.
+    #[fail(display = "Invalid broker URL: {}", _0)]
+    InvalidBrokerUrl(String),
+
+    /// The queue you're attempting to use has not been defined.
+    #[fail(display = "Unknown queue '{}'", _0)]
+    UnknownQueue(String),
 
     /// When a mutex is poisened, for example.
     #[fail(display = "Sync error")]
     SyncError,
 
-    /// An IO error.
-    #[fail(display = "An IO error occured ({:?})", _0)]
-    IoError(tokio::io::ErrorKind),
+    /// Broker is disconnected.
+    #[fail(display = "Broker not connected")]
+    NotConnected,
 
-    /// Forced shutdown.
-    #[fail(display = "Forced shutdown")]
-    ForcedShutdown,
+    /// Connection request timed-out.
+    #[fail(display = "Connection request timed-out.")]
+    ConnectTimeout,
 
-    /// Task timed out.
-    #[fail(display = "Task timed out")]
-    TimeoutError,
+    /// Broker connection refused.
+    #[fail(display = "Broker connection refused")]
+    ConnectionRefused,
 
-    /// Invalid routing glob pattern.
-    #[fail(display = "Bad routing rule pattern: {:?}", _0)]
-    BadRoutingRulePatternError(Option<String>),
+    /// Broker IO error.
+    #[fail(display = "Broker IO error")]
+    IoError,
 
-    /// Broker connection failed.
-    #[fail(display = "Broker connection error")]
-    BrokerConnectionError,
+    /// Any other AMQP error that could happen.
+    #[fail(display = "{}", _0)]
+    AMQPError(#[fail(cause)] lapin::Error),
 }
 
-impl Fail for Error {
-    fn cause(&self) -> Option<&dyn Fail> {
-        self.inner.cause()
-    }
+/// Errors that can occur due to messages not conforming to the protocol.
+#[derive(Debug, Fail)]
+pub enum ProtocolError {
+    /// Raised when a required message property is missing.
+    #[fail(display = "Missing required property '{}'", _0)]
+    MissingRequiredProperty(String),
 
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
+    /// Raised when the headers are missing altogether.
+    #[fail(display = "Missing headers")]
+    MissingHeaders,
+
+    /// Raised when a required message header is missing.
+    #[fail(display = "Missing required property '{}'", _0)]
+    MissingRequiredHeader(String),
+
+    /// Raised when serializing or de-serializing a message body fails.
+    #[fail(display = "{}", _0)]
+    BodySerializationError(#[fail(cause)] serde_json::Error),
+}
+
+impl From<BrokerError> for CeleryError {
+    fn from(err: BrokerError) -> Self {
+        Self::BrokerError(err)
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.inner, f)
+impl From<ProtocolError> for CeleryError {
+    fn from(err: ProtocolError) -> Self {
+        Self::ProtocolError(err)
     }
 }
 
-impl Error {
-    /// Get the inner `ErrorKind`.
-    pub fn kind(&self) -> &ErrorKind {
-        self.inner.get_context()
+impl From<std::io::Error> for CeleryError {
+    fn from(err: std::io::Error) -> Self {
+        Self::IoError(err)
     }
 }
 
-impl From<ErrorKind> for Error {
-    fn from(kind: ErrorKind) -> Error {
-        Error {
-            inner: Context::new(kind),
+impl From<globset::Error> for CeleryError {
+    fn from(err: globset::Error) -> Self {
+        Self::BadRoutingPattern(err)
+    }
+}
+
+impl From<serde_json::Error> for ProtocolError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::BodySerializationError(err)
+    }
+}
+
+impl From<lapin::Error> for BrokerError {
+    fn from(err: lapin::Error) -> Self {
+        match err {
+            lapin::Error::NotConnected => BrokerError::NotConnected,
+            lapin::Error::IOError(_) => BrokerError::IoError,
+            lapin::Error::ConnectionRefused => BrokerError::ConnectionRefused,
+            _ => BrokerError::AMQPError(err),
         }
     }
 }
 
-impl From<Context<ErrorKind>> for Error {
-    fn from(inner: Context<ErrorKind>) -> Error {
-        Error { inner }
+impl From<Context<&str>> for TaskError {
+    fn from(ctx: Context<&str>) -> Self {
+        Self::UnexpectedError((*ctx.get_context()).into())
     }
 }
 
-impl From<Context<&str>> for Error {
-    fn from(inner: Context<&str>) -> Error {
-        Error {
-            inner: Context::new(ErrorKind::UnexpectedError(
-                (*inner.get_context()).to_string(),
-            )),
-        }
-    }
+/// Extension methods for `Result` types within a task body.
+///
+/// These methods can be used to convert any `Result` to the appropriate `TaskError` variant. The
+/// trait has a blanket implementation for any error type that implements
+/// [`std::error::Error`](https://doc.rust-lang.org/std/error/trait.Error.html) or
+/// [`failure::Fail`](https://docs.rs/failure/0.1.6/failure/trait.Fail.html).
+pub trait TaskResultExt<T, E> {
+    /// Convert the error type to a `TaskError::ExpectedError`.
+    fn with_expected_err(self, context: &str) -> Result<T, TaskError>;
+
+    /// Convert the error type to a `TaskError::UnexpectedError`.
+    fn with_unexpected_err(self, context: &str) -> Result<T, TaskError>;
 }
 
-impl From<lapin::Error> for Error {
-    fn from(err: lapin::Error) -> Error {
-        Error {
-            inner: Context::new(match err {
-                lapin::Error::NotConnected => ErrorKind::BrokerConnectionError,
-                lapin::Error::ConnectionRefused => ErrorKind::BrokerConnectionError,
-                lapin::Error::IOError(_) => ErrorKind::BrokerConnectionError,
-                _ => ErrorKind::AMQPError(Some(err)),
-            }),
-        }
+impl<T, E> TaskResultExt<T, E> for Result<T, E>
+where
+    E: Fail,
+{
+    fn with_expected_err(self, context: &str) -> Result<T, TaskError> {
+        self.map_err(|_failure| TaskError::ExpectedError(context.into()))
     }
-}
 
-impl From<serde_json::Error> for Error {
-    fn from(err: serde_json::Error) -> Error {
-        Error {
-            inner: Context::new(ErrorKind::SerializationError(err)),
-        }
-    }
-}
-
-impl From<tokio::io::Error> for Error {
-    fn from(err: tokio::io::Error) -> Error {
-        Error {
-            inner: Context::new(ErrorKind::IoError(err.kind())),
-        }
-    }
-}
-
-impl From<tokio::time::Elapsed> for Error {
-    fn from(_err: tokio::time::Elapsed) -> Error {
-        Error {
-            inner: Context::new(ErrorKind::TimeoutError),
-        }
-    }
-}
-
-impl From<globset::Error> for Error {
-    fn from(_err: globset::Error) -> Error {
-        Error {
-            inner: Context::new(ErrorKind::BadRoutingRulePatternError(
-                _err.glob().map(|s| s.into()),
-            )),
-        }
+    fn with_unexpected_err(self, context: &str) -> Result<T, TaskError> {
+        self.map_err(|_failure| TaskError::UnexpectedError(context.into()))
     }
 }

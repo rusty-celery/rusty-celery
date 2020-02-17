@@ -1,6 +1,6 @@
-use celery::{task, Task};
+use celery::task::Task;
 
-#[task(name = "add")]
+#[celery::task(name = "add")]
 fn add(x: i32, y: i32) -> i32 {
     x + y
 }
@@ -15,7 +15,7 @@ fn test_add_arg_names() {
     assert_eq!(add::ARGS, &["x", "y"]);
 }
 
-#[task]
+#[celery::task]
 fn add_auto_name(x: i32, y: i32) -> i32 {
     x + y
 }
@@ -25,7 +25,7 @@ fn test_auto_name() {
     assert_eq!(add_auto_name::NAME, "add_auto_name");
 }
 
-#[task(
+#[celery::task(
     timeout = 2,
     max_retries = 3,
     min_retry_delay = 0,
@@ -58,7 +58,7 @@ fn test_task_options() {
 // which doesn't compile since String doesn't implement Copy.
 //
 // After changing the signature of `run` to consume `self` this now works.
-#[task]
+#[celery::task]
 fn task_with_strings(s1: String, s2: String) -> String {
     format!("{}, {}", s1, s2)
 }

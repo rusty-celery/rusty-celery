@@ -2,7 +2,7 @@
 //!
 //! The top part of the protocol is the [`Message` struct](struct.Message.html), which builds on
 //! top of the protocol for a broker. This is why a broker's [delivery
-//! type](../trait.Broker.html#associatedtype.Delivery) must implement
+//! type](../broker/trait.Broker.html#associatedtype.Delivery) must implement
 //! [`TryIntoMessage`](trait.TryIntoMessage.html).
 
 use chrono::{self, DateTime, Utc};
@@ -13,7 +13,7 @@ use std::time::SystemTime;
 use tokio::time::Duration;
 use uuid::Uuid;
 
-use crate::error::Error;
+use crate::error::ProtocolError;
 use crate::task::{Task, TaskOptions, TaskSendOptions};
 
 /// Create a message with a custom configuration.
@@ -23,10 +23,10 @@ pub struct MessageBuilder {
 
 impl MessageBuilder {
     /// Get a new `MessageBuilder` from a task.
-    pub fn new<T: Task>(task: T) -> Result<Self, Error> {
+    pub fn new<T: Task>(task: T) -> Result<Self, ProtocolError> {
         // Serialize the task into the message body.
         let body = MessageBody::new(task);
-        let data = serde_json::to_vec(&body).unwrap();
+        let data = serde_json::to_vec(&body)?;
 
         // Create random correlation id.
         let mut buffer = Uuid::encode_buffer();
@@ -105,16 +105,16 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn builder<T: Task>(task: T) -> Result<MessageBuilder, Error> {
+    pub fn builder<T: Task>(task: T) -> Result<MessageBuilder, ProtocolError> {
         MessageBuilder::new::<T>(task)
     }
 
-    pub fn new<T: Task>(task: T) -> Result<Self, Error> {
+    pub fn new<T: Task>(task: T) -> Result<Self, ProtocolError> {
         Ok(Self::builder(task)?.build())
     }
 
     /// Try deserializing the body.
-    pub fn body<T: Task>(&self) -> Result<MessageBody<T>, Error> {
+    pub fn body<T: Task>(&self) -> Result<MessageBody<T>, ProtocolError> {
         let value: Value = serde_json::from_slice(&self.raw_body)?;
         debug!("Deserialized message body: {:?}", value);
         if let Value::Array(ref vec) = value {
@@ -171,7 +171,7 @@ impl Message {
 }
 
 pub trait TryIntoMessage {
-    fn try_into_message(&self) -> Result<Message, Error>;
+    fn try_into_message(&self) -> Result<Message, ProtocolError>;
 }
 
 /// Message meta data pertaining to the broker.
@@ -287,7 +287,7 @@ mod tests {
     use async_trait::async_trait;
 
     use super::*;
-    use crate::error::Error;
+    use crate::error::TaskError;
     use crate::task::Task;
 
     #[derive(Serialize, Deserialize)]
@@ -302,7 +302,7 @@ mod tests {
 
         type Returns = ();
 
-        async fn run(mut self) -> Result<(), Error> {
+        async fn run(mut self) -> Result<(), TaskError> {
             Ok(())
         }
     }

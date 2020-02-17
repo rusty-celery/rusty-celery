@@ -32,18 +32,18 @@ If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-ce
 Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
 
 ```rust
-#[task]
+#[celery::task]
 fn add(x: i32, y: i32) -> i32 {
     x + y
 }
 ```
 
-Create an app with the [`celery_app`](https://docs.rs/celery/*/celery/macro.celery_app.html) macro
+Create an app with the [`app`](https://docs.rs/celery/*/celery/macro.celery_app.html) macro
 and register your tasks with it:
 
 ```rust
-let my_app = celery_app!(
-    broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+let my_app = celery::app!(
+    broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
     tasks = [add],
     task_routes = [
         "*" => "celery",

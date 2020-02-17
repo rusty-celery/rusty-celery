@@ -5,7 +5,7 @@ use proc_macro::TokenStream;
 mod error;
 mod task;
 
-/// A procedural macro for generating a [`Task`](trait.Task.html) from a function.
+/// A procedural macro for generating a [`Task`](task/trait.Task.html) from a function.
 ///
 /// # Parameters
 ///

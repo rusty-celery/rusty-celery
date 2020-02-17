@@ -1,3 +1,4 @@
+use failure::Fail;
 use futures::stream::{select_all, StreamExt};
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
@@ -11,10 +12,10 @@ mod routing;
 mod trace;
 
 use crate::broker::{Broker, BrokerBuilder};
-use crate::error::{Error, ErrorKind};
+use crate::error::{BrokerError, CeleryError, TaskError};
 use crate::protocol::{Message, TryIntoMessage};
 use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
-pub use routing::Rule;
+use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -114,9 +115,10 @@ where
     }
 
     /// Add a routing rule.
-    pub fn task_route(mut self, rule: Rule) -> Self {
+    pub fn task_route(mut self, pattern: &str, queue: &str) -> Result<Self, CeleryError> {
+        let rule = Rule::new(pattern, queue)?;
         self.config.task_routes.push(rule);
-        self
+        Ok(self)
     }
 
     /// Set a timeout in seconds before giving up establishing a connection to a broker.
@@ -139,7 +141,7 @@ where
     }
 
     /// Construct a `Celery` app with the current configuration.
-    pub async fn build(self) -> Result<Celery<Bb::Broker>, Error> {
+    pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
         // Declare default queue to broker.
         let mut broker_builder = self
             .config
@@ -164,18 +166,21 @@ where
                 broker_builder.build(),
             )
             .await
-            .map_err(|_| Error::from(ErrorKind::BrokerConnectionError))
+            .map_err(|_| BrokerError::ConnectTimeout)
             .and_then(|res| res)
             {
-                Err(err) => match err.kind() {
-                    ErrorKind::BrokerConnectionError => {
+                Err(err) => match err {
+                    BrokerError::ConnectTimeout
+                    | BrokerError::ConnectionRefused
+                    | BrokerError::IoError
+                    | BrokerError::NotConnected => {
                         if i < max_retries {
                             error!("Failed to establish connection with broker, trying again in 200ms...")
                         }
                         time::delay_for(Duration::from_millis(200)).await;
                         continue;
                     }
-                    _ => return Err(err),
+                    _ => return Err(err.into()),
                 },
                 Ok(b) => {
                     broker = Some(b);
@@ -186,10 +191,7 @@ where
 
         Ok(Celery {
             name: self.config.name,
-            broker: broker.ok_or_else(|| Error::from(ErrorKind::BrokerConnectionError))?,
-            broker_connection_timeout: self.config.broker_connection_timeout,
-            broker_connection_retry: self.config.broker_connection_retry,
-            broker_connection_max_retries: self.config.broker_connection_max_retries,
+            broker: broker.ok_or_else(|| BrokerError::NotConnected)?,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
             task_routes: self.config.task_routes,
@@ -198,33 +200,23 @@ where
     }
 }
 
-/// A `Celery` app is used to produce or consume tasks asynchronously.
+/// A `Celery` app is used to produce or consume tasks asynchronously. This is the struct that is
+/// created with the [`app`](macro.app.html) macro.
 pub struct Celery<B: Broker> {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
 
     /// The app's broker.
-    pub broker: B,
-
-    /// A timeout in seconds to wait before giving up trying to establish a connection
-    /// to the broker.
-    pub broker_connection_timeout: u32,
-
-    /// Automatically try to re-establish connection to the AMQP broker.
-    pub broker_connection_retry: bool,
-
-    /// Maximum number of retries before we give up trying to re-establish connection
-    /// to the AMQP broker.
-    pub broker_connection_max_retries: u32,
+    broker: B,
 
     /// The default queue to send and receive from.
-    pub default_queue: String,
+    default_queue: String,
 
     /// Default task options.
-    pub task_options: TaskOptions,
+    task_options: TaskOptions,
 
     /// A vector of routing rules in the order of their importance.
-    pub task_routes: Vec<Rule>,
+    task_routes: Vec<Rule>,
 
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
@@ -242,7 +234,7 @@ where
 
     /// Send a task to a remote worker with default options. Returns the correlation ID
     /// of the task if successful.
-    pub async fn send_task<T: Task>(&self, task: T) -> Result<String, Error> {
+    pub async fn send_task<T: Task>(&self, task: T) -> Result<String, CeleryError> {
         let queue = routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue);
         let options = TaskSendOptions::builder().queue(queue).build();
         self.send_task_with(task, &options).await
@@ -254,7 +246,7 @@ where
         &self,
         task: T,
         options: &TaskSendOptions,
-    ) -> Result<String, Error> {
+    ) -> Result<String, CeleryError> {
         let message = Message::builder(task)?.task_send_options(options).build();
         debug!("Sending message {:?}", message);
         let queue = options.queue.as_ref().unwrap_or(&self.default_queue);
@@ -263,13 +255,13 @@ where
     }
 
     /// Register a task.
-    pub fn register_task<T: Task + 'static>(&self) -> Result<(), Error> {
+    pub fn register_task<T: Task + 'static>(&self) -> Result<(), CeleryError> {
         let mut task_trace_builders = self
             .task_trace_builders
             .write()
-            .map_err(|_| Error::from(ErrorKind::SyncError))?;
+            .map_err(|_| CeleryError::SyncError)?;
         if task_trace_builders.contains_key(T::NAME) {
-            Err(ErrorKind::TaskAlreadyExists(T::NAME.into()).into())
+            Err(CeleryError::TaskRegistrationError(T::NAME.into()))
         } else {
             task_trace_builders.insert(T::NAME.into(), Box::new(build_tracer::<T>));
             info!("Registered task {}", T::NAME);
@@ -281,15 +273,16 @@ where
         &self,
         message: Message,
         event_tx: UnboundedSender<TaskEvent>,
-    ) -> Result<Box<dyn TracerTrait>, Error> {
+    ) -> Result<Box<dyn TracerTrait>, Box<dyn Fail>> {
         let task_trace_builders = self
             .task_trace_builders
             .read()
-            .map_err(|_| Error::from(ErrorKind::SyncError))?;
+            .map_err(|_| Box::new(CeleryError::SyncError) as Box<dyn Fail>)?;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
-            Ok(build_tracer(message, self.task_options, event_tx)?)
+            Ok(build_tracer(message, self.task_options, event_tx)
+                .map_err(|e| Box::new(e) as Box<dyn Fail>)?)
         } else {
-            Err(ErrorKind::UnregisteredTaskError(message.headers.task).into())
+            Err(Box::new(CeleryError::UnregisteredTaskError(message.headers.task)) as Box<dyn Fail>)
         }
     }
 
@@ -297,20 +290,20 @@ where
     /// and communicating with the broker.
     async fn try_handle_delivery(
         &self,
-        delivery_result: Result<B::Delivery, B::DeliveryError>,
+        delivery: B::Delivery,
         event_tx: UnboundedSender<TaskEvent>,
-    ) -> Result<(), Error> {
-        let delivery = delivery_result.map_err(|e| e.into())?;
-        debug!("Received delivery: {:?}", delivery);
-
+    ) -> Result<(), Box<dyn Fail>> {
         // Coerce the delivery into a protocol message.
         let message = match delivery.try_into_message() {
             Ok(message) => message,
             Err(e) => {
                 // This is a naughty message that we can't handle, so we'll ack it with
                 // the broker so it gets deleted.
-                self.broker.ack(&delivery).await?;
-                return Err(e);
+                self.broker
+                    .ack(&delivery)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                return Err(Box::new(e));
             }
         };
 
@@ -323,8 +316,11 @@ where
                 // Even though the message meta data was okay, we failed to deserialize
                 // the body of the message for some reason, so ack it with the broker
                 // to delete it and return an error.
-                self.broker.ack(&delivery).await?;
-                return Err(e);
+                self.broker
+                    .ack(&delivery)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                return Err(Box::new(e));
             }
         };
 
@@ -337,15 +333,24 @@ where
                 // Otherwise we could reach the prefetch_count and end up blocking
                 // other deliveries if there are a high number of messages with a
                 // future ETA.
-                self.broker.retry(&delivery, None).await?;
-                self.broker.ack(&delivery).await?;
-                return Err(e);
+                self.broker
+                    .retry(&delivery, None)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                self.broker
+                    .ack(&delivery)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                return Err(Box::new(e));
             };
         }
 
         // If acks_late is false, we acknowledge the message before tracing it.
         if !tracer.get_task_options().acks_late {
-            self.broker.ack(&delivery).await?;
+            self.broker
+                .ack(&delivery)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
         }
 
         // Try tracing the task now.
@@ -354,21 +359,30 @@ where
         // we only log errors at the broker and delivery level.
         if let Err(e) = tracer.trace().await {
             // If retriable error -> retry the task.
-            if let ErrorKind::Retry = e.kind() {
+            if let TaskError::Retry = e {
                 let retry_eta = tracer.retry_eta();
-                self.broker.retry(&delivery, retry_eta).await?
+                self.broker
+                    .retry(&delivery, retry_eta)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
             }
         }
 
         // If we have not done it before, we have to acknowledge the message now.
         if tracer.get_task_options().acks_late {
-            self.broker.ack(&delivery).await?;
+            self.broker
+                .ack(&delivery)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
         }
 
         // If we had increased the prefetch count above due to a future ETA, we have
         // to decrease it back down to restore balance to the universe.
         if tracer.is_delayed() {
-            self.broker.decrease_prefetch_count().await?;
+            self.broker
+                .decrease_prefetch_count()
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
         }
 
         Ok(())
@@ -380,19 +394,27 @@ where
         delivery_result: Result<B::Delivery, B::DeliveryError>,
         event_tx: UnboundedSender<TaskEvent>,
     ) {
-        if let Err(e) = self.try_handle_delivery(delivery_result, event_tx).await {
-            error!("{}", e);
-        }
+        match delivery_result {
+            Ok(delivery) => {
+                debug!("Received delivery: {:?}", delivery);
+                if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
+                    error!("{}", e);
+                };
+            }
+            Err(e) => {
+                error!("Deliver failed: {}", e);
+            }
+        };
     }
 
     /// Consume tasks from the default queue.
-    pub async fn consume(&'static self) -> Result<(), Error> {
+    pub async fn consume(&'static self) -> Result<(), CeleryError> {
         Ok(self.consume_from(&[&self.default_queue]).await?)
     }
 
     /// Consume tasks from a group of queues.
     #[allow(clippy::cognitive_complexity)]
-    pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), Error> {
+    pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
         // Stream of errors from broker.
         let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
 
@@ -461,7 +483,7 @@ where
                 maybe_broker_error = broker_error_rx.next() => {
                     if maybe_broker_error.is_some() {
                         error!("Broker lost connection");
-                        return Err(ErrorKind::BrokerConnectionError.into());
+                        return Err(BrokerError::NotConnected.into());
                     }
                 }
             };
@@ -476,7 +498,7 @@ where
                 select! {
                     _ = sigint.next() => {
                         warn!("Okay fine, shutting down now. See ya!");
-                        return Err(ErrorKind::ForcedShutdown.into());
+                        return Err(CeleryError::ForcedShutdown);
                     },
                     maybe_event = task_event_rx.next() => {
                         if let Some(event) = maybe_event {
@@ -500,7 +522,7 @@ where
     }
 
     /// Close channels and connections.
-    pub async fn close(&self) -> Result<(), Error> {
+    pub async fn close(&self) -> Result<(), CeleryError> {
         Ok(self.broker.close().await?)
     }
 }

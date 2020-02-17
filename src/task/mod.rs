@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::error::Error;
+use crate::error::TaskError;
 
 mod options;
 
@@ -25,12 +25,12 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     type Returns: Send + Sync + std::fmt::Debug;
 
     /// This function defines how a task executes.
-    async fn run(mut self) -> Result<Self::Returns, Error>;
+    async fn run(mut self) -> Result<Self::Returns, TaskError>;
 
     /// Callback that will run after a task fails.
     /// It takes a reference to a `TaskContext` struct and the error returned from task.
     #[allow(unused_variables)]
-    async fn on_failure(ctx: &TaskContext<'_>, err: &Error) {}
+    async fn on_failure(ctx: &TaskContext<'_>, err: &TaskError) {}
 
     /// Callback that will run after a task completes successfully.
     /// It takes a reference to a `TaskContext` struct and the returned value from task.
