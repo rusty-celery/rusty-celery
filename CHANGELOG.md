@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.0-alpha.0] - 2019-02-17
+
 ### Added
 
 - Several error enums: `CeleryError`, `TaskError`, `BrokerError`, `ProtocolError`.
