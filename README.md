@@ -85,18 +85,18 @@ This sends a series of tasks from the Python app to the Rust app. You can also s
 
 ## Road map and current state
 
-🟢 = Supported and mostly stable, although there may be a few incomplete features.<br/>
-🟠 = Partially implemented and under active development.<br/>
+✅ = Supported and mostly stable, although there may be a few incomplete features.<br/>
+⚠️ = Partially implemented and under active development.<br/>
 🔴 = Not supported yet but on-deck to be implemented soon.
 
 ### Core
 
 |                  | Status  | Tracking  |
 | ---------------- |:-------:| --------- |
-| Protocol         | 🟠      | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Protocol%20Feature?label=Issues)](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aissue+label%3A%22Protocol+Feature%22+is%3Aopen) |
-| Producers        | 🟢      | |
-| Consumers        | 🟢      | |
-| Brokers          | 🟢      | |
+| Protocol         | ⚠️      | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Protocol%20Feature?label=Issues)](https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aissue+label%3A%22Protocol+Feature%22+is%3Aopen) |
+| Producers        | ✅      | |
+| Consumers        | ✅      | |
+| Brokers          | ✅      | |
 | Backends         | 🔴      | |
 | [Beat](https://github.com/rusty-celery/rusty-celery/issues/55)    | 🔴      | |
 | [Baskets](https://github.com/rusty-celery/rusty-celery/issues/53) | 🔴      | |
@@ -105,7 +105,7 @@ This sends a series of tasks from the Python app to the Rust app. You can also s
 
 |       | Status | Tracking |
 | ----- |:------:| -------- |
-| AMQP  | 🟢     | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Broker%3A%20AMQP?label=Issues)](https://github.com/rusty-celery/rusty-celery/labels/Broker%3A%20AMQP) |
+| AMQP  | ✅     | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Broker%3A%20AMQP?label=Issues)](https://github.com/rusty-celery/rusty-celery/labels/Broker%3A%20AMQP) |
 | Redis | 🔴     | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Broker%3A%20Redis?label=Issues)](https://github.com/rusty-celery/rusty-celery/labels/Broker%3A%20Redis) |
 
 ### Backends
