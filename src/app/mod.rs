@@ -417,7 +417,7 @@ where
         Ok(self.consume_from(&self.default_queue).await?)
     }
 
-    /// Consume tasks from a group of queues.
+    /// Consume tasks from a queue.
     #[allow(clippy::cognitive_complexity)]
     pub async fn consume_from(&'static self, queue: &str) -> Result<(), CeleryError> {
         info!("Consuming from {}", queue);
