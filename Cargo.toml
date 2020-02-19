@@ -30,7 +30,7 @@ async-trait = "0.1"
 lapin = { version = "0.28.3", features = ["default", "futures"] }
 amq-protocol = "3.1"
 log = "0.4"
-futures = { version = "0.3", features = ["async-await"] }
+futures = { version = "0.3.4", features = ["async-await"] }
 uuid = { version = "0.8", features = ["v4"]}
 rand = "0.7"
 celery-codegen = { version = "0.2.0-alpha.0", path = "./celery-codegen", optional = true }

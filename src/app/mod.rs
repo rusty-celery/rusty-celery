@@ -1,5 +1,5 @@
 use failure::Fail;
-use futures::stream::{select_all, StreamExt};
+use futures::stream::StreamExt;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -414,36 +414,30 @@ where
 
     /// Consume tasks from the default queue.
     pub async fn consume(&'static self) -> Result<(), CeleryError> {
-        Ok(self.consume_from(&[&self.default_queue]).await?)
+        Ok(self.consume_from(&self.default_queue).await?)
     }
 
     /// Consume tasks from a group of queues.
     #[allow(clippy::cognitive_complexity)]
-    pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
-        info!("Consuming from {:?}", queues);
+    pub async fn consume_from(&'static self, queue: &str) -> Result<(), CeleryError> {
+        info!("Consuming from {}", queue);
 
         // Stream of errors from broker.
         let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
 
         // Stream of deliveries from the queue.
-        let mut streams = Vec::<std::pin::Pin<Box<B::DeliveryStream>>>::new();
-        for queue in queues {
-            let broker_error_tx = broker_error_tx.clone();
-            let stream = Box::pin(
-                self.broker
-                    .consume(
-                        queue,
-                        Box::new(move || {
-                            if broker_error_tx.clone().try_send(()).is_err() {
-                                error!("Failed to send broker error event");
-                            };
-                        }),
-                    )
-                    .await?,
-            );
-            streams.push(stream);
-        }
-        let mut deliveries = select_all(streams);
+        let mut deliveries = Box::pin(
+            self.broker
+                .consume(
+                    queue,
+                    Box::new(move || {
+                        if broker_error_tx.clone().try_send(()).is_err() {
+                            error!("Failed to send broker error event");
+                        };
+                    }),
+                )
+                .await?,
+        );
 
         // Stream of OS signals.
         let mut sigint = signal(SignalKind::interrupt())?;
