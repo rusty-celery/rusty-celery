@@ -248,8 +248,13 @@ where
         options: &TaskSendOptions,
     ) -> Result<String, CeleryError> {
         let message = Message::builder(task)?.task_send_options(options).build();
-        debug!("Sending message {:?}", message);
         let queue = options.queue.as_ref().unwrap_or(&self.default_queue);
+        info!(
+            "Sending task {}[{}] to {}",
+            T::NAME,
+            message.properties.correlation_id,
+            queue
+        );
         self.broker.send(&message, queue).await?;
         Ok(message.properties.correlation_id)
     }
@@ -415,6 +420,8 @@ where
     /// Consume tasks from a group of queues.
     #[allow(clippy::cognitive_complexity)]
     pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+        info!("Consuming from {:?}", queues);
+
         // Stream of errors from broker.
         let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
 
