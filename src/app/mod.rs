@@ -2,10 +2,10 @@ use failure::Fail;
 use futures::stream::StreamExt;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
-use std::sync::RwLock;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
 
 mod routing;
@@ -260,11 +260,8 @@ where
     }
 
     /// Register a task.
-    pub fn register_task<T: Task + 'static>(&self) -> Result<(), CeleryError> {
-        let mut task_trace_builders = self
-            .task_trace_builders
-            .write()
-            .map_err(|_| CeleryError::SyncError)?;
+    pub async fn register_task<T: Task + 'static>(&self) -> Result<(), CeleryError> {
+        let mut task_trace_builders = self.task_trace_builders.write().await;
         if task_trace_builders.contains_key(T::NAME) {
             Err(CeleryError::TaskRegistrationError(T::NAME.into()))
         } else {
@@ -274,15 +271,12 @@ where
         }
     }
 
-    fn get_task_tracer(
+    async fn get_task_tracer(
         &self,
         message: Message,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Box<dyn TracerTrait>, Box<dyn Fail>> {
-        let task_trace_builders = self
-            .task_trace_builders
-            .read()
-            .map_err(|_| Box::new(CeleryError::SyncError) as Box<dyn Fail>)?;
+        let task_trace_builders = self.task_trace_builders.read().await;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
             Ok(build_tracer(message, self.task_options, event_tx)
                 .map_err(|e| Box::new(e) as Box<dyn Fail>)?)
@@ -315,7 +309,7 @@ where
         // Try deserializing the message to create a task wrapped in a task tracer.
         // (The tracer handles all of the logic of directly interacting with the task
         // to execute it and handle the post-execution functions).
-        let mut tracer = match self.get_task_tracer(message, event_tx) {
+        let mut tracer = match self.get_task_tracer(message, event_tx).await {
             Ok(tracer) => tracer,
             Err(e) => {
                 // Even though the message meta data was okay, we failed to deserialize

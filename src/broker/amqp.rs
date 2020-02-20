@@ -15,6 +15,7 @@ use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
+use tokio::sync::Mutex;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
@@ -94,7 +95,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             conn,
             channel,
             queues,
-            prefetch_count: std::sync::Mutex::new(self.config.prefetch_count),
+            prefetch_count: Mutex::new(self.config.prefetch_count),
         };
         broker
             .set_prefetch_count(self.config.prefetch_count)
@@ -108,7 +109,7 @@ pub struct AMQPBroker {
     conn: Connection,
     channel: Channel,
     queues: HashMap<String, Queue>,
-    prefetch_count: std::sync::Mutex<u16>,
+    prefetch_count: Mutex<u16>,
 }
 
 impl AMQPBroker {
@@ -219,10 +220,7 @@ impl Broker for AMQPBroker {
 
     async fn increase_prefetch_count(&self) -> Result<(), BrokerError> {
         let new_count = {
-            let mut prefetch_count = self
-                .prefetch_count
-                .lock()
-                .map_err(|_| BrokerError::SyncError)?;
+            let mut prefetch_count = self.prefetch_count.lock().await;
             if *prefetch_count < std::u16::MAX {
                 let new_count = *prefetch_count + 1;
                 *prefetch_count = new_count;
@@ -237,10 +235,7 @@ impl Broker for AMQPBroker {
 
     async fn decrease_prefetch_count(&self) -> Result<(), BrokerError> {
         let new_count = {
-            let mut prefetch_count = self
-                .prefetch_count
-                .lock()
-                .map_err(|_| BrokerError::SyncError)?;
+            let mut prefetch_count = self.prefetch_count.lock().await;
             if *prefetch_count > 1 {
                 let new_count = *prefetch_count - 1;
                 *prefetch_count = new_count;
