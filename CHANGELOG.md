@@ -6,14 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## Changed
+### Changed
 
 - Uses of `std::sync::Mutex` and `std::sync::RwLock` changed to their async-aware equivalents from `tokio`.
 - The `Celery::register_task` method is now an async function due to the above.
 
-## Removed
+### Removed
 
 - The `SyncError` variants have been removed.
+
+## [0.2.0-alpha.1] - 2019-02-19
+
+### Changed
+
+- `Celery::consume_from` now only accepts a single queue (once again) since there was a critical bug when we allowed consuming from multiple queues.
 
 ## [0.2.0-alpha.0] - 2019-02-17
 
