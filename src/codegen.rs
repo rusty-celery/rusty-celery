@@ -25,7 +25,7 @@ macro_rules! __app_internal {
             let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
 
             $(
-                celery.register_task::<$t>().unwrap();
+                $crate::export::block_on(celery.register_task::<$t>()).unwrap();
             )*
 
             celery

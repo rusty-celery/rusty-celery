@@ -9,10 +9,6 @@ pub enum CeleryError {
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueue(String),
 
-    /// When a mutex is poisened, for example.
-    #[fail(display = "Sync error")]
-    SyncError,
-
     /// Forced shutdown.
     #[fail(display = "Forced shutdown")]
     ForcedShutdown,
@@ -76,10 +72,6 @@ pub enum BrokerError {
     /// The queue you're attempting to use has not been defined.
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueue(String),
-
-    /// When a mutex is poisened, for example.
-    #[fail(display = "Sync error")]
-    SyncError,
 
     /// Broker is disconnected.
     #[fail(display = "Broker not connected")]
