@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.0-alpha.1] - 2019-02-19
+
+### Changed
+
+- `Celery::consume_from` now only accepts a single queue (once again) since there was a critical bug when we allowed consuming from multiple queues.
+
 ## [0.2.0-alpha.0] - 2019-02-17
 
 ### Added
