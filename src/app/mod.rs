@@ -308,7 +308,7 @@ where
 
         // Try deserializing the message to create a task wrapped in a task tracer.
         // (The tracer handles all of the logic of directly interacting with the task
-        // to execute it and handle the post-execution functions).
+        // to execute it and run the post-execution functions).
         let mut tracer = match self.get_task_tracer(message, event_tx).await {
             Ok(tracer) => tracer,
             Err(e) => {
@@ -342,6 +342,9 @@ where
                     .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
                 return Err(Box::new(e));
             };
+
+            // Then wait for the task to be ready.
+            tracer.wait().await;
         }
 
         // If acks_late is false, we acknowledge the message before tracing it.
@@ -416,7 +419,8 @@ where
     pub async fn consume_from(&'static self, queue: &str) -> Result<(), CeleryError> {
         info!("Consuming from {}", queue);
 
-        // Stream of errors from broker.
+        // Stream of errors from broker. The capacity here is arbitrary because a single
+        // error from the broker should trigger this method to return early.
         let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
 
         // Stream of deliveries from the queue.
@@ -445,7 +449,7 @@ where
 
         // This is the main loop where we receive deliveries and pass them off
         // to be handled by spawning `self.handle_delivery`.
-        // At the same time we are also listening for a SIGINT (Ctrl+C) interruption.
+        // At the same time we are also listening for a SIGINT (Ctrl+C) or SIGTERM interruption.
         // If that occurs we break from this loop and move to the warm shutdown loop
         // if there are still any pending tasks (tasks being executed, not including
         // tasks being delayed due to a future ETA).
@@ -487,7 +491,7 @@ where
         if pending_tasks > 0 {
             // Warm shutdown loop. When there are still pendings tasks we wait for them
             // to finish. We get updates about pending tasks through the `task_event_rx` channel.
-            // We also watch for a second SIGINT, in which case we immediately shutdown.
+            // We also watch for a second SIGINT or SIGTERM, in which case we immediately shutdown.
             info!("Waiting on {} pending tasks...", pending_tasks);
             loop {
                 select! {
