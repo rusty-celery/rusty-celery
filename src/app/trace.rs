@@ -40,6 +40,22 @@ where
         let (task, _) = body.parts();
         let options = options.overrides(&task);
         let countdown = message.countdown();
+
+        if let Some(eta) = message.headers.eta {
+            info!(
+                "Task {}[{}] received, ETA: {}",
+                T::NAME,
+                message.properties.correlation_id,
+                eta
+            );
+        } else {
+            info!(
+                "Task {}[{}] received",
+                T::NAME,
+                message.properties.correlation_id
+            );
+        }
+
         Ok(Self {
             task: Some(task),
             message,
@@ -56,22 +72,6 @@ where
     T: Task,
 {
     async fn trace(&mut self) -> Result<(), TaskError> {
-        if let Some(countdown) = self.countdown {
-            info!(
-                "Task {}[{}] received, ETA: {}",
-                T::NAME,
-                self.message.properties.correlation_id,
-                self.message.headers.eta.unwrap()
-            );
-            time::delay_for(countdown).await;
-        } else {
-            info!(
-                "Task {}[{}] received",
-                T::NAME,
-                self.message.properties.correlation_id
-            );
-        }
-
         if self.is_expired() {
             warn!(
                 "Task {}[{}] expired, discarding",
@@ -197,6 +197,12 @@ where
         }
     }
 
+    async fn wait(&self) {
+        if let Some(countdown) = self.countdown {
+            time::delay_for(countdown).await;
+        }
+    }
+
     fn retry_eta(&self) -> Option<DateTime<Utc>> {
         let retries = self.message.headers.retries.unwrap_or(0);
         let delay_secs = std::cmp::min(
@@ -237,10 +243,13 @@ where
 }
 
 #[async_trait]
-pub(super) trait TracerTrait: Send {
+pub(super) trait TracerTrait: Send + Sync {
     /// Wraps the execution of a task, catching and logging errors and then running
     /// the appropriate post-execution functions.
     async fn trace(&mut self) -> Result<(), TaskError>;
+
+    /// Wait until the task is due.
+    async fn wait(&self);
 
     /// Get the ETA for a retry with exponential backoff.
     fn retry_eta(&self) -> Option<DateTime<Utc>>;
