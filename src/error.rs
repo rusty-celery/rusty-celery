@@ -163,8 +163,8 @@ impl From<Context<&str>> for TaskError {
 
 /// Extension methods for `Result` types within a task body.
 ///
-/// These methods can be used to convert any `Result` to the appropriate `TaskError` variant. The
-/// trait has a blanket implementation for any error type that implements
+/// These methods can be used to convert a `Result<T, E>` to a `Result<T, TaskError>` with the
+/// appropriate `TaskError` variant. The trait has a blanket implementation for any error type that implements
 /// [`std::error::Error`](https://doc.rust-lang.org/std/error/trait.Error.html) or
 /// [`failure::Fail`](https://docs.rs/failure/0.1.6/failure/trait.Fail.html).
 pub trait TaskResultExt<T, E> {
