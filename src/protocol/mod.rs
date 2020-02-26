@@ -3,7 +3,7 @@
 //! The top part of the protocol is the [`Message` struct](struct.Message.html), which builds on
 //! top of the protocol for a broker. This is why a broker's [delivery
 //! type](../broker/trait.Broker.html#associatedtype.Delivery) must implement
-//! [`TryIntoMessage`](trait.TryIntoMessage.html).
+//! [`TryCreateMessage`](trait.TryCreateMessage.html).
 
 use chrono::{self, DateTime, Utc};
 use log::debug;
@@ -177,12 +177,14 @@ impl Message {
     }
 }
 
-pub trait TryIntoMessage {
-    fn try_into_message(&self) -> Result<Message, ProtocolError>;
+/// A trait for attempting to create a `Message` from `self`. This is required to be implemented
+/// on a broker's `Delivery` type.
+pub trait TryCreateMessage {
+    fn try_create_message(&self) -> Result<Message, ProtocolError>;
 }
 
-impl TryIntoMessage for Message {
-    fn try_into_message(&self) -> Result<Message, ProtocolError> {
+impl TryCreateMessage for Message {
+    fn try_create_message(&self) -> Result<Message, ProtocolError> {
         Ok(self.clone())
     }
 }
