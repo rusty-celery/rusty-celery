@@ -27,7 +27,9 @@ pub trait Broker: Send + Sync + Sized {
     type DeliveryStream: Stream<Item = Result<Self::Delivery, Self::DeliveryError>>;
 
     /// Returns a builder for creating a broker with a custom configuration.
-    fn builder(broker_url: &str) -> Self::Builder;
+    fn builder(broker_url: &str) -> Self::Builder {
+        Self::Builder::new(broker_url)
+    }
 
     /// Consume messages from a queue.
     ///

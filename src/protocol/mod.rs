@@ -22,18 +22,9 @@ pub struct MessageBuilder {
 }
 
 impl MessageBuilder {
-    /// Get a new `MessageBuilder` from a task.
-    pub fn new<T: Task>(task: T) -> Result<Self, ProtocolError> {
-        // Serialize the task into the message body.
-        let body = MessageBody::new(task);
-        let data = serde_json::to_vec(&body)?;
-
-        // Create random correlation id.
-        let mut buffer = Uuid::encode_buffer();
-        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
-        let correlation_id = uuid.to_owned();
-
-        Ok(Self {
+    /// Create a new `MessageBuilder` with a given correlation ID, task name, and serialized body.
+    pub fn new(correlation_id: String, task_name: String, raw_body: Vec<u8>) -> Self {
+        Self {
             message: Message {
                 properties: MessageProperties {
                     correlation_id: correlation_id.clone(),
@@ -43,12 +34,28 @@ impl MessageBuilder {
                 },
                 headers: MessageHeaders {
                     id: correlation_id,
-                    task: T::NAME.into(),
+                    task: task_name,
                     ..Default::default()
                 },
-                raw_body: data,
+                raw_body,
             },
-        })
+        }
+    }
+
+    /// Get a new `MessageBuilder` from a task.
+    pub fn from_task<T: Task>(task: T) -> Result<Self, ProtocolError> {
+        // Create random correlation id.
+        let mut buffer = Uuid::encode_buffer();
+        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let correlation_id = uuid.to_owned();
+
+        let body = MessageBody::new(task);
+
+        Ok(Self::new(
+            correlation_id,
+            T::NAME.into(),
+            serde_json::to_vec(&body)?,
+        ))
     }
 
     pub fn task_options(mut self, options: &TaskOptions) -> Self {
@@ -92,7 +99,7 @@ impl MessageBuilder {
 /// Note that the `raw_body` field is the serialized form of a [`MessageBody`](struct.MessageBody.html)
 /// so that a worker can read the meta data of a message without having to deserialize the body
 /// first.
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Message {
     /// Message properties correspond to the equivalent AMQP delivery properties.
     pub properties: MessageProperties,
@@ -106,7 +113,7 @@ pub struct Message {
 
 impl Message {
     pub fn builder<T: Task>(task: T) -> Result<MessageBuilder, ProtocolError> {
-        MessageBuilder::new::<T>(task)
+        MessageBuilder::from_task::<T>(task)
     }
 
     pub fn new<T: Task>(task: T) -> Result<Self, ProtocolError> {
@@ -174,8 +181,14 @@ pub trait TryIntoMessage {
     fn try_into_message(&self) -> Result<Message, ProtocolError>;
 }
 
+impl TryIntoMessage for Message {
+    fn try_into_message(&self) -> Result<Message, ProtocolError> {
+        Ok(self.clone())
+    }
+}
+
 /// Message meta data pertaining to the broker.
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct MessageProperties {
     /// A unique ID associated with the task.
     pub correlation_id: String,
@@ -191,7 +204,7 @@ pub struct MessageProperties {
 }
 
 /// Additional meta data pertaining to the Celery protocol.
-#[derive(Eq, PartialEq, Debug, Default)]
+#[derive(Eq, PartialEq, Debug, Default, Clone)]
 pub struct MessageHeaders {
     /// The correlation ID of the task.
     pub id: String,

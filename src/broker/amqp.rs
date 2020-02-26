@@ -129,11 +129,6 @@ impl Broker for AMQPBroker {
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
 
-    /// Get an `AMQPBrokerBuilder` for creating an AMQP broker with a custom configuration.
-    fn builder(broker_url: &str) -> AMQPBrokerBuilder {
-        AMQPBrokerBuilder::new(broker_url)
-    }
-
     async fn consume<E: Fn() + Send + 'static>(
         &self,
         queue: &str,

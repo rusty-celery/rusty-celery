@@ -47,7 +47,7 @@ impl add {
 }
 
 #[tokio::test]
-async fn test_rust_to_rust() {
+async fn test_amqp_broker() {
     let my_app = celery::app!(
         broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [add],
