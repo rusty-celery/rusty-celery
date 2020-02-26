@@ -15,10 +15,18 @@ lazy_static! {
 }
 
 #[allow(non_camel_case_types)]
+struct add;
+
 #[derive(Serialize, Deserialize)]
-struct add {
+struct AddParams {
     x: i32,
     y: i32,
+}
+
+impl add {
+    fn s(x: i32, y: i32) -> AddParams {
+        AddParams { x, y }
+    }
 }
 
 #[async_trait]
@@ -26,10 +34,15 @@ impl Task for add {
     const NAME: &'static str = "add";
     const ARGS: &'static [&'static str] = &["x", "y"];
 
+    type Params = AddParams;
     type Returns = i32;
 
-    async fn run(mut self) -> Result<Self::Returns, TaskError> {
-        Ok(self.x + self.y)
+    fn new() -> Self {
+        Self {}
+    }
+
+    async fn run(&self, params: Self::Params) -> Result<Self::Returns, TaskError> {
+        Ok(params.x + params.y)
     }
 
     async fn on_success(ctx: &TaskContext<'_>, returned: &Self::Returns) {
@@ -37,12 +50,6 @@ impl Task for add {
             .lock()
             .unwrap()
             .insert(ctx.correlation_id.into(), Ok(*returned));
-    }
-}
-
-impl add {
-    fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
     }
 }
 
@@ -59,7 +66,7 @@ async fn test_amqp_broker() {
     );
 
     // Send task to queue.
-    let send_result = my_app.send_task(add::new(1, 2)).await;
+    let send_result = my_app.send_task::<add>(add::s(1, 2)).await;
     assert!(send_result.is_ok());
     let correlation_id = send_result.unwrap();
 

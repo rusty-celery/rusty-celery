@@ -63,11 +63,13 @@ async fn main() -> Result<(), ExitFailure> {
         }
         CeleryOpt::Produce => {
             // Basic sending.
-            my_app.send_task(add::new(1, 2)).await?;
+            my_app.send_task::<add>(add::s(1, 2)).await?;
 
             // Demonstrates sending a task with additional options.
             let send_options = TaskSendOptions::builder().countdown(10).build();
-            my_app.send_task_with(add::new(1, 3), &send_options).await?;
+            my_app
+                .send_task_with::<add>(add::s(1, 3), &send_options)
+                .await?;
         }
     };
 

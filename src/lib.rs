@@ -42,7 +42,7 @@
 //! #     tasks = [add],
 //! #     task_routes = [],
 //! # );
-//! my_app.send_task(add::new(1, 2)).await?;
+//! my_app.send_task::<add>(add::s(1, 2)).await?;
 //! #   Ok(())
 //! # }
 //! ```

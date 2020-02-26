@@ -234,20 +234,22 @@ where
 
     /// Send a task to a remote worker with default options. Returns the correlation ID
     /// of the task if successful.
-    pub async fn send_task<T: Task>(&self, task: T) -> Result<String, CeleryError> {
+    pub async fn send_task<T: Task>(&self, params: T::Params) -> Result<String, CeleryError> {
         let queue = routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue);
         let options = TaskSendOptions::builder().queue(queue).build();
-        self.send_task_with(task, &options).await
+        self.send_task_with::<T>(params, &options).await
     }
 
     /// Send a task to a remote worker with custom options. Returns the correlation ID
     /// of the task if successful.
     pub async fn send_task_with<T: Task>(
         &self,
-        task: T,
+        params: T::Params,
         options: &TaskSendOptions,
     ) -> Result<String, CeleryError> {
-        let message = Message::builder(task)?.task_send_options(options).build();
+        let message = Message::builder::<T>(params)?
+            .task_send_options(options)
+            .build();
         let queue = options.queue.as_ref().unwrap_or(&self.default_queue);
         info!(
             "Sending task {}[{}] to {}",

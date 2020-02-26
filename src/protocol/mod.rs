@@ -43,13 +43,13 @@ impl MessageBuilder {
     }
 
     /// Get a new `MessageBuilder` from a task.
-    pub fn from_task<T: Task>(task: T) -> Result<Self, ProtocolError> {
+    pub fn from_task<T: Task>(params: T::Params) -> Result<Self, ProtocolError> {
         // Create random correlation id.
         let mut buffer = Uuid::encode_buffer();
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
         let correlation_id = uuid.to_owned();
 
-        let body = MessageBody::new(task);
+        let body = MessageBody::<T>::new(params);
 
         Ok(Self::new(
             correlation_id,
@@ -112,12 +112,12 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn builder<T: Task>(task: T) -> Result<MessageBuilder, ProtocolError> {
-        MessageBuilder::from_task::<T>(task)
+    pub fn builder<T: Task>(params: T::Params) -> Result<MessageBuilder, ProtocolError> {
+        MessageBuilder::from_task::<T>(params)
     }
 
-    pub fn new<T: Task>(task: T) -> Result<Self, ProtocolError> {
-        Ok(Self::builder(task)?.build())
+    pub fn new<T: Task>(params: T::Params) -> Result<Self, ProtocolError> {
+        Ok(Self::builder::<T>(params)?.build())
     }
 
     /// Try deserializing the body.
@@ -142,7 +142,7 @@ impl Message {
                     }
                     return Ok(MessageBody(
                         vec![],
-                        serde_json::from_value::<T>(Value::Object(kwargs))?,
+                        serde_json::from_value::<T::Params>(Value::Object(kwargs))?,
                         serde_json::from_value::<MessageBodyEmbed>(Value::Object(embed))?,
                     ));
                 }
@@ -258,17 +258,17 @@ pub struct MessageHeaders {
 /// The body of a message. Contains the task itself as well as callback / errback
 /// signatures and work-flow primitives.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
-pub struct MessageBody<T>(Vec<u8>, pub(crate) T, pub(crate) MessageBodyEmbed);
+pub struct MessageBody<T: Task>(Vec<u8>, pub(crate) T::Params, pub(crate) MessageBodyEmbed);
 
 impl<T> MessageBody<T>
 where
     T: Task,
 {
-    pub fn new(task: T) -> Self {
-        Self(vec![], task, MessageBodyEmbed::default())
+    pub fn new(params: T::Params) -> Self {
+        Self(vec![], params, MessageBodyEmbed::default())
     }
 
-    pub fn parts(self) -> (T, MessageBodyEmbed) {
+    pub fn parts(self) -> (T::Params, MessageBodyEmbed) {
         (self.1, self.2)
     }
 }
@@ -306,25 +306,32 @@ mod tests {
     use crate::task::Task;
 
     #[derive(Serialize, Deserialize)]
-    struct TestTask {
+    struct TestTaskParams {
         a: i32,
     }
+
+    struct TestTask;
 
     #[async_trait]
     impl Task for TestTask {
         const NAME: &'static str = "test";
         const ARGS: &'static [&'static str] = &["a"];
 
+        type Params = TestTaskParams;
         type Returns = ();
 
-        async fn run(mut self) -> Result<(), TaskError> {
+        fn new() -> Self {
+            TestTask {}
+        }
+
+        async fn run(&self, _params: Self::Params) -> Result<(), TaskError> {
             Ok(())
         }
     }
 
     #[test]
     fn test_serialize_body() {
-        let body = MessageBody::new(TestTask { a: 0 });
+        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 0 });
         let serialized = serde_json::to_string(&body).unwrap();
         assert_eq!(
             serialized,

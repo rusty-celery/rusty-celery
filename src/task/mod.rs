@@ -14,7 +14,7 @@ pub use options::{TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
 /// For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
 /// in the Rusty Celery Book.
 #[async_trait]
-pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
+pub trait Task: Send + Sync {
     /// The name of the task. When a task is registered it will be registered with this name.
     const NAME: &'static str;
 
@@ -23,11 +23,17 @@ pub trait Task: Send + Sync + Serialize + for<'de> Deserialize<'de> {
     /// positional arguments.
     const ARGS: &'static [&'static str];
 
+    /// The parameters of the task.
+    type Params: Send + Sync + Serialize + for<'de> Deserialize<'de>;
+
     /// The return type of the task.
     type Returns: Send + Sync + std::fmt::Debug;
 
+    /// Get a new task instance.
+    fn new() -> Self;
+
     /// This function defines how a task executes.
-    async fn run(mut self) -> Result<Self::Returns, TaskError>;
+    async fn run(&self, params: Self::Params) -> Result<Self::Returns, TaskError>;
 
     /// Callback that will run after a task fails.
     /// It takes a reference to a `TaskContext` struct and the error returned from task.

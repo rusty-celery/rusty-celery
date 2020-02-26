@@ -19,6 +19,7 @@ struct TaskAttrs {
 enum TaskAttr {
     Name(syn::LitStr),
     Wrapper(syn::Ident),
+    ParamsTy(syn::Ident),
     Timeout(syn::LitInt),
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
@@ -32,6 +33,7 @@ struct Task {
     visibility: syn::Visibility,
     name: String,
     wrapper: Option<syn::Ident>,
+    params_ty: Option<syn::Ident>,
     timeout: Option<syn::LitInt>,
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
@@ -59,6 +61,16 @@ impl TaskAttrs {
             .iter()
             .filter_map(|a| match a {
                 TaskAttr::Wrapper(i) => Some(i.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
+    fn params_ty(&self) -> Option<syn::Ident> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::ParamsTy(i) => Some(i.clone()),
                 _ => None,
             })
             .next()
@@ -127,6 +139,7 @@ impl parse::Parse for TaskAttrs {
 mod kw {
     syn::custom_keyword!(name);
     syn::custom_keyword!(wrapper);
+    syn::custom_keyword!(params_type);
     syn::custom_keyword!(timeout);
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
@@ -145,6 +158,10 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::wrapper>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::Wrapper(input.parse()?))
+        } else if lookahead.peek(kw::params_type) {
+            input.parse::<kw::params_type>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::ParamsTy(input.parse()?))
         } else if lookahead.peek(kw::timeout) {
             input.parse::<kw::timeout>()?;
             input.parse::<Token![=]>()?;
@@ -180,6 +197,7 @@ impl Task {
             None => String::from(""),
         };
         let wrapper = attrs.wrapper();
+        let params_ty = attrs.params_ty();
         let timeout = attrs.timeout();
         let max_retries = attrs.max_retries();
         let min_retry_delay = attrs.min_retry_delay();
@@ -194,6 +212,7 @@ impl Task {
             visibility,
             name,
             wrapper,
+            params_ty,
             timeout,
             max_retries,
             min_retry_delay,
@@ -218,6 +237,12 @@ impl VisitMut for Task {
         };
         if self.name.is_empty() {
             self.name = ident.to_string()
+        }
+        if self.params_ty.is_none() {
+            self.params_ty = Some(syn::Ident::new(
+                &format!("{}Params", ident.to_string())[..],
+                Span::call_site(),
+            ));
         }
         if self.wrapper.is_none() {
             self.wrapper = Some(ident);
@@ -269,6 +294,7 @@ impl ToTokens for Task {
         let export = quote!(#krate::export);
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
+        let params_ty = self.params_ty.as_ref().unwrap();
         let timeout = self.timeout.as_ref().map(|r| {
             quote! {
                 fn timeout(&self) -> Option<u32> {
@@ -331,7 +357,7 @@ impl ToTokens for Task {
                             let ident = &pat.ident;
                             quote! {
                                 #acc
-                                let #ident = self.#ident;
+                                let #ident = params.#ident;
                             }
                         }
                         _ => acc,
@@ -373,17 +399,20 @@ impl ToTokens for Task {
                 });
         let wrapper_struct = quote! {
             #[allow(non_camel_case_types)]
-            #[derive(#export::Deserialize, #export::Serialize)]
-            #vis struct #wrapper {
-                #serialized_fields
-            }
+            #vis struct #wrapper;
 
             impl #wrapper {
-                #vis fn new(#original_args) -> Self {
-                    #wrapper {
+                #vis fn s(#original_args) -> #params_ty {
+                    #params_ty {
                         #wrapper_fields
                     }
                 }
+            }
+
+            #[allow(non_camel_case_types)]
+            #[derive(#export::Deserialize, #export::Serialize)]
+            #vis struct #params_ty {
+                #serialized_fields
             }
         };
 
@@ -398,9 +427,14 @@ impl ToTokens for Task {
                     const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
 
+                    type Params = #params_ty;
                     type Returns = #ret_ty;
 
-                    async fn run(mut self) -> Result<Self::Returns, #krate::error::TaskError> {
+                    fn new() -> Self {
+                        Self {}
+                    }
+
+                    async fn run(&self, params: Self::Params) -> Result<Self::Returns, #krate::error::TaskError> {
                         #deserialized_bindings
                         Ok(#inner_block)
                     }

@@ -20,7 +20,8 @@ pub(super) struct Tracer<T>
 where
     T: Task,
 {
-    task: Option<T>,
+    task: T,
+    task_params: Option<T::Params>,
     message: Message,
     options: TaskOptions,
     countdown: Option<Duration>,
@@ -37,7 +38,8 @@ where
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Self, ProtocolError> {
         let body = message.body::<T>()?;
-        let (task, _) = body.parts();
+        let (task_params, _) = body.parts();
+        let task = T::new();
         let options = options.overrides(&task);
         let countdown = message.countdown();
 
@@ -57,7 +59,8 @@ where
         }
 
         Ok(Self {
-            task: Some(task),
+            task,
+            task_params: Some(task_params),
             message,
             options,
             countdown,
@@ -94,16 +97,16 @@ where
             });
 
         let start = Instant::now();
-        let task = self.task.take().unwrap();
+        let task_params = self.task_params.take().unwrap();
         let result = match self.options.timeout {
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, task.run())
+                time::timeout(duration, self.task.run(task_params))
                     .await
                     .unwrap_or_else(|_| Err(TaskError::TimeoutError))
             }
-            None => task.run().await,
+            None => self.task.run(task_params).await,
         };
         let duration = start.elapsed();
 
