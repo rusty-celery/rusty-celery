@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
-use crate::protocol::{Message, MessageHeaders, MessageProperties, TryIntoMessage};
+use crate::protocol::{Message, MessageHeaders, MessageProperties, TryCreateMessage};
 
 struct Config {
     broker_url: String,
@@ -128,11 +128,6 @@ impl Broker for AMQPBroker {
     type Delivery = Delivery;
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
-
-    /// Get an `AMQPBrokerBuilder` for creating an AMQP broker with a custom configuration.
-    fn builder(broker_url: &str) -> AMQPBrokerBuilder {
-        AMQPBrokerBuilder::new(broker_url)
-    }
 
     async fn consume<E: Fn() + Send + 'static>(
         &self,
@@ -360,8 +355,8 @@ impl Message {
     }
 }
 
-impl TryIntoMessage for Delivery {
-    fn try_into_message(&self) -> Result<Message, ProtocolError> {
+impl TryCreateMessage for Delivery {
+    fn try_create_message(&self) -> Result<Message, ProtocolError> {
         let headers = self
             .properties
             .headers()
@@ -523,7 +518,7 @@ mod tests {
             data: vec![],
         };
 
-        let message2 = delivery.try_into_message();
+        let message2 = delivery.try_create_message();
         assert!(message2.is_ok());
 
         let message2 = message2.unwrap();

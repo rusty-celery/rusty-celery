@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 
 use crate::error::BrokerError;
-use crate::protocol::{Message, TryIntoMessage};
+use crate::protocol::{Message, TryCreateMessage};
 
 mod amqp;
 pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
@@ -18,7 +18,7 @@ pub trait Broker: Send + Sync + Sized {
     type Builder: BrokerBuilder<Broker = Self>;
 
     /// The type representing a successful delivery.
-    type Delivery: TryIntoMessage + Send + Sync + Clone + std::fmt::Debug;
+    type Delivery: TryCreateMessage + Send + Sync + Clone + std::fmt::Debug;
 
     /// The error type of an unsuccessful delivery.
     type DeliveryError: std::fmt::Display + Send + Sync;
@@ -27,7 +27,9 @@ pub trait Broker: Send + Sync + Sized {
     type DeliveryStream: Stream<Item = Result<Self::Delivery, Self::DeliveryError>>;
 
     /// Returns a builder for creating a broker with a custom configuration.
-    fn builder(broker_url: &str) -> Self::Builder;
+    fn builder(broker_url: &str) -> Self::Builder {
+        Self::Builder::new(broker_url)
+    }
 
     /// Consume messages from a queue.
     ///

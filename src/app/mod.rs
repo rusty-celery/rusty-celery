@@ -13,7 +13,7 @@ mod trace;
 
 use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TaskError};
-use crate::protocol::{Message, TryIntoMessage};
+use crate::protocol::{Message, TryCreateMessage};
 use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
 use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
@@ -293,7 +293,7 @@ where
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<(), Box<dyn Fail>> {
         // Coerce the delivery into a protocol message.
-        let message = match delivery.try_into_message() {
+        let message = match delivery.try_create_message() {
             Ok(message) => message,
             Err(e) => {
                 // This is a naughty message that we can't handle, so we'll ack it with
