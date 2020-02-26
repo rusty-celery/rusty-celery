@@ -225,7 +225,7 @@ pub struct Celery<B: Broker> {
 
 impl<B> Celery<B>
 where
-    B: Broker + 'static,
+    B: Broker,
 {
     /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
     pub fn builder(name: &str, broker_url: &str) -> CeleryBuilder<B::Builder> {
@@ -409,6 +409,16 @@ where
         };
     }
 
+    /// Close channels and connections.
+    pub async fn close(&self) -> Result<(), CeleryError> {
+        Ok(self.broker.close().await?)
+    }
+}
+
+impl<B> Celery<B>
+where
+    B: Broker + 'static,
+{
     /// Consume tasks from the default queue.
     pub async fn consume(&'static self) -> Result<(), CeleryError> {
         Ok(self.consume_from(&self.default_queue).await?)
@@ -518,10 +528,5 @@ where
         info!("No more pending tasks. See ya!");
 
         Ok(())
-    }
-
-    /// Close channels and connections.
-    pub async fn close(&self) -> Result<(), CeleryError> {
-        Ok(self.broker.close().await?)
     }
 }
