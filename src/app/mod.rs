@@ -483,9 +483,9 @@ where
                 maybe_task_event = task_event_rx.next() => {
                     if let Some(event) = maybe_task_event {
                         debug!("Received task event {:?}", event);
-                        match event.status {
-                            TaskStatus::Pending => pending_tasks += 1,
-                            TaskStatus::Finished => pending_tasks -= 1,
+                        match event {
+                            TaskEvent::StatusChange(TaskStatus::Pending) => pending_tasks += 1,
+                            TaskEvent::StatusChange(TaskStatus::Finished) => pending_tasks -= 1,
                         };
                     }
                 },
@@ -512,9 +512,9 @@ where
                     maybe_event = task_event_rx.next() => {
                         if let Some(event) = maybe_event {
                             debug!("Received task event {:?}", event);
-                            match event.status {
-                                TaskStatus::Pending => pending_tasks += 1,
-                                TaskStatus::Finished => pending_tasks -= 1,
+                            match event {
+                                TaskEvent::StatusChange(TaskStatus::Pending) => pending_tasks += 1,
+                                TaskEvent::StatusChange(TaskStatus::Finished) => pending_tasks -= 1,
                             };
                             if pending_tasks <= 0 {
                                 break;

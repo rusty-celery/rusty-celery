@@ -73,18 +73,12 @@ pub struct TaskContext<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum TaskStatus {
-    Pending,
-    Finished,
+pub(crate) enum TaskEvent {
+    StatusChange(TaskStatus),
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct TaskEvent {
-    pub(crate) status: TaskStatus,
-}
-
-impl TaskEvent {
-    pub(crate) fn new(status: TaskStatus) -> Self {
-        Self { status }
-    }
+pub(crate) enum TaskStatus {
+    Pending,
+    Finished,
 }
