@@ -72,11 +72,15 @@ where
     T: Task,
 {
     async fn trace(&mut self) -> Result<(), TaskError> {
+        let context = TaskContext {
+            correlation_id: &self.message.properties.correlation_id,
+        };
+
         if self.is_expired() {
             warn!(
                 "Task {}[{}] expired, discarding",
                 T::NAME,
-                self.message.properties.correlation_id,
+                context.correlation_id,
             );
             return Err(TaskError::ExpirationError);
         }
@@ -103,15 +107,12 @@ where
         };
         let duration = start.elapsed();
 
-        let context = TaskContext {
-            correlation_id: &self.message.properties.correlation_id,
-        };
         match result {
             Ok(returned) => {
                 info!(
                     "Task {}[{}] succeeded in {}s: {:?}",
                     T::NAME,
-                    self.message.properties.correlation_id,
+                    context.correlation_id,
                     duration.as_secs_f32(),
                     returned
                 );
@@ -133,22 +134,18 @@ where
                         warn!(
                             "Task {}[{}] failed with expected error: {}",
                             T::NAME,
-                            self.message.properties.correlation_id,
+                            context.correlation_id,
                             reason
                         );
                     }
                     TaskError::TimeoutError => {
-                        error!(
-                            "Task {}[{}] timed out",
-                            T::NAME,
-                            self.message.properties.correlation_id,
-                        );
+                        error!("Task {}[{}] timed out", T::NAME, context.correlation_id,);
                     }
                     _ => {
                         error!(
                             "Task {}[{}] failed with unexpected error: {}",
                             T::NAME,
-                            self.message.properties.correlation_id,
+                            context.correlation_id,
                             e
                         );
                     }
@@ -172,14 +169,14 @@ where
                         warn!(
                             "Task {}[{}] retries exceeded",
                             T::NAME,
-                            self.message.properties.correlation_id
+                            context.correlation_id
                         );
                         return Err(e);
                     }
                     info!(
                         "Task {}[{}] retrying ({} / {})",
                         T::NAME,
-                        self.message.properties.correlation_id,
+                        context.correlation_id,
                         retries + 1,
                         max_retries,
                     );
@@ -187,7 +184,7 @@ where
                     info!(
                         "Task {}[{}] retrying ({} / inf)",
                         T::NAME,
-                        self.message.properties.correlation_id,
+                        context.correlation_id,
                         retries + 1,
                     );
                 }
