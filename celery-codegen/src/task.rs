@@ -19,7 +19,7 @@ struct TaskAttrs {
 enum TaskAttr {
     Name(syn::LitStr),
     Wrapper(syn::Ident),
-    ParamsTy(syn::Ident),
+    ParamsType(syn::Ident),
     Timeout(syn::LitInt),
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
@@ -33,7 +33,7 @@ struct Task {
     visibility: syn::Visibility,
     name: String,
     wrapper: Option<syn::Ident>,
-    params_ty: Option<syn::Ident>,
+    params_type: Option<syn::Ident>,
     timeout: Option<syn::LitInt>,
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
@@ -66,11 +66,11 @@ impl TaskAttrs {
             .next()
     }
 
-    fn params_ty(&self) -> Option<syn::Ident> {
+    fn params_type(&self) -> Option<syn::Ident> {
         self.attrs
             .iter()
             .filter_map(|a| match a {
-                TaskAttr::ParamsTy(i) => Some(i.clone()),
+                TaskAttr::ParamsType(i) => Some(i.clone()),
                 _ => None,
             })
             .next()
@@ -161,7 +161,7 @@ impl parse::Parse for TaskAttr {
         } else if lookahead.peek(kw::params_type) {
             input.parse::<kw::params_type>()?;
             input.parse::<Token![=]>()?;
-            Ok(TaskAttr::ParamsTy(input.parse()?))
+            Ok(TaskAttr::ParamsType(input.parse()?))
         } else if lookahead.peek(kw::timeout) {
             input.parse::<kw::timeout>()?;
             input.parse::<Token![=]>()?;
@@ -197,7 +197,7 @@ impl Task {
             None => String::from(""),
         };
         let wrapper = attrs.wrapper();
-        let params_ty = attrs.params_ty();
+        let params_type = attrs.params_type();
         let timeout = attrs.timeout();
         let max_retries = attrs.max_retries();
         let min_retry_delay = attrs.min_retry_delay();
@@ -212,7 +212,7 @@ impl Task {
             visibility,
             name,
             wrapper,
-            params_ty,
+            params_type,
             timeout,
             max_retries,
             min_retry_delay,
@@ -238,8 +238,8 @@ impl VisitMut for Task {
         if self.name.is_empty() {
             self.name = ident.to_string()
         }
-        if self.params_ty.is_none() {
-            self.params_ty = Some(syn::Ident::new(
+        if self.params_type.is_none() {
+            self.params_type = Some(syn::Ident::new(
                 &format!("{}Params", ident.to_string())[..],
                 Span::call_site(),
             ));
@@ -294,7 +294,7 @@ impl ToTokens for Task {
         let export = quote!(#krate::export);
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
-        let params_ty = self.params_ty.as_ref().unwrap();
+        let params_type = self.params_type.as_ref().unwrap();
         let timeout = self.timeout.as_ref().map(|r| {
             quote! {
                 fn timeout(&self) -> Option<u32> {
@@ -368,7 +368,6 @@ impl ToTokens for Task {
             let block = &self.inner_block;
             quote!(#block)
         };
-
         let ret_ty = self
             .ret
             .as_ref()
@@ -397,6 +396,7 @@ impl ToTokens for Task {
                     },
                     _ => acc,
                 });
+
         let wrapper_struct = quote! {
             #[allow(non_camel_case_types)]
             #vis struct #wrapper;
@@ -404,22 +404,22 @@ impl ToTokens for Task {
             impl #wrapper {
                 #vis fn new(#original_args) -> #krate::task::TaskSignature<Self> {
                     #krate::task::TaskSignature::<Self>::new(
-                        #params_ty {
+                        #params_type {
                             #wrapper_fields
                         }
                     )
                 }
             }
-
-            #[allow(non_camel_case_types)]
-            #[derive(Clone, #export::Deserialize, #export::Serialize)]
-            #vis struct #params_ty {
-                #serialized_fields
-            }
         };
 
         let output = quote! {
             #wrapper_struct
+
+            #[allow(non_camel_case_types)]
+            #[derive(Clone, #export::Deserialize, #export::Serialize)]
+            #vis struct #params_type {
+                #serialized_fields
+            }
 
             const #dummy_const: () = {
                 use #export::async_trait;
@@ -429,7 +429,7 @@ impl ToTokens for Task {
                     const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
 
-                    type Params = #params_ty;
+                    type Params = #params_type;
                     type Returns = #ret_ty;
 
                     fn within_app() -> Self {
