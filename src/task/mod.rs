@@ -24,7 +24,7 @@ pub trait Task: Send + Sync {
     const ARGS: &'static [&'static str];
 
     /// The parameters of the task.
-    type Params: Send + Sync + Serialize + for<'de> Deserialize<'de>;
+    type Params: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de>;
 
     /// The return type of the task.
     type Returns: Send + Sync + std::fmt::Debug;
@@ -36,14 +36,12 @@ pub trait Task: Send + Sync {
     async fn run(&self, params: Self::Params) -> Result<Self::Returns, TaskError>;
 
     /// Callback that will run after a task fails.
-    /// It takes a reference to a `TaskContext` struct and the error returned from task.
     #[allow(unused_variables)]
-    async fn on_failure(ctx: &TaskContext<'_>, err: &TaskError) {}
+    async fn on_failure(&self, err: &TaskError, task_id: &str, params: Self::Params) {}
 
     /// Callback that will run after a task completes successfully.
-    /// It takes a reference to a `TaskContext` struct and the returned value from task.
     #[allow(unused_variables)]
-    async fn on_success(ctx: &TaskContext<'_>, returned: &Self::Returns) {}
+    async fn on_success(&self, returned: &Self::Returns, task_id: &str, params: Self::Params) {}
 
     /// Default timeout for this task.
     fn timeout(&self) -> Option<u32> {
@@ -70,12 +68,6 @@ pub trait Task: Send + Sync {
     fn acks_late(&self) -> Option<bool> {
         None
     }
-}
-
-/// Additional context sent to the `on_success` and `on_failure` task callbacks.
-pub struct TaskContext<'a> {
-    /// The correlation ID of the task.
-    pub correlation_id: &'a str,
 }
 
 #[derive(Clone, Debug)]

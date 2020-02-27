@@ -305,7 +305,7 @@ mod tests {
     use crate::error::TaskError;
     use crate::task::Task;
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     struct TestTaskParams {
         a: i32,
     }

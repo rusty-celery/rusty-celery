@@ -410,7 +410,7 @@ impl ToTokens for Task {
             }
 
             #[allow(non_camel_case_types)]
-            #[derive(#export::Deserialize, #export::Serialize)]
+            #[derive(Clone, #export::Deserialize, #export::Serialize)]
             #vis struct #params_ty {
                 #serialized_fields
             }

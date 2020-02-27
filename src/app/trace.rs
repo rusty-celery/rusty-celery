@@ -8,7 +8,7 @@ use tokio::time::{self, Duration, Instant};
 
 use crate::error::{ProtocolError, TaskError};
 use crate::protocol::Message;
-use crate::task::{Task, TaskContext, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
@@ -75,16 +75,10 @@ where
     T: Task,
 {
     async fn trace(&mut self) -> Result<(), TaskError> {
-        let context = TaskContext {
-            correlation_id: &self.message.properties.correlation_id,
-        };
+        let task_id = &self.message.properties.correlation_id;
 
         if self.is_expired() {
-            warn!(
-                "Task {}[{}] expired, discarding",
-                T::NAME,
-                context.correlation_id,
-            );
+            warn!("Task {}[{}] expired, discarding", T::NAME, task_id,);
             return Err(TaskError::ExpirationError);
         }
 
@@ -102,11 +96,11 @@ where
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, self.task.run(task_params))
+                time::timeout(duration, self.task.run(task_params.clone()))
                     .await
                     .unwrap_or_else(|_| Err(TaskError::TimeoutError))
             }
-            None => self.task.run(task_params).await,
+            None => self.task.run(task_params.clone()).await,
         };
         let duration = start.elapsed();
 
@@ -115,13 +109,13 @@ where
                 info!(
                     "Task {}[{}] succeeded in {}s: {:?}",
                     T::NAME,
-                    context.correlation_id,
+                    task_id,
                     duration.as_secs_f32(),
                     returned
                 );
 
                 // Run success callback.
-                T::on_success(&context, &returned).await;
+                self.task.on_success(&returned, task_id, task_params).await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
@@ -137,25 +131,25 @@ where
                         warn!(
                             "Task {}[{}] failed with expected error: {}",
                             T::NAME,
-                            context.correlation_id,
+                            task_id,
                             reason
                         );
                     }
                     TaskError::TimeoutError => {
-                        error!("Task {}[{}] timed out", T::NAME, context.correlation_id,);
+                        error!("Task {}[{}] timed out", T::NAME, task_id,);
                     }
                     _ => {
                         error!(
                             "Task {}[{}] failed with unexpected error: {}",
                             T::NAME,
-                            context.correlation_id,
+                            task_id,
                             e
                         );
                     }
                 };
 
                 // Run failure callback.
-                T::on_failure(&context, &e).await;
+                self.task.on_failure(&e, task_id, task_params).await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
@@ -169,17 +163,13 @@ where
                 };
                 if let Some(max_retries) = self.options.max_retries {
                     if retries >= max_retries {
-                        warn!(
-                            "Task {}[{}] retries exceeded",
-                            T::NAME,
-                            context.correlation_id
-                        );
+                        warn!("Task {}[{}] retries exceeded", T::NAME, task_id,);
                         return Err(e);
                     }
                     info!(
                         "Task {}[{}] retrying ({} / {})",
                         T::NAME,
-                        context.correlation_id,
+                        task_id,
                         retries + 1,
                         max_retries,
                     );
@@ -187,7 +177,7 @@ where
                     info!(
                         "Task {}[{}] retrying ({} / inf)",
                         T::NAME,
-                        context.correlation_id,
+                        task_id,
                         retries + 1,
                     );
                 }
