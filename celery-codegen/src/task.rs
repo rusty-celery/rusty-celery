@@ -402,10 +402,12 @@ impl ToTokens for Task {
             #vis struct #wrapper;
 
             impl #wrapper {
-                #vis fn s(#original_args) -> #params_ty {
-                    #params_ty {
-                        #wrapper_fields
-                    }
+                #vis fn new(#original_args) -> #krate::task::TaskSignature<Self> {
+                    #krate::task::TaskSignature::<Self>::new(
+                        #params_ty {
+                            #wrapper_fields
+                        }
+                    )
                 }
             }
 
@@ -430,7 +432,7 @@ impl ToTokens for Task {
                     type Params = #params_ty;
                     type Returns = #ret_ty;
 
-                    fn new() -> Self {
+                    fn within_app() -> Self {
                         Self {}
                     }
 

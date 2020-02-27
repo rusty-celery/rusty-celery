@@ -29,8 +29,8 @@ pub trait Task: Send + Sync {
     /// The return type of the task.
     type Returns: Send + Sync + std::fmt::Debug;
 
-    /// Get a new task instance.
-    fn new() -> Self;
+    /// Used to initialize a task instance from within a Celery app.
+    fn within_app() -> Self;
 
     /// This function defines how a task executes.
     async fn run(&self, params: Self::Params) -> Result<Self::Returns, TaskError>;
@@ -67,6 +67,26 @@ pub trait Task: Send + Sync {
     /// or before (the default behavior).
     fn acks_late(&self) -> Option<bool> {
         None
+    }
+}
+
+pub struct TaskSignature<T>
+where
+    T: Task,
+{
+    pub params: T::Params,
+}
+
+impl<T> TaskSignature<T>
+where
+    T: Task,
+{
+    pub fn new(params: T::Params) -> Self {
+        Self { params }
+    }
+
+    pub fn task_name() -> &'static str {
+        T::NAME
     }
 }
 

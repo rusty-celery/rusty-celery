@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::task::Task;
+use celery::task::{Task, TaskSignature};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -24,8 +24,8 @@ struct AddParams {
 }
 
 impl add {
-    fn s(x: i32, y: i32) -> AddParams {
-        AddParams { x, y }
+    fn new(x: i32, y: i32) -> TaskSignature<Self> {
+        TaskSignature::<Self>::new(AddParams { x, y })
     }
 }
 
@@ -37,7 +37,7 @@ impl Task for add {
     type Params = AddParams;
     type Returns = i32;
 
-    fn new() -> Self {
+    fn within_app() -> Self {
         Self {}
     }
 
@@ -66,7 +66,7 @@ async fn test_amqp_broker() {
     );
 
     // Send task to queue.
-    let send_result = my_app.send_task::<add>(add::s(1, 2)).await;
+    let send_result = my_app.send_task(add::new(1, 2)).await;
     assert!(send_result.is_ok());
     let correlation_id = send_result.unwrap();
 

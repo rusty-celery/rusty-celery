@@ -14,7 +14,7 @@ use tokio::time::Duration;
 use uuid::Uuid;
 
 use crate::error::ProtocolError;
-use crate::task::{Task, TaskOptions, TaskSendOptions};
+use crate::task::{Task, TaskOptions, TaskSendOptions, TaskSignature};
 
 /// Create a message with a custom configuration.
 pub struct MessageBuilder {
@@ -43,13 +43,13 @@ impl MessageBuilder {
     }
 
     /// Get a new `MessageBuilder` from a task.
-    pub fn from_task<T: Task>(params: T::Params) -> Result<Self, ProtocolError> {
+    pub fn from_task<T: Task>(task_sig: TaskSignature<T>) -> Result<Self, ProtocolError> {
         // Create random correlation id.
         let mut buffer = Uuid::encode_buffer();
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
         let correlation_id = uuid.to_owned();
 
-        let body = MessageBody::<T>::new(params);
+        let body = MessageBody::new(task_sig);
 
         Ok(Self::new(
             correlation_id,
@@ -112,12 +112,12 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn builder<T: Task>(params: T::Params) -> Result<MessageBuilder, ProtocolError> {
-        MessageBuilder::from_task::<T>(params)
+    pub fn builder<T: Task>(task_sig: TaskSignature<T>) -> Result<MessageBuilder, ProtocolError> {
+        MessageBuilder::from_task(task_sig)
     }
 
-    pub fn new<T: Task>(params: T::Params) -> Result<Self, ProtocolError> {
-        Ok(Self::builder::<T>(params)?.build())
+    pub fn new<T: Task>(task_sig: TaskSignature<T>) -> Result<Self, ProtocolError> {
+        Ok(Self::builder(task_sig)?.build())
     }
 
     /// Try deserializing the body.
@@ -264,8 +264,8 @@ impl<T> MessageBody<T>
 where
     T: Task,
 {
-    pub fn new(params: T::Params) -> Self {
-        Self(vec![], params, MessageBodyEmbed::default())
+    pub fn new(task_sig: TaskSignature<T>) -> Self {
+        Self(vec![], task_sig.params, MessageBodyEmbed::default())
     }
 
     pub fn parts(self) -> (T::Params, MessageBodyEmbed) {
@@ -320,8 +320,8 @@ mod tests {
         type Params = TestTaskParams;
         type Returns = ();
 
-        fn new() -> Self {
-            TestTask {}
+        fn within_app() -> Self {
+            Self {}
         }
 
         async fn run(&self, _params: Self::Params) -> Result<(), TaskError> {
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_serialize_body() {
-        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 0 });
+        let body = MessageBody::new(TaskSignature::<TestTask>::new(TestTaskParams { a: 0 }));
         let serialized = serde_json::to_string(&body).unwrap();
         assert_eq!(
             serialized,

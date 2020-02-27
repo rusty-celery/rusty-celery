@@ -39,7 +39,7 @@ where
     ) -> Result<Self, ProtocolError> {
         let body = message.body::<T>()?;
         let (task_params, _) = body.parts();
-        let task = T::new();
+        let task = T::within_app();
         let options = options.overrides(&task);
         let countdown = message.countdown();
 

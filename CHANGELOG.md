@@ -6,11 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- A `TaskSignature` struct.
+
 ### Changed
 
 - `protocol::TryIntoMessage` trait renamed to `TryCreateMessage` and the one trait function `try_into_message` renamed to `try_create_message` to better reflect the fact that the trait function does not consume `self`.
 - Task parameters are now separated from task struct.
 - Task callback methods `on_failure` and `on_success` are now instance methods.
+- `Celery::send_task` and `::send_task_with` now take a `TaskSignature` instead of a `Task`.
 
 ### Removed
 
