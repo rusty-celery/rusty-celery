@@ -46,6 +46,16 @@ fn test_task_options() {
     assert_eq!(t.acks_late(), Some(true));
 }
 
+#[celery::task(bind = true)]
+fn bound_task(t: &Self) -> Option<u32> {
+    t.timeout()
+}
+
+#[celery::task(bind = true)]
+fn bound_task_with_other_params(t: &Self, default_timeout: u32) -> u32 {
+    t.timeout().unwrap_or(default_timeout)
+}
+
 // This didn't work before since Task::run took a reference to self
 // instead of consuming self, so it was like
 //

@@ -25,13 +25,14 @@ enum TaskAttr {
     MinRetryDelay(syn::LitInt),
     MaxRetryDelay(syn::LitInt),
     AcksLate(syn::LitBool),
+    Bind(syn::LitBool),
 }
 
 #[derive(Clone)]
 struct Task {
     errors: Vec<Error>,
     visibility: syn::Visibility,
-    name: String,
+    name: Option<String>,
     wrapper: Option<syn::Ident>,
     params_type: Option<syn::Ident>,
     timeout: Option<syn::LitInt>,
@@ -44,6 +45,7 @@ struct Task {
     inner_block: Option<syn::Block>,
     return_type: Option<syn::Type>,
     is_async: bool,
+    bind: bool,
 }
 
 impl TaskAttrs {
@@ -126,6 +128,16 @@ impl TaskAttrs {
             })
             .next()
     }
+
+    fn bind(&self) -> Option<syn::LitBool> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::Bind(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
 }
 
 impl parse::Parse for TaskAttrs {
@@ -146,6 +158,7 @@ mod kw {
     syn::custom_keyword!(min_retry_delay);
     syn::custom_keyword!(max_retry_delay);
     syn::custom_keyword!(acks_late);
+    syn::custom_keyword!(bind);
 }
 
 impl parse::Parse for TaskAttr {
@@ -183,6 +196,10 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::acks_late>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::AcksLate(input.parse()?))
+        } else if lookahead.peek(kw::bind) {
+            input.parse::<kw::bind>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::Bind(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -191,35 +208,26 @@ impl parse::Parse for TaskAttr {
 
 impl Task {
     fn new(attrs: TaskAttrs) -> Result<Self, Error> {
-        let errors = Vec::new();
-        let visibility = syn::Visibility::Inherited;
-        let name = match attrs.name() {
-            Some(name) => name,
-            None => String::from(""),
-        };
-        let wrapper = attrs.wrapper();
-        let params_type = attrs.params_type();
-        let timeout = attrs.timeout();
-        let max_retries = attrs.max_retries();
-        let min_retry_delay = attrs.min_retry_delay();
-        let max_retry_delay = attrs.max_retry_delay();
-        let acks_late = attrs.acks_late();
         Ok(Task {
-            errors,
-            visibility,
-            name,
-            wrapper,
-            params_type,
-            timeout,
-            max_retries,
-            min_retry_delay,
-            max_retry_delay,
-            acks_late,
+            errors: Vec::new(),
+            visibility: syn::Visibility::Inherited,
+            name: attrs.name(),
+            wrapper: attrs.wrapper(),
+            params_type: attrs.params_type(),
+            timeout: attrs.timeout(),
+            max_retries: attrs.max_retries(),
+            min_retry_delay: attrs.min_retry_delay(),
+            max_retry_delay: attrs.max_retry_delay(),
+            acks_late: attrs.acks_late(),
             original_args: Vec::new(),
             inputs: None,
             inner_block: None,
             return_type: None,
             is_async: false,
+            bind: attrs
+                .bind()
+                .map(|lit_bool| lit_bool.value)
+                .unwrap_or_default(),
         })
     }
 }
@@ -233,8 +241,8 @@ impl VisitMut for Task {
         if let Some(ref mut it) = node.abi {
             self.errors.push(Error::spanned(ERR_ABI, it.span()));
         };
-        if self.name.is_empty() {
-            self.name = ident.to_string()
+        if self.name.is_none() {
+            self.name = Some(ident.to_string())
         }
         if self.params_type.is_none() {
             self.params_type = Some(syn::Ident::new(
@@ -253,12 +261,17 @@ impl VisitMut for Task {
     fn visit_fn_decl_mut(&mut self, node: &mut syn::FnDecl) {
         const ERR_GENERICS: &str = "functions with generic arguments are not supported";
         const ERR_VARIADIC: &str = "functions with variadic arguments are not supported";
+        const ERR_MISSING_SELF: &str = "bound task should have &self as an argument";
 
         if !node.generics.params.is_empty() {
             self.errors
                 .push(Error::spanned(ERR_GENERICS, node.generics.span()));
         }
         self.original_args = node.inputs.clone().into_iter().collect();
+        if self.bind && self.original_args.is_empty() {
+            self.errors
+                .push(Error::spanned(ERR_MISSING_SELF, node.inputs.span()));
+        }
         self.inputs = Some(node.inputs.clone());
         if let Some(ref mut it) = node.variadic {
             self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
@@ -269,8 +282,12 @@ impl VisitMut for Task {
     }
 }
 
-fn args_to_fields<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+fn args_to_fields<'a>(
+    args: impl IntoIterator<Item = &'a syn::FnArg>,
+    skip_first: bool,
+) -> TokenStream {
     args.into_iter()
+        .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Captured(cap) => {
                 let ident = match cap.pat {
@@ -287,8 +304,12 @@ fn args_to_fields<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenSt
         })
 }
 
-fn args_to_arg_names<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+fn args_to_arg_names<'a>(
+    args: impl IntoIterator<Item = &'a syn::FnArg>,
+    skip_first: bool,
+) -> TokenStream {
     args.into_iter()
+        .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Captured(cap) => match cap.pat {
                 syn::Pat::Ident(ref pat) => {
@@ -304,15 +325,22 @@ fn args_to_arg_names<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> Toke
         })
 }
 
-fn args_to_bindings<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+fn args_to_bindings<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>, bind: bool) -> TokenStream {
     args.into_iter()
-        .fold(TokenStream::new(), |acc, arg| match arg {
+        .enumerate()
+        .fold(TokenStream::new(), |acc, (i, arg)| match arg {
             syn::FnArg::Captured(cap) => match cap.pat {
                 syn::Pat::Ident(ref pat) => {
                     let ident = &pat.ident;
-                    quote! {
-                        #acc
-                        let #ident = params.#ident;
+                    if bind && i == 0 {
+                        quote! {
+                            let #ident = self;
+                        }
+                    } else {
+                        quote! {
+                            #acc
+                            let #ident = params.#ident;
+                        }
                     }
                 }
                 _ => acc,
@@ -321,8 +349,12 @@ fn args_to_bindings<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> Token
         })
 }
 
-fn args_to_calling_args<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+fn args_to_calling_args<'a>(
+    args: impl IntoIterator<Item = &'a syn::FnArg>,
+    skip_first: bool,
+) -> TokenStream {
     args.into_iter()
+        .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Captured(cap) => match cap.pat {
                 syn::Pat::Ident(ref pat) => {
@@ -334,6 +366,28 @@ fn args_to_calling_args<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> T
                 }
                 _ => acc,
             },
+            _ => acc,
+        })
+}
+
+fn args_to_typed_inputs<'a>(
+    args: impl IntoIterator<Item = &'a syn::FnArg>,
+    skip_first: bool,
+) -> TokenStream {
+    args.into_iter()
+        .skip(if !skip_first { 0 } else { 1 })
+        .fold(TokenStream::new(), |acc, arg| match arg {
+            syn::FnArg::Captured(cap) => {
+                let ident = match cap.pat {
+                    syn::Pat::Ident(ref pat) => &pat.ident,
+                    _ => return acc,
+                };
+                let ty = &cap.ty;
+                quote! {
+                    #acc
+                    #ident: #ty,
+                }
+            }
             _ => acc,
         })
 }
@@ -380,10 +434,10 @@ impl ToTokens for Task {
                 }
             }
         });
-        let task_name = &self.name;
-        let arg_names = args_to_arg_names(&self.original_args);
-        let serialized_fields = args_to_fields(&self.original_args);
-        let deserialized_bindings = args_to_bindings(&self.original_args);
+        let task_name = self.name.as_ref().unwrap();
+        let arg_names = args_to_arg_names(&self.original_args, self.bind);
+        let serialized_fields = args_to_fields(&self.original_args, self.bind);
+        let deserialized_bindings = args_to_bindings(&self.original_args, self.bind);
         let inner_block = {
             let block = &self.inner_block;
             quote!(#block)
@@ -393,8 +447,10 @@ impl ToTokens for Task {
             .as_ref()
             .map(|ty| quote!(#ty))
             .unwrap_or_else(|| quote!(()));
-        let typed_inputs = self.inputs.clone();
-        let calling_args = args_to_calling_args(&self.original_args);
+        let typed_inputs = args_to_typed_inputs(&self.original_args, self.bind);
+        let typed_run_inputs = args_to_typed_inputs(&self.original_args, false);
+        let params_args = args_to_calling_args(&self.original_args, self.bind);
+        let calling_args = args_to_calling_args(&self.original_args, false);
 
         let wrapper_struct = quote! {
             #[allow(non_camel_case_types)]
@@ -404,7 +460,7 @@ impl ToTokens for Task {
                 #vis fn new(#typed_inputs) -> #krate::task::TaskSignature<Self> {
                     #krate::task::TaskSignature::<Self>::new(
                         #params_type {
-                            #calling_args
+                            #params_args
                         }
                     )
                 }
@@ -414,7 +470,7 @@ impl ToTokens for Task {
         let run_implementation = if self.is_async {
             quote! {
                 impl #wrapper {
-                    async fn #wrapper(#typed_inputs) -> #krate::TaskResult<#return_type> {
+                    async fn _run(#typed_run_inputs) -> #krate::TaskResult<#return_type> {
                         Ok(#inner_block)
                     }
                 }
@@ -422,7 +478,7 @@ impl ToTokens for Task {
         } else {
             quote! {
                 impl #wrapper {
-                    fn #wrapper(#typed_inputs) -> #krate::TaskResult<#return_type> {
+                    fn _run(#typed_run_inputs) -> #krate::TaskResult<#return_type> {
                         Ok(#inner_block)
                     }
                 }
@@ -431,11 +487,11 @@ impl ToTokens for Task {
 
         let call_run_implementation = if self.is_async {
             quote! {
-                Ok(#wrapper::#wrapper(#calling_args).await?)
+                Ok(#wrapper::_run(#calling_args).await?)
             }
         } else {
             quote! {
-                Ok(#wrapper::#wrapper(#calling_args)?)
+                Ok(#wrapper::_run(#calling_args)?)
             }
         };
 

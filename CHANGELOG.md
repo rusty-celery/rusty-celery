@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - A `TaskSignature` struct.
+- A `bind` argument to the `task` macro. When `bind = true` is given, the task will be run as an instance method.
 
 ### Changed
 

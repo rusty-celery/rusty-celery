@@ -16,6 +16,9 @@ mod task;
 /// - `min_retry_delay`: Corresponds to [`Task::min_retry_delay`](trait.Task.html#method.min_retry_delay).
 /// - `max_retry_delay`: Corresponds to [`Task::max_retry_delay`](trait.Task.html#method.max_retry_delay).
 /// - `acks_late`: Corresponds to [`Task::acks_late`](trait.Task.html#method.acks_late).
+/// - `bind`: A bool. If true, the task will be run like an instance method and so the function's
+/// first argument should be a reference to `Self`. Note however that Rust won't allow you to call
+/// the argument `self`. Instead, you could use `task` or just `t`.
 #[proc_macro_attribute]
 pub fn task(args: TokenStream, input: TokenStream) -> TokenStream {
     task::impl_macro(args, input)
