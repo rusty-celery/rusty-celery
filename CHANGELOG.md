@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Task parameters are now separated from task struct.
 - Task callback methods `on_failure` and `on_success` are now instance methods.
 - `Celery::send_task` and `::send_task_with` now take a `TaskSignature` instead of a `Task`.
+- When tasks are defined through the `task` macro by annoting a function, that function needs to be explicity marked async for the function to use async / await syntax.
 
 ### Removed
 

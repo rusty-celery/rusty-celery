@@ -117,5 +117,7 @@ pub mod task;
 
 pub use app::{Celery, CeleryBuilder};
 
+pub use task::TaskResult;
+
 #[cfg(feature = "codegen")]
 pub use celery_codegen::task;

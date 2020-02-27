@@ -9,6 +9,9 @@ mod options;
 
 pub use options::{TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
 
+/// A return type for a task.
+pub type TaskResult<R> = Result<R, TaskError>;
+
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///
 /// For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
@@ -33,7 +36,7 @@ pub trait Task: Send + Sync {
     fn within_app() -> Self;
 
     /// This function defines how a task executes.
-    async fn run(&self, params: Self::Params) -> Result<Self::Returns, TaskError>;
+    async fn run(&self, params: Self::Params) -> TaskResult<Self::Returns>;
 
     /// Callback that will run after a task fails.
     #[allow(unused_variables)]

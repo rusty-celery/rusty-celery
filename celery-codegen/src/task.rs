@@ -42,7 +42,8 @@ struct Task {
     original_args: Vec<syn::FnArg>,
     inputs: Option<Punctuated<FnArg, Comma>>,
     inner_block: Option<syn::Block>,
-    ret: Option<syn::Type>,
+    return_type: Option<syn::Type>,
+    is_async: bool,
 }
 
 impl TaskAttrs {
@@ -203,10 +204,6 @@ impl Task {
         let min_retry_delay = attrs.min_retry_delay();
         let max_retry_delay = attrs.max_retry_delay();
         let acks_late = attrs.acks_late();
-        let original_args = Vec::new();
-        let inputs = None;
-        let inner_block = None;
-        let ret = None;
         Ok(Task {
             errors,
             visibility,
@@ -218,10 +215,11 @@ impl Task {
             min_retry_delay,
             max_retry_delay,
             acks_late,
-            original_args,
-            inputs,
-            inner_block,
-            ret,
+            original_args: Vec::new(),
+            inputs: None,
+            inner_block: None,
+            return_type: None,
+            is_async: false,
         })
     }
 }
@@ -249,6 +247,7 @@ impl VisitMut for Task {
         }
         self.visit_fn_decl_mut(&mut *node.decl);
         self.inner_block = Some((*node.block).clone());
+        self.is_async = node.asyncness.is_some();
     }
 
     fn visit_fn_decl_mut(&mut self, node: &mut syn::FnDecl) {
@@ -265,12 +264,12 @@ impl VisitMut for Task {
             self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
         }
         if let syn::ReturnType::Type(_arr, ref ty) = node.output {
-            self.ret = Some((**ty).clone());
+            self.return_type = Some((**ty).clone());
         }
     }
 }
 
-fn args2fields<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+fn args_to_fields<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
     args.into_iter()
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Captured(cap) => {
@@ -284,6 +283,57 @@ fn args2fields<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStrea
                     #ident: #ty,
                 }
             }
+            _ => acc,
+        })
+}
+
+fn args_to_arg_names<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+    args.into_iter()
+        .fold(TokenStream::new(), |acc, arg| match arg {
+            syn::FnArg::Captured(cap) => match cap.pat {
+                syn::Pat::Ident(ref pat) => {
+                    let name = &pat.ident.to_string();
+                    quote! {
+                        #acc
+                        #name,
+                    }
+                }
+                _ => acc,
+            },
+            _ => acc,
+        })
+}
+
+fn args_to_bindings<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+    args.into_iter()
+        .fold(TokenStream::new(), |acc, arg| match arg {
+            syn::FnArg::Captured(cap) => match cap.pat {
+                syn::Pat::Ident(ref pat) => {
+                    let ident = &pat.ident;
+                    quote! {
+                        #acc
+                        let #ident = params.#ident;
+                    }
+                }
+                _ => acc,
+            },
+            _ => acc,
+        })
+}
+
+fn args_to_calling_args<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStream {
+    args.into_iter()
+        .fold(TokenStream::new(), |acc, arg| match arg {
+            syn::FnArg::Captured(cap) => match cap.pat {
+                syn::Pat::Ident(ref pat) => {
+                    let ident = &pat.ident;
+                    quote! {
+                        #acc
+                        #ident,
+                    }
+                }
+                _ => acc,
+            },
             _ => acc,
         })
 }
@@ -331,89 +381,73 @@ impl ToTokens for Task {
             }
         });
         let task_name = &self.name;
-        let arg_names = self
-            .original_args
-            .iter()
-            .fold(TokenStream::new(), |acc, arg| match arg {
-                syn::FnArg::Captured(cap) => match cap.pat {
-                    syn::Pat::Ident(ref pat) => {
-                        let name = &pat.ident.to_string();
-                        quote! {
-                            #acc
-                            #name,
-                        }
-                    }
-                    _ => acc,
-                },
-                _ => acc,
-            });
-        let serialized_fields = args2fields(&self.original_args);
-        let deserialized_bindings =
-            self.original_args
-                .iter()
-                .fold(TokenStream::new(), |acc, arg| match arg {
-                    syn::FnArg::Captured(cap) => match cap.pat {
-                        syn::Pat::Ident(ref pat) => {
-                            let ident = &pat.ident;
-                            quote! {
-                                #acc
-                                let #ident = params.#ident;
-                            }
-                        }
-                        _ => acc,
-                    },
-                    _ => acc,
-                });
+        let arg_names = args_to_arg_names(&self.original_args);
+        let serialized_fields = args_to_fields(&self.original_args);
+        let deserialized_bindings = args_to_bindings(&self.original_args);
         let inner_block = {
             let block = &self.inner_block;
             quote!(#block)
         };
-        let ret_ty = self
-            .ret
+        let return_type = self
+            .return_type
             .as_ref()
             .map(|ty| quote!(#ty))
             .unwrap_or_else(|| quote!(()));
-
-        let dummy_const = syn::Ident::new(
-            &format!("__IMPL_BATCH_JOB_FOR_{}", wrapper.to_string()),
-            Span::call_site(),
-        );
-
-        let original_args = self.inputs.clone();
-        let wrapper_fields =
-            self.original_args
-                .iter()
-                .fold(TokenStream::new(), |acc, arg| match arg {
-                    syn::FnArg::Captured(cap) => match cap.pat {
-                        syn::Pat::Ident(ref pat) => {
-                            let ident = &pat.ident;
-                            quote! {
-                                #acc
-                                #ident,
-                            }
-                        }
-                        _ => acc,
-                    },
-                    _ => acc,
-                });
+        let typed_inputs = self.inputs.clone();
+        let calling_args = args_to_calling_args(&self.original_args);
 
         let wrapper_struct = quote! {
             #[allow(non_camel_case_types)]
             #vis struct #wrapper;
 
             impl #wrapper {
-                #vis fn new(#original_args) -> #krate::task::TaskSignature<Self> {
+                #vis fn new(#typed_inputs) -> #krate::task::TaskSignature<Self> {
                     #krate::task::TaskSignature::<Self>::new(
                         #params_type {
-                            #wrapper_fields
+                            #calling_args
                         }
                     )
                 }
             }
         };
 
+        let run_implementation = if self.is_async {
+            quote! {
+                impl #wrapper {
+                    async fn #wrapper(#typed_inputs) -> #krate::TaskResult<#return_type> {
+                        Ok(#inner_block)
+                    }
+                }
+            }
+        } else {
+            quote! {
+                impl #wrapper {
+                    fn #wrapper(#typed_inputs) -> #krate::TaskResult<#return_type> {
+                        Ok(#inner_block)
+                    }
+                }
+            }
+        };
+
+        let call_run_implementation = if self.is_async {
+            quote! {
+                Ok(#wrapper::#wrapper(#calling_args).await?)
+            }
+        } else {
+            quote! {
+                Ok(#wrapper::#wrapper(#calling_args)?)
+            }
+        };
+
+        let dummy_const = syn::Ident::new(
+            &format!("__IMPL_BATCH_JOB_FOR_{}", wrapper.to_string()),
+            Span::call_site(),
+        );
+
         let output = quote! {
             #wrapper_struct
+
+            #run_implementation
 
             #[allow(non_camel_case_types)]
             #[derive(Clone, #export::Deserialize, #export::Serialize)]
@@ -430,15 +464,15 @@ impl ToTokens for Task {
                     const ARGS: &'static [&'static str] = &[#arg_names];
 
                     type Params = #params_type;
-                    type Returns = #ret_ty;
+                    type Returns = #return_type;
 
                     fn within_app() -> Self {
                         Self {}
                     }
 
-                    async fn run(&self, params: Self::Params) -> Result<Self::Returns, #krate::error::TaskError> {
+                    async fn run(&self, params: Self::Params) -> #krate::TaskResult<Self::Returns> {
                         #deserialized_bindings
-                        Ok(#inner_block)
+                        #call_run_implementation
                     }
 
                     #timeout
