@@ -74,9 +74,83 @@
     html_logo_url = "https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery-4.png"
 )]
 
-/////////////////
-// Re-exports. //
-/////////////////
+mod app;
+pub use app::{Celery, CeleryBuilder};
+pub mod broker;
+pub mod error;
+pub mod protocol;
+pub mod task;
+
+#[cfg(feature = "codegen")]
+mod codegen;
+
+/// A procedural macro for generating a [`Task`](task/trait.Task.html) from a function.
+///
+/// # Parameters
+///
+/// - `name`: The name to use when registering the task. Should be unique. If not given the name
+/// will be set to the name of the function being decorated.
+/// - `timeout`: Corresponds to [`Task::timeout`](trait.Task.html#method.timeout).
+/// - `max_retries`: Corresponds to [`Task::max_retries`](trait.Task.html#method.max_retries).
+/// - `min_retry_delay`: Corresponds to [`Task::min_retry_delay`](trait.Task.html#method.min_retry_delay).
+/// - `max_retry_delay`: Corresponds to [`Task::max_retry_delay`](trait.Task.html#method.max_retry_delay).
+/// - `acks_late`: Corresponds to [`Task::acks_late`](trait.Task.html#method.acks_late).
+/// - `bind`: A bool. If true, the task will be run like an instance method and so the function's
+/// first argument should be a reference to `Self`. Note however that Rust won't allow you to call
+/// the argument `self`. Instead, you could use `task` or just `t`.
+///
+/// For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
+/// in the Rusty Celery Book.
+///
+/// ## Examples
+///
+/// Create a task named `add` with all of the default options:
+///
+/// ```rust
+/// #[celery::task]
+/// fn add(x: i32, y: i32) -> i32 {
+///     x + y
+/// }
+/// ```
+///
+/// Use a name different from the function name:
+///
+/// ```rust
+/// #[celery::task(name = "sum")]
+/// fn add(x: i32, y: i32) -> i32 {
+///     x + y
+/// }
+/// ```
+///
+/// Customize the default retry behavior:
+///
+/// ```rust
+/// #[celery::task(
+///     timeout = 3,
+///     max_retries = 100,
+///     min_retry_delay = 1,
+///     max_retry_delay = 60,
+/// )]
+/// async fn io_task() {
+///     // Do some async IO work that could possible fail, such as an HTTP request...
+/// }
+/// ```
+///
+/// Bind the function to the task instance so it runs like an instance method:
+///
+/// ```rust
+/// # use celery::task::Task;
+/// #[celery::task(bind = true)]
+/// fn bound_task(task: &Self) {
+///     println!("Hello, World! From {}", task.name());
+/// }
+/// ```
+#[cfg(feature = "codegen")]
+pub use codegen::task;
+
+#[cfg(feature = "codegen")]
+#[doc(hidden)]
+pub mod export;
 
 #[cfg(feature = "codegen")]
 extern crate futures;
@@ -89,35 +163,3 @@ extern crate async_trait;
 
 #[cfg(feature = "codegen")]
 extern crate serde;
-
-/////////////////
-// Submodules. //
-/////////////////
-
-mod app;
-
-pub mod broker;
-
-#[cfg(feature = "codegen")]
-mod codegen;
-
-pub mod error;
-
-#[cfg(feature = "codegen")]
-#[doc(hidden)]
-pub mod export;
-
-pub mod protocol;
-
-pub mod task;
-
-/////////////////
-// Public API. //
-/////////////////
-
-pub use app::{Celery, CeleryBuilder};
-
-pub use task::TaskResult;
-
-#[cfg(feature = "codegen")]
-pub use celery_codegen::task;

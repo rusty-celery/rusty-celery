@@ -320,7 +320,7 @@ mod tests {
         type Params = TestTaskParams;
         type Returns = ();
 
-        fn within_app() -> Self {
+        fn from_request() -> Self {
             Self {}
         }
 

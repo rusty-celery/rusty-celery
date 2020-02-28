@@ -37,7 +37,7 @@ impl Task for add {
     type Params = AddParams;
     type Returns = i32;
 
-    fn within_app() -> Self {
+    fn from_request() -> Self {
         Self {}
     }
 

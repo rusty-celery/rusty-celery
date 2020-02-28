@@ -1,3 +1,5 @@
+pub use celery_codegen::task;
+
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __app_internal {

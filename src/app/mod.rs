@@ -57,9 +57,9 @@ where
                 task_options: TaskOptions {
                     timeout: None,
                     max_retries: None,
-                    min_retry_delay: 0,
-                    max_retry_delay: 3600,
-                    acks_late: false,
+                    min_retry_delay: Some(0),
+                    max_retry_delay: Some(3600),
+                    acks_late: Some(false),
                 },
                 task_routes: vec![],
             },
@@ -98,19 +98,19 @@ where
 
     /// Set a default minimum retry delay for tasks.
     pub fn task_min_retry_delay(mut self, task_min_retry_delay: u32) -> Self {
-        self.config.task_options.min_retry_delay = task_min_retry_delay;
+        self.config.task_options.min_retry_delay = Some(task_min_retry_delay);
         self
     }
 
     /// Set a default maximum retry delay for tasks.
     pub fn task_max_retry_delay(mut self, task_max_retry_delay: u32) -> Self {
-        self.config.task_options.max_retry_delay = task_max_retry_delay;
+        self.config.task_options.max_retry_delay = Some(task_max_retry_delay);
         self
     }
 
     /// Set whether by default a task is acknowledged before or after execution.
     pub fn acks_late(mut self, acks_late: bool) -> Self {
-        self.config.task_options.acks_late = acks_late;
+        self.config.task_options.acks_late = Some(acks_late);
         self
     }
 
@@ -353,7 +353,7 @@ where
         }
 
         // If acks_late is false, we acknowledge the message before tracing it.
-        if !tracer.get_task_options().acks_late {
+        if !tracer.get_task_options().acks_late.unwrap_or_default() {
             self.broker
                 .ack(&delivery)
                 .await
@@ -376,7 +376,7 @@ where
         }
 
         // If we have not done it before, we have to acknowledge the message now.
-        if tracer.get_task_options().acks_late {
+        if tracer.get_task_options().acks_late.unwrap_or_default() {
             self.broker
                 .ack(&delivery)
                 .await

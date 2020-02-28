@@ -399,41 +399,31 @@ impl ToTokens for Task {
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
         let params_type = self.params_type.as_ref().unwrap();
-        let timeout = self.timeout.as_ref().map(|r| {
-            quote! {
-                fn timeout(&self) -> Option<u32> {
-                    Some(#r)
-                }
-            }
-        });
-        let max_retries = self.max_retries.as_ref().map(|r| {
-            quote! {
-                fn max_retries(&self) -> Option<u32> {
-                    Some(#r)
-                }
-            }
-        });
-        let min_retry_delay = self.min_retry_delay.as_ref().map(|r| {
-            quote! {
-                fn min_retry_delay(&self) -> Option<u32> {
-                    Some(#r)
-                }
-            }
-        });
-        let max_retry_delay = self.max_retry_delay.as_ref().map(|r| {
-            quote! {
-                fn max_retry_delay(&self) -> Option<u32> {
-                    Some(#r)
-                }
-            }
-        });
-        let acks_late = self.acks_late.as_ref().map(|r| {
-            quote! {
-                fn acks_late(&self) -> Option<bool> {
-                    Some(#r)
-                }
-            }
-        });
+        let timeout = self
+            .timeout
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { None });
+        let max_retries = self
+            .max_retries
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { None });
+        let min_retry_delay = self
+            .min_retry_delay
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { None });
+        let max_retry_delay = self
+            .max_retry_delay
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { None });
+        let acks_late = self
+            .acks_late
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { None });
         let task_name = self.name.as_ref().unwrap();
         let arg_names = args_to_arg_names(&self.original_args, self.bind);
         let serialized_fields = args_to_fields(&self.original_args, self.bind);
@@ -470,7 +460,7 @@ impl ToTokens for Task {
         let run_implementation = if self.is_async {
             quote! {
                 impl #wrapper {
-                    async fn _run(#typed_run_inputs) -> #krate::TaskResult<#return_type> {
+                    async fn _run(#typed_run_inputs) -> #krate::task::TaskResult<#return_type> {
                         Ok(#inner_block)
                     }
                 }
@@ -478,7 +468,7 @@ impl ToTokens for Task {
         } else {
             quote! {
                 impl #wrapper {
-                    fn _run(#typed_run_inputs) -> #krate::TaskResult<#return_type> {
+                    fn _run(#typed_run_inputs) -> #krate::task::TaskResult<#return_type> {
                         Ok(#inner_block)
                     }
                 }
@@ -518,28 +508,25 @@ impl ToTokens for Task {
                 impl #krate::task::Task for #wrapper {
                     const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
+                    const DEFAULTS: #krate::task::TaskOptions = #krate::task::TaskOptions {
+                        timeout: #timeout,
+                        max_retries: #max_retries,
+                        min_retry_delay: #min_retry_delay,
+                        max_retry_delay: #max_retry_delay,
+                        acks_late: #acks_late,
+                    };
 
                     type Params = #params_type;
                     type Returns = #return_type;
 
-                    fn within_app() -> Self {
+                    fn from_request() -> Self {
                         Self {}
                     }
 
-                    async fn run(&self, params: Self::Params) -> #krate::TaskResult<Self::Returns> {
+                    async fn run(&self, params: Self::Params) -> #krate::task::TaskResult<Self::Returns> {
                         #deserialized_bindings
                         #call_run_implementation
                     }
-
-                    #timeout
-
-                    #max_retries
-
-                    #min_retry_delay
-
-                    #max_retry_delay
-
-                    #acks_late
                 }
             };
         };

@@ -39,7 +39,7 @@ where
     ) -> Result<Self, ProtocolError> {
         let body = message.body::<T>()?;
         let (task_params, _) = body.parts();
-        let task = T::within_app();
+        let task = T::from_request();
         let options = options.overrides(&task);
         let countdown = message.countdown();
 
@@ -197,10 +197,10 @@ where
         let retries = self.message.headers.retries.unwrap_or(0);
         let delay_secs = std::cmp::min(
             2u32.checked_pow(retries)
-                .unwrap_or_else(|| self.options.max_retry_delay),
-            self.options.max_retry_delay,
+                .unwrap_or_else(|| self.options.max_retry_delay.unwrap_or(3600)),
+            self.options.max_retry_delay.unwrap_or(3600),
         );
-        let delay_secs = std::cmp::max(delay_secs, self.options.min_retry_delay);
+        let delay_secs = std::cmp::max(delay_secs, self.options.min_retry_delay.unwrap_or(0));
         let between = Uniform::from(0..1000);
         let mut rng = rand::thread_rng();
         let delay_millis = between.sample(&mut rng);
