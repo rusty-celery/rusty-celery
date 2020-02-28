@@ -8,7 +8,7 @@ use tokio::time::{self, Duration, Instant};
 
 use crate::error::{ProtocolError, TaskError};
 use crate::protocol::Message;
-use crate::task::{Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
@@ -21,8 +21,6 @@ where
     T: Task,
 {
     task: T,
-    task_params: Option<T::Params>,
-    message: Message,
     options: TaskOptions,
     countdown: Option<Duration>,
     event_tx: UnboundedSender<TaskEvent>,
@@ -37,12 +35,7 @@ where
         options: TaskOptions,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Self, ProtocolError> {
-        let body = message.body::<T>()?;
-        let (task_params, _) = body.parts();
-        let task = T::from_request();
-        let options = options.overrides(&task);
         let countdown = message.countdown();
-
         if let Some(eta) = message.headers.eta {
             info!(
                 "Task {}[{}] received, ETA: {}",
@@ -58,10 +51,14 @@ where
             );
         }
 
+        let body = message.body::<T>()?;
+        let (task_params, _) = body.parts();
+        let request = Request::new(message, task_params);
+        let task = T::from_request(request);
+        let options = options.overrides(&task);
+
         Ok(Self {
             task,
-            task_params: Some(task_params),
-            message,
             options,
             countdown,
             event_tx,
@@ -75,7 +72,7 @@ where
     T: Task,
 {
     async fn trace(&mut self) -> Result<(), TaskError> {
-        let task_id = &self.message.properties.correlation_id;
+        let task_id = &self.task.request().id;
 
         if self.is_expired() {
             warn!("Task {}[{}] expired, discarding", T::NAME, task_id,);
@@ -91,16 +88,15 @@ where
             });
 
         let start = Instant::now();
-        let task_params = self.task_params.take().unwrap();
         let result = match self.options.timeout {
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, self.task.run(task_params.clone()))
+                time::timeout(duration, self.task.run(self.task.request().params.clone()))
                     .await
                     .unwrap_or_else(|_| Err(TaskError::TimeoutError))
             }
-            None => self.task.run(task_params.clone()).await,
+            None => self.task.run(self.task.request().params.clone()).await,
         };
         let duration = start.elapsed();
 
@@ -115,7 +111,9 @@ where
                 );
 
                 // Run success callback.
-                self.task.on_success(&returned, task_id, task_params).await;
+                self.task
+                    .on_success(&returned, task_id, self.task.request().params.clone())
+                    .await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
@@ -149,7 +147,9 @@ where
                 };
 
                 // Run failure callback.
-                self.task.on_failure(&e, task_id, task_params).await;
+                self.task
+                    .on_failure(&e, task_id, self.task.request().params.clone())
+                    .await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
@@ -157,10 +157,7 @@ where
                         error!("Failed sending task event");
                     });
 
-                let retries = match self.message.headers.retries {
-                    Some(n) => n,
-                    None => 0,
-                };
+                let retries = self.task.request().retries;
                 if let Some(max_retries) = self.options.max_retries {
                     if retries >= max_retries {
                         warn!("Task {}[{}] retries exceeded", T::NAME, task_id,);
@@ -194,7 +191,7 @@ where
     }
 
     fn retry_eta(&self) -> Option<DateTime<Utc>> {
-        let retries = self.message.headers.retries.unwrap_or(0);
+        let retries = self.task.request().retries;
         let delay_secs = std::cmp::min(
             2u32.checked_pow(retries)
                 .unwrap_or_else(|| self.options.max_retry_delay.unwrap_or(3600)),
@@ -224,7 +221,7 @@ where
     }
 
     fn is_expired(&self) -> bool {
-        self.message.is_expired()
+        self.task.request().is_expired()
     }
 
     fn get_task_options(&self) -> &TaskOptions {

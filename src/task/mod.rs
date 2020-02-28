@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 use crate::error::TaskError;
 
 mod options;
+mod request;
 
 pub use options::{TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
+pub use request::Request;
 
 /// A return type for a task.
 pub type TaskResult<R> = Result<R, TaskError>;
@@ -18,7 +20,7 @@ pub type TaskResult<R> = Result<R, TaskError>;
 /// this trait. For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
 /// in the Rusty Celery Book.
 #[async_trait]
-pub trait Task: Send + Sync {
+pub trait Task: Send + Sync + std::marker::Sized {
     /// The name of the task. When a task is registered it will be registered with this name.
     const NAME: &'static str;
 
@@ -43,7 +45,10 @@ pub trait Task: Send + Sync {
     type Returns: Send + Sync + std::fmt::Debug;
 
     /// Used to initialize a task instance from a request.
-    fn from_request() -> Self;
+    fn from_request(request: Request<Self>) -> Self;
+
+    /// Get a reference to the request used to create this task instance.
+    fn request(&self) -> &Request<Self>;
 
     /// This function defines how a task executes.
     async fn run(&self, params: Self::Params) -> TaskResult<Self::Returns>;

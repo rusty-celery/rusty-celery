@@ -192,7 +192,7 @@ impl TryCreateMessage for Message {
 /// Message meta data pertaining to the broker.
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct MessageProperties {
-    /// A unique ID associated with the task.
+    /// A unique ID associated with the task, usually the same as `MessageHeaders::id`.
     pub correlation_id: String,
 
     /// The MIME type of the body.
@@ -208,7 +208,7 @@ pub struct MessageProperties {
 /// Additional meta data pertaining to the Celery protocol.
 #[derive(Eq, PartialEq, Debug, Default, Clone)]
 pub struct MessageHeaders {
-    /// The correlation ID of the task.
+    /// A unique ID of the task.
     pub id: String,
 
     /// The name of the task.
@@ -223,7 +223,7 @@ pub struct MessageHeaders {
     /// The ID of the task that called this task within a work-flow.
     pub parent_id: Option<String>,
 
-    /// TODO
+    /// The unique ID of the task's group, if this task is a member.
     pub group: Option<String>,
 
     /// Currently unused but could be used in the future to specify class+method pairs.
@@ -303,14 +303,16 @@ mod tests {
 
     use super::*;
     use crate::error::TaskError;
-    use crate::task::Task;
+    use crate::task::{Request, Task};
 
     #[derive(Clone, Serialize, Deserialize)]
     struct TestTaskParams {
         a: i32,
     }
 
-    struct TestTask;
+    struct TestTask {
+        request: Request<Self>,
+    }
 
     #[async_trait]
     impl Task for TestTask {
@@ -320,8 +322,12 @@ mod tests {
         type Params = TestTaskParams;
         type Returns = ();
 
-        fn from_request() -> Self {
-            Self {}
+        fn from_request(request: Request<Self>) -> Self {
+            Self { request }
+        }
+
+        fn request(&self) -> &Request<Self> {
+            &self.request
         }
 
         async fn run(&self, _params: Self::Params) -> Result<(), TaskError> {
