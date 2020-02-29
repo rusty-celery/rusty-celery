@@ -5,12 +5,11 @@
 //! type](../broker/trait.Broker.html#associatedtype.Delivery) must implement
 //! [`TryCreateMessage`](trait.TryCreateMessage.html).
 
-use chrono::{self, DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::SystemTime;
-use tokio::time::Duration;
 use uuid::Uuid;
 
 use crate::error::ProtocolError;
@@ -71,7 +70,7 @@ impl MessageBuilder {
             self.message.headers.eta = Some(eta);
         } else if let Some(countdown) = options.countdown {
             let now = DateTime::<Utc>::from(SystemTime::now());
-            let eta = now + chrono::Duration::seconds(countdown as i64);
+            let eta = now + Duration::seconds(countdown as i64);
             self.message.headers.eta = Some(eta);
         }
 
@@ -80,7 +79,7 @@ impl MessageBuilder {
             self.message.headers.expires = Some(expires);
         } else if let Some(expires_in) = options.expires_in {
             let now = DateTime::<Utc>::from(SystemTime::now());
-            let expires = now + chrono::Duration::seconds(expires_in as i64);
+            let expires = now + Duration::seconds(expires_in as i64);
             self.message.headers.expires = Some(expires);
         }
 
@@ -149,31 +148,6 @@ impl Message {
             }
         }
         Ok(serde_json::from_value::<MessageBody<T>>(value)?)
-    }
-
-    /// Get the TTL countdown.
-    pub fn countdown(&self) -> Option<Duration> {
-        if let Some(eta) = self.headers.eta {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            let countdown = (eta - now).num_milliseconds();
-            if countdown < 0 {
-                None
-            } else {
-                Some(Duration::from_millis(countdown as u64))
-            }
-        } else {
-            None
-        }
-    }
-
-    /// Check if the message is expired.
-    pub fn is_expired(&self) -> bool {
-        if let Some(expires) = self.headers.expires {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            (now - expires).num_milliseconds() >= 0
-        } else {
-            false
-        }
     }
 }
 

@@ -2,6 +2,7 @@ use super::Task;
 use crate::protocol::Message;
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
+use tokio::time::Duration;
 
 /// A `Request` contains information and state related to the currently executing task.
 pub struct Request<T>
@@ -71,6 +72,26 @@ where
             hostname: None,
             reply_to: m.properties.reply_to,
             timeout,
+        }
+    }
+
+    /// Check if the request has a future ETA.
+    pub fn is_delayed(&self) -> bool {
+        self.eta.is_some()
+    }
+
+    /// Get the TTL in seconds if the task has a future ETA.
+    pub fn countdown(&self) -> Option<Duration> {
+        if let Some(eta) = self.eta {
+            let now = DateTime::<Utc>::from(SystemTime::now());
+            let countdown = (eta - now).num_milliseconds();
+            if countdown < 0 {
+                None
+            } else {
+                Some(Duration::from_millis(countdown as u64))
+            }
+        } else {
+            None
         }
     }
 

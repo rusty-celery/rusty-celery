@@ -21,7 +21,6 @@ where
     T: Task,
 {
     task: T,
-    countdown: Option<Duration>,
     event_tx: UnboundedSender<TaskEvent>,
 }
 
@@ -29,21 +28,7 @@ impl<T> Tracer<T>
 where
     T: Task,
 {
-    fn new(
-        message: Message,
-        options: TaskOptions,
-        event_tx: UnboundedSender<TaskEvent>,
-    ) -> Result<Self, ProtocolError> {
-        let countdown = message.countdown();
-
-        // Deserialize message body into task parameters and turn message into a `Request`.
-        let body = message.body::<T>()?;
-        let (task_params, _) = body.parts();
-        let request = Request::new(message, task_params);
-
-        // Now create a task instance from the request.
-        let task = T::from_request(request, options);
-
+    fn new(task: T, event_tx: UnboundedSender<TaskEvent>) -> Result<Self, ProtocolError> {
         if let Some(eta) = task.request().eta {
             info!(
                 "Task {}[{}] received, ETA: {}",
@@ -55,11 +40,7 @@ where
             info!("Task {}[{}] received", task.name(), task.request().id);
         }
 
-        Ok(Self {
-            task,
-            countdown,
-            event_tx,
-        })
+        Ok(Self { task, event_tx })
     }
 }
 
@@ -200,7 +181,7 @@ where
     }
 
     async fn wait(&self) {
-        if let Some(countdown) = self.countdown {
+        if let Some(countdown) = self.task.request().countdown() {
             time::delay_for(countdown).await;
         }
     }
@@ -232,7 +213,7 @@ where
     }
 
     fn is_delayed(&self) -> bool {
-        self.countdown.is_some()
+        self.task.request().is_delayed()
     }
 
     fn is_expired(&self) -> bool {
@@ -277,5 +258,13 @@ pub(super) fn build_tracer<T: Task + Send + 'static>(
     options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
 ) -> TraceBuilderResult {
-    Ok(Box::new(Tracer::<T>::new(message, options, event_tx)?))
+    // Deserialize message body into task parameters and turn message into a `Request`.
+    let body = message.body::<T>()?;
+    let (task_params, _) = body.parts();
+    let request = Request::new(message, task_params);
+
+    // Now create a task instance from the request.
+    let task = T::from_request(request, options);
+
+    Ok(Box::new(Tracer::<T>::new(task, event_tx)?))
 }
