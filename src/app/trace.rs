@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use log::{debug, error, info, warn};
 use rand::distributions::{Distribution, Uniform};
+use std::convert::TryFrom;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
@@ -258,13 +259,7 @@ pub(super) fn build_tracer<T: Task + Send + 'static>(
     options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
 ) -> TraceBuilderResult {
-    // Deserialize message body into task parameters and turn message into a `Request`.
-    let body = message.body::<T>()?;
-    let (task_params, _) = body.parts();
-    let request = Request::new(message, task_params);
-
-    // Now create a task instance from the request.
+    let request = Request::<T>::try_from(message)?;
     let task = T::from_request(request, options);
-
     Ok(Box::new(Tracer::<T>::new(task, event_tx)?))
 }

@@ -1,6 +1,8 @@
 use super::Task;
+use crate::error::ProtocolError;
 use crate::protocol::Message;
 use chrono::{DateTime, Utc};
+use std::convert::TryFrom;
 use std::time::SystemTime;
 use tokio::time::Duration;
 
@@ -103,5 +105,18 @@ where
         } else {
             false
         }
+    }
+}
+
+impl<T> TryFrom<Message> for Request<T>
+where
+    T: Task,
+{
+    type Error = ProtocolError;
+
+    fn try_from(m: Message) -> Result<Self, Self::Error> {
+        let body = m.body::<T>()?;
+        let (task_params, _) = body.parts();
+        Ok(Self::new(m, task_params))
     }
 }
