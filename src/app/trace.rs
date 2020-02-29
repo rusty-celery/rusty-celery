@@ -21,7 +21,6 @@ where
     T: Task,
 {
     task: T,
-    options: TaskOptions,
     countdown: Option<Duration>,
     event_tx: UnboundedSender<TaskEvent>,
 }
@@ -36,30 +35,28 @@ where
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Self, ProtocolError> {
         let countdown = message.countdown();
-        if let Some(eta) = message.headers.eta {
-            info!(
-                "Task {}[{}] received, ETA: {}",
-                T::NAME,
-                message.properties.correlation_id,
-                eta
-            );
-        } else {
-            info!(
-                "Task {}[{}] received",
-                T::NAME,
-                message.properties.correlation_id
-            );
-        }
 
+        // Deserialize message body into task parameters and turn message into a `Request`.
         let body = message.body::<T>()?;
         let (task_params, _) = body.parts();
         let request = Request::new(message, task_params);
-        let task = T::from_request(request);
-        let options = options.overrides(&task);
+
+        // Now create a task instance from the request.
+        let task = T::from_request(request, options);
+
+        if let Some(eta) = task.request().eta {
+            info!(
+                "Task {}[{}] received, ETA: {}",
+                task.name(),
+                task.request().id,
+                eta
+            );
+        } else {
+            info!("Task {}[{}] received", task.name(), task.request().id);
+        }
 
         Ok(Self {
             task,
-            options,
             countdown,
             event_tx,
         })
@@ -72,10 +69,12 @@ where
     T: Task,
 {
     async fn trace(&mut self) -> Result<(), TaskError> {
-        let task_id = &self.task.request().id;
-
         if self.is_expired() {
-            warn!("Task {}[{}] expired, discarding", T::NAME, task_id,);
+            warn!(
+                "Task {}[{}] expired, discarding",
+                self.task.name(),
+                &self.task.request().id,
+            );
             return Err(TaskError::ExpirationError);
         }
 
@@ -88,7 +87,7 @@ where
             });
 
         let start = Instant::now();
-        let result = match self.options.timeout {
+        let result = match self.task.timeout() {
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
@@ -104,15 +103,19 @@ where
             Ok(returned) => {
                 info!(
                     "Task {}[{}] succeeded in {}s: {:?}",
-                    T::NAME,
-                    task_id,
+                    self.task.name(),
+                    &self.task.request().id,
                     duration.as_secs_f32(),
                     returned
                 );
 
                 // Run success callback.
                 self.task
-                    .on_success(&returned, task_id, self.task.request().params.clone())
+                    .on_success(
+                        &returned,
+                        &self.task.request().id,
+                        self.task.request().params.clone(),
+                    )
                     .await;
 
                 self.event_tx
@@ -128,19 +131,23 @@ where
                     TaskError::ExpectedError(ref reason) => {
                         warn!(
                             "Task {}[{}] failed with expected error: {}",
-                            T::NAME,
-                            task_id,
+                            self.task.name(),
+                            &self.task.request().id,
                             reason
                         );
                     }
                     TaskError::TimeoutError => {
-                        error!("Task {}[{}] timed out", T::NAME, task_id,);
+                        error!(
+                            "Task {}[{}] timed out",
+                            self.task.name(),
+                            &self.task.request().id,
+                        );
                     }
                     _ => {
                         error!(
                             "Task {}[{}] failed with unexpected error: {}",
-                            T::NAME,
-                            task_id,
+                            self.task.name(),
+                            &self.task.request().id,
                             e
                         );
                     }
@@ -148,7 +155,11 @@ where
 
                 // Run failure callback.
                 self.task
-                    .on_failure(&e, task_id, self.task.request().params.clone())
+                    .on_failure(
+                        &e,
+                        &self.task.request().id,
+                        self.task.request().params.clone(),
+                    )
                     .await;
 
                 self.event_tx
@@ -158,23 +169,27 @@ where
                     });
 
                 let retries = self.task.request().retries;
-                if let Some(max_retries) = self.options.max_retries {
+                if let Some(max_retries) = self.task.max_retries() {
                     if retries >= max_retries {
-                        warn!("Task {}[{}] retries exceeded", T::NAME, task_id,);
+                        warn!(
+                            "Task {}[{}] retries exceeded",
+                            self.task.name(),
+                            &self.task.request().id,
+                        );
                         return Err(e);
                     }
                     info!(
                         "Task {}[{}] retrying ({} / {})",
-                        T::NAME,
-                        task_id,
+                        self.task.name(),
+                        &self.task.request().id,
                         retries + 1,
                         max_retries,
                     );
                 } else {
                     info!(
                         "Task {}[{}] retrying ({} / inf)",
-                        T::NAME,
-                        task_id,
+                        self.task.name(),
+                        &self.task.request().id,
                         retries + 1,
                     );
                 }
@@ -194,10 +209,10 @@ where
         let retries = self.task.request().retries;
         let delay_secs = std::cmp::min(
             2u32.checked_pow(retries)
-                .unwrap_or_else(|| self.options.max_retry_delay.unwrap_or(3600)),
-            self.options.max_retry_delay.unwrap_or(3600),
+                .unwrap_or_else(|| self.task.max_retry_delay().unwrap_or(3600)),
+            self.task.max_retry_delay().unwrap_or(3600),
         );
-        let delay_secs = std::cmp::max(delay_secs, self.options.min_retry_delay.unwrap_or(0));
+        let delay_secs = std::cmp::max(delay_secs, self.task.min_retry_delay().unwrap_or(0));
         let between = Uniform::from(0..1000);
         let mut rng = rand::thread_rng();
         let delay_millis = between.sample(&mut rng);
@@ -225,7 +240,7 @@ where
     }
 
     fn get_task_options(&self) -> &TaskOptions {
-        &self.options
+        self.task.options()
     }
 }
 

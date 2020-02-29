@@ -45,10 +45,13 @@ pub trait Task: Send + Sync + std::marker::Sized {
     type Returns: Send + Sync + std::fmt::Debug;
 
     /// Used to initialize a task instance from a request.
-    fn from_request(request: Request<Self>) -> Self;
+    fn from_request(request: Request<Self>, options: TaskOptions) -> Self;
 
     /// Get a reference to the request used to create this task instance.
     fn request(&self) -> &Request<Self>;
+
+    /// Get a reference to the options corresponding to this instance / request.
+    fn options(&self) -> &TaskOptions;
 
     /// This function defines how a task executes.
     async fn run(&self, params: Self::Params) -> TaskResult<Self::Returns>;
@@ -68,28 +71,34 @@ pub trait Task: Send + Sync + std::marker::Sized {
 
     /// Default timeout for this task.
     fn timeout(&self) -> Option<u32> {
-        Self::DEFAULTS.timeout
+        self.request()
+            .timeout
+            .or_else(|| Self::DEFAULTS.timeout.or(self.options().timeout))
     }
 
     /// Default maximum number of retries for this task.
     fn max_retries(&self) -> Option<u32> {
-        Self::DEFAULTS.max_retries
+        Self::DEFAULTS.max_retries.or(self.options().max_retries)
     }
 
     /// Default minimum retry delay (in seconds) for this task (default is 0).
     fn min_retry_delay(&self) -> Option<u32> {
-        Self::DEFAULTS.min_retry_delay
+        Self::DEFAULTS
+            .min_retry_delay
+            .or(self.options().min_retry_delay)
     }
 
     /// Default maximum retry delay (in seconds) for this task.
     fn max_retry_delay(&self) -> Option<u32> {
-        Self::DEFAULTS.max_retry_delay
+        Self::DEFAULTS
+            .max_retry_delay
+            .or(self.options().max_retry_delay)
     }
 
     /// Whether messages for this task will be acknowledged after the task has been executed,
     /// or before (the default behavior).
     fn acks_late(&self) -> Option<bool> {
-        Self::DEFAULTS.acks_late
+        Self::DEFAULTS.acks_late.or(self.options().acks_late)
     }
 }
 

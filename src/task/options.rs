@@ -1,4 +1,3 @@
-use super::Task;
 use chrono::{DateTime, Utc};
 
 /// General configuration options pertaining to a task.
@@ -9,18 +8,6 @@ pub struct TaskOptions {
     pub min_retry_delay: Option<u32>,
     pub max_retry_delay: Option<u32>,
     pub acks_late: Option<bool>,
-}
-
-impl TaskOptions {
-    pub(crate) fn overrides<T: Task>(&self, task: &T) -> Self {
-        Self {
-            timeout: task.timeout().or(self.timeout),
-            max_retries: task.max_retries().or(self.max_retries),
-            min_retry_delay: task.min_retry_delay().or(self.min_retry_delay),
-            max_retry_delay: task.max_retry_delay().or(self.max_retry_delay),
-            acks_late: task.acks_late().or(self.acks_late),
-        }
-    }
 }
 
 #[derive(Default)]

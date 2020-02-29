@@ -446,6 +446,7 @@ impl ToTokens for Task {
             #[allow(non_camel_case_types)]
             #vis struct #wrapper {
                 request: #krate::task::Request<Self>,
+                options: #krate::task::TaskOptions,
             }
 
             impl #wrapper {
@@ -521,12 +522,19 @@ impl ToTokens for Task {
                     type Params = #params_type;
                     type Returns = #return_type;
 
-                    fn from_request(request: #krate::task::Request<Self>) -> Self {
-                        Self { request }
+                    fn from_request(
+                        request: #krate::task::Request<Self>,
+                        options: #krate::task::TaskOptions,
+                    ) -> Self {
+                        Self { request, options }
                     }
 
                     fn request(&self) -> &#krate::task::Request<Self> {
                         &self.request
+                    }
+
+                    fn options(&self) -> &#krate::task::TaskOptions {
+                        &self.options
                     }
 
                     async fn run(&self, params: Self::Params) -> #krate::task::TaskResult<Self::Returns> {

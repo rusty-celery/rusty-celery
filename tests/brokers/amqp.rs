@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::task::{Request, Task, TaskSignature};
+use celery::task::{Request, Task, TaskOptions, TaskSignature};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,6 +17,7 @@ lazy_static! {
 #[allow(non_camel_case_types)]
 struct add {
     request: Request<Self>,
+    options: TaskOptions,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -39,12 +40,16 @@ impl Task for add {
     type Params = AddParams;
     type Returns = i32;
 
-    fn from_request(request: Request<Self>) -> Self {
-        Self { request }
+    fn from_request(request: Request<Self>, options: TaskOptions) -> Self {
+        Self { request, options }
     }
 
     fn request(&self) -> &Request<Self> {
         &self.request
+    }
+
+    fn options(&self) -> &TaskOptions {
+        &self.options
     }
 
     async fn run(&self, params: Self::Params) -> Result<Self::Returns, TaskError> {

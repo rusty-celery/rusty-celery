@@ -303,7 +303,7 @@ mod tests {
 
     use super::*;
     use crate::error::TaskError;
-    use crate::task::{Request, Task};
+    use crate::task::{Request, Task, TaskOptions};
 
     #[derive(Clone, Serialize, Deserialize)]
     struct TestTaskParams {
@@ -312,6 +312,7 @@ mod tests {
 
     struct TestTask {
         request: Request<Self>,
+        options: TaskOptions,
     }
 
     #[async_trait]
@@ -322,12 +323,16 @@ mod tests {
         type Params = TestTaskParams;
         type Returns = ();
 
-        fn from_request(request: Request<Self>) -> Self {
-            Self { request }
+        fn from_request(request: Request<Self>, options: TaskOptions) -> Self {
+            Self { request, options }
         }
 
         fn request(&self) -> &Request<Self> {
             &self.request
+        }
+
+        fn options(&self) -> &TaskOptions {
+            &self.options
         }
 
         async fn run(&self, _params: Self::Params) -> Result<(), TaskError> {
