@@ -9,86 +9,94 @@ use chrono::{DateTime, Duration, Utc};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::convert::TryFrom;
 use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::error::ProtocolError;
-use crate::task::{Signature, Task, TaskOptions, TaskSendOptions};
+use crate::task::{Signature, Task};
 
 /// Create a message with a custom configuration.
-pub struct MessageBuilder {
+pub struct MessageBuilder<T>
+where
+    T: Task,
+{
     message: Message,
+    params: Option<T::Params>,
 }
 
-impl MessageBuilder {
-    /// Create a new `MessageBuilder` with a given correlation ID, task name, and serialized body.
-    pub fn new(correlation_id: String, task_name: String, raw_body: Vec<u8>) -> Self {
+impl<T> MessageBuilder<T>
+where
+    T: Task,
+{
+    /// Create a new `MessageBuilder` with a given task ID.
+    pub fn new(id: String) -> Self {
         Self {
             message: Message {
                 properties: MessageProperties {
-                    correlation_id: correlation_id.clone(),
+                    correlation_id: id.clone(),
                     content_type: "application/json".into(),
                     content_encoding: "utf-8".into(),
                     reply_to: None,
                 },
                 headers: MessageHeaders {
-                    id: correlation_id,
-                    task: task_name,
+                    id,
+                    task: T::NAME.into(),
                     ..Default::default()
                 },
-                raw_body,
+                raw_body: Vec::new(),
             },
+            params: None,
         }
     }
 
-    /// Get a new `MessageBuilder` from a task.
-    pub fn from_task<T: Task>(task_sig: Signature<T>) -> Result<Self, ProtocolError> {
-        // Create random correlation id.
-        let mut buffer = Uuid::encode_buffer();
-        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
-        let correlation_id = uuid.to_owned();
-
-        let body = MessageBody::new(task_sig);
-
-        Ok(Self::new(
-            correlation_id,
-            T::NAME.into(),
-            serde_json::to_vec(&body)?,
-        ))
-    }
-
-    pub fn task_options(mut self, options: &TaskOptions) -> Self {
-        self.message.headers.timelimit = (options.timeout, options.timeout);
+    pub fn timeout(mut self, timeout: Option<u32>) -> Self {
+        self.message.headers.timelimit = (timeout, timeout);
         self
     }
 
-    pub fn task_send_options(mut self, options: &TaskSendOptions) -> Self {
-        self.message.headers.timelimit = (options.timeout, options.timeout);
+    pub fn eta(mut self, eta: Option<DateTime<Utc>>) -> Self {
+        self.message.headers.eta = eta;
+        self
+    }
 
-        // Set ETA.
-        if let Some(eta) = options.eta {
-            self.message.headers.eta = Some(eta);
-        } else if let Some(countdown) = options.countdown {
+    pub fn countdown(self, countdown: Option<u32>) -> Self {
+        if let Some(seconds) = countdown {
             let now = DateTime::<Utc>::from(SystemTime::now());
-            let eta = now + Duration::seconds(countdown as i64);
-            self.message.headers.eta = Some(eta);
+            let eta = now + Duration::seconds(seconds as i64);
+            self.eta(Some(eta))
+        } else {
+            self
         }
+    }
 
-        // Set expiration time.
-        if let Some(expires) = options.expires {
-            self.message.headers.expires = Some(expires);
-        } else if let Some(expires_in) = options.expires_in {
+    pub fn expires(mut self, expires: Option<DateTime<Utc>>) -> Self {
+        self.message.headers.expires = expires;
+        self
+    }
+
+    pub fn expires_in(self, expires_in: Option<u32>) -> Self {
+        if let Some(seconds) = expires_in {
             let now = DateTime::<Utc>::from(SystemTime::now());
-            let expires = now + Duration::seconds(expires_in as i64);
-            self.message.headers.expires = Some(expires);
+            let expires = now + Duration::seconds(seconds as i64);
+            self.expires(Some(expires))
+        } else {
+            self
         }
+    }
 
+    pub fn params(mut self, params: Option<T::Params>) -> Self {
+        self.params = params;
         self
     }
 
     /// Get the `Message` with the custom configuration.
-    pub fn build(self) -> Message {
-        self.message
+    pub fn build(mut self) -> Result<Message, ProtocolError> {
+        if let Some(params) = self.params.take() {
+            let body = MessageBody::<T>::new(params);
+            self.message.raw_body = serde_json::to_vec(&body)?;
+        };
+        Ok(self.message)
     }
 }
 
@@ -111,14 +119,6 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn builder<T: Task>(task_sig: Signature<T>) -> Result<MessageBuilder, ProtocolError> {
-        MessageBuilder::from_task(task_sig)
-    }
-
-    pub fn new<T: Task>(task_sig: Signature<T>) -> Result<Self, ProtocolError> {
-        Ok(Self::builder(task_sig)?.build())
-    }
-
     /// Try deserializing the body.
     pub fn body<T: Task>(&self) -> Result<MessageBody<T>, ProtocolError> {
         let value: Value = serde_json::from_slice(&self.raw_body)?;
@@ -148,6 +148,35 @@ impl Message {
             }
         }
         Ok(serde_json::from_value::<MessageBody<T>>(value)?)
+    }
+
+    /// Get thet task ID.
+    pub fn task_id(&self) -> &str {
+        &self.headers.id
+    }
+}
+
+impl<T> TryFrom<Signature<T>> for Message
+where
+    T: Task,
+{
+    type Error = ProtocolError;
+
+    /// Get a new `MessageBuilder` from a task signature.
+    fn try_from(mut task_sig: Signature<T>) -> Result<Self, Self::Error> {
+        // Create random correlation id.
+        let mut buffer = Uuid::encode_buffer();
+        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let id = uuid.to_owned();
+
+        MessageBuilder::<T>::new(id)
+            .timeout(task_sig.timeout.take())
+            .countdown(task_sig.countdown.take())
+            .eta(task_sig.eta.take())
+            .expires_in(task_sig.expires_in.take())
+            .expires(task_sig.expires.take())
+            .params(Some(task_sig.params))
+            .build()
     }
 }
 
@@ -238,8 +267,8 @@ impl<T> MessageBody<T>
 where
     T: Task,
 {
-    pub fn new(task_sig: Signature<T>) -> Self {
-        Self(vec![], task_sig.params, MessageBodyEmbed::default())
+    pub fn new(params: T::Params) -> Self {
+        Self(vec![], params, MessageBodyEmbed::default())
     }
 
     pub fn parts(self) -> (T::Params, MessageBodyEmbed) {
@@ -316,7 +345,7 @@ mod tests {
 
     #[test]
     fn test_serialize_body() {
-        let body = MessageBody::new(Signature::<TestTask>::new(TestTaskParams { a: 0 }));
+        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 0 });
         let serialized = serde_json::to_string(&body).unwrap();
         assert_eq!(
             serialized,

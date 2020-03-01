@@ -9,7 +9,7 @@ mod options;
 mod request;
 mod signature;
 
-pub use options::{TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
+pub use options::TaskOptions;
 pub use request::Request;
 pub use signature::Signature;
 
