@@ -14,7 +14,7 @@ mod trace;
 use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TaskError};
 use crate::protocol::{Message, TryCreateMessage};
-use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskSignature, TaskStatus};
+use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
 use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
@@ -234,10 +234,7 @@ where
 
     /// Send a task to a remote worker with default options. Returns the correlation ID
     /// of the task if successful.
-    pub async fn send_task<T: Task>(
-        &self,
-        task_sig: TaskSignature<T>,
-    ) -> Result<String, CeleryError> {
+    pub async fn send_task<T: Task>(&self, task_sig: Signature<T>) -> Result<String, CeleryError> {
         let queue = routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue);
         let options = TaskSendOptions::builder().queue(queue).build();
         self.send_task_with(task_sig, &options).await
@@ -247,7 +244,7 @@ where
     /// of the task if successful.
     pub async fn send_task_with<T: Task>(
         &self,
-        task_sig: TaskSignature<T>,
+        task_sig: Signature<T>,
         options: &TaskSendOptions,
     ) -> Result<String, CeleryError> {
         let message = Message::builder(task_sig)?

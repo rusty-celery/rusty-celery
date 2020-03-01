@@ -450,8 +450,8 @@ impl ToTokens for Task {
             }
 
             impl #wrapper {
-                #vis fn new(#typed_inputs) -> #krate::task::TaskSignature<Self> {
-                    #krate::task::TaskSignature::<Self>::new(
+                #vis fn new(#typed_inputs) -> #krate::task::Signature<Self> {
+                    #krate::task::Signature::<Self>::new(
                         #params_type {
                             #params_args
                         }

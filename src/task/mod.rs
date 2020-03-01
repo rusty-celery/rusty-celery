@@ -7,9 +7,11 @@ use crate::error::TaskError;
 
 mod options;
 mod request;
+mod signature;
 
 pub use options::{TaskOptions, TaskSendOptions, TaskSendOptionsBuilder};
 pub use request::Request;
+pub use signature::Signature;
 
 /// A return type for a task.
 pub type TaskResult<R> = Result<R, TaskError>;
@@ -99,26 +101,6 @@ pub trait Task: Send + Sync + std::marker::Sized {
     /// or before (the default behavior).
     fn acks_late(&self) -> Option<bool> {
         Self::DEFAULTS.acks_late.or(self.options().acks_late)
-    }
-}
-
-pub struct TaskSignature<T>
-where
-    T: Task,
-{
-    pub params: T::Params,
-}
-
-impl<T> TaskSignature<T>
-where
-    T: Task,
-{
-    pub fn new(params: T::Params) -> Self {
-        Self { params }
-    }
-
-    pub fn task_name() -> &'static str {
-        T::NAME
     }
 }
 

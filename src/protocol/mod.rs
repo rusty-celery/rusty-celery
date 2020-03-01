@@ -13,7 +13,7 @@ use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::error::ProtocolError;
-use crate::task::{Task, TaskOptions, TaskSendOptions, TaskSignature};
+use crate::task::{Signature, Task, TaskOptions, TaskSendOptions};
 
 /// Create a message with a custom configuration.
 pub struct MessageBuilder {
@@ -42,7 +42,7 @@ impl MessageBuilder {
     }
 
     /// Get a new `MessageBuilder` from a task.
-    pub fn from_task<T: Task>(task_sig: TaskSignature<T>) -> Result<Self, ProtocolError> {
+    pub fn from_task<T: Task>(task_sig: Signature<T>) -> Result<Self, ProtocolError> {
         // Create random correlation id.
         let mut buffer = Uuid::encode_buffer();
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
@@ -111,11 +111,11 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn builder<T: Task>(task_sig: TaskSignature<T>) -> Result<MessageBuilder, ProtocolError> {
+    pub fn builder<T: Task>(task_sig: Signature<T>) -> Result<MessageBuilder, ProtocolError> {
         MessageBuilder::from_task(task_sig)
     }
 
-    pub fn new<T: Task>(task_sig: TaskSignature<T>) -> Result<Self, ProtocolError> {
+    pub fn new<T: Task>(task_sig: Signature<T>) -> Result<Self, ProtocolError> {
         Ok(Self::builder(task_sig)?.build())
     }
 
@@ -238,7 +238,7 @@ impl<T> MessageBody<T>
 where
     T: Task,
 {
-    pub fn new(task_sig: TaskSignature<T>) -> Self {
+    pub fn new(task_sig: Signature<T>) -> Self {
         Self(vec![], task_sig.params, MessageBodyEmbed::default())
     }
 
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_serialize_body() {
-        let body = MessageBody::new(TaskSignature::<TestTask>::new(TestTaskParams { a: 0 }));
+        let body = MessageBody::new(Signature::<TestTask>::new(TestTaskParams { a: 0 }));
         let serialized = serde_json::to_string(&body).unwrap();
         assert_eq!(
             serialized,

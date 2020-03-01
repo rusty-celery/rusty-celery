@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::task::{Request, Task, TaskOptions, TaskSignature};
+use celery::task::{Request, Signature, Task, TaskOptions};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -27,8 +27,8 @@ struct AddParams {
 }
 
 impl add {
-    fn new(x: i32, y: i32) -> TaskSignature<Self> {
-        TaskSignature::<Self>::new(AddParams { x, y })
+    fn new(x: i32, y: i32) -> Signature<Self> {
+        Signature::<Self>::new(AddParams { x, y })
     }
 }
 
