@@ -6,9 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- A `Signature` struct with includes task execution options (previously the fields in `TaskSendOptions`).
+- A `bind` argument to the `task` macro. When `bind = true` is given, the task will be run as an instance method.
+- A `Request` struct.
+
 ### Changed
 
 - `protocol::TryIntoMessage` trait renamed to `TryCreateMessage` and the one trait function `try_into_message` renamed to `try_create_message` to better reflect the fact that the trait function does not consume `self`.
+- Task parameters are now separated from task struct.
+- Task callback methods `on_failure` and `on_success` are now instance methods.
+- `Celery::send_task` and `::send_task_with` now take a `Signature` instead of a `Task`.
+- When tasks are defined through the `task` macro by annoting a function, that function needs to be explicity marked async for the function to use async / await syntax.
+
+### Removed
+
+- `TaskContext` struct.
+- `TaskSendOptions`.
+- `Celery::send_task_with`.
 
 ## [0.2.0-alpha.2] - 2019-02-24
 

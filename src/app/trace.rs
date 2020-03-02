@@ -2,13 +2,14 @@ use async_trait::async_trait;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use log::{debug, error, info, warn};
 use rand::distributions::{Distribution, Uniform};
+use std::convert::TryFrom;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
 use crate::error::{ProtocolError, TaskError};
 use crate::protocol::Message;
-use crate::task::{Task, TaskContext, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
@@ -20,10 +21,7 @@ pub(super) struct Tracer<T>
 where
     T: Task,
 {
-    task: Option<T>,
-    message: Message,
-    options: TaskOptions,
-    countdown: Option<Duration>,
+    task: T,
     event_tx: UnboundedSender<TaskEvent>,
 }
 
@@ -31,38 +29,19 @@ impl<T> Tracer<T>
 where
     T: Task,
 {
-    fn new(
-        message: Message,
-        options: TaskOptions,
-        event_tx: UnboundedSender<TaskEvent>,
-    ) -> Result<Self, ProtocolError> {
-        let body = message.body::<T>()?;
-        let (task, _) = body.parts();
-        let options = options.overrides(&task);
-        let countdown = message.countdown();
-
-        if let Some(eta) = message.headers.eta {
+    fn new(task: T, event_tx: UnboundedSender<TaskEvent>) -> Result<Self, ProtocolError> {
+        if let Some(eta) = task.request().eta {
             info!(
                 "Task {}[{}] received, ETA: {}",
-                T::NAME,
-                message.properties.correlation_id,
+                task.name(),
+                task.request().id,
                 eta
             );
         } else {
-            info!(
-                "Task {}[{}] received",
-                T::NAME,
-                message.properties.correlation_id
-            );
+            info!("Task {}[{}] received", task.name(), task.request().id);
         }
 
-        Ok(Self {
-            task: Some(task),
-            message,
-            options,
-            countdown,
-            event_tx,
-        })
+        Ok(Self { task, event_tx })
     }
 }
 
@@ -72,15 +51,11 @@ where
     T: Task,
 {
     async fn trace(&mut self) -> Result<(), TaskError> {
-        let context = TaskContext {
-            correlation_id: &self.message.properties.correlation_id,
-        };
-
         if self.is_expired() {
             warn!(
                 "Task {}[{}] expired, discarding",
-                T::NAME,
-                context.correlation_id,
+                self.task.name(),
+                &self.task.request().id,
             );
             return Err(TaskError::ExpirationError);
         }
@@ -94,16 +69,15 @@ where
             });
 
         let start = Instant::now();
-        let task = self.task.take().unwrap();
-        let result = match self.options.timeout {
+        let result = match self.task.timeout() {
             Some(secs) => {
                 debug!("Executing task with {} second timeout", secs);
                 let duration = Duration::from_secs(secs as u64);
-                time::timeout(duration, task.run())
+                time::timeout(duration, self.task.run(self.task.request().params.clone()))
                     .await
                     .unwrap_or_else(|_| Err(TaskError::TimeoutError))
             }
-            None => task.run().await,
+            None => self.task.run(self.task.request().params.clone()).await,
         };
         let duration = start.elapsed();
 
@@ -111,14 +85,20 @@ where
             Ok(returned) => {
                 info!(
                     "Task {}[{}] succeeded in {}s: {:?}",
-                    T::NAME,
-                    context.correlation_id,
+                    self.task.name(),
+                    &self.task.request().id,
                     duration.as_secs_f32(),
                     returned
                 );
 
                 // Run success callback.
-                T::on_success(&context, &returned).await;
+                self.task
+                    .on_success(
+                        &returned,
+                        &self.task.request().id,
+                        self.task.request().params.clone(),
+                    )
+                    .await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
@@ -133,26 +113,36 @@ where
                     TaskError::ExpectedError(ref reason) => {
                         warn!(
                             "Task {}[{}] failed with expected error: {}",
-                            T::NAME,
-                            context.correlation_id,
+                            self.task.name(),
+                            &self.task.request().id,
                             reason
                         );
                     }
                     TaskError::TimeoutError => {
-                        error!("Task {}[{}] timed out", T::NAME, context.correlation_id,);
+                        error!(
+                            "Task {}[{}] timed out",
+                            self.task.name(),
+                            &self.task.request().id,
+                        );
                     }
                     _ => {
                         error!(
                             "Task {}[{}] failed with unexpected error: {}",
-                            T::NAME,
-                            context.correlation_id,
+                            self.task.name(),
+                            &self.task.request().id,
                             e
                         );
                     }
                 };
 
                 // Run failure callback.
-                T::on_failure(&context, &e).await;
+                self.task
+                    .on_failure(
+                        &e,
+                        &self.task.request().id,
+                        self.task.request().params.clone(),
+                    )
+                    .await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
@@ -160,31 +150,28 @@ where
                         error!("Failed sending task event");
                     });
 
-                let retries = match self.message.headers.retries {
-                    Some(n) => n,
-                    None => 0,
-                };
-                if let Some(max_retries) = self.options.max_retries {
+                let retries = self.task.request().retries;
+                if let Some(max_retries) = self.task.max_retries() {
                     if retries >= max_retries {
                         warn!(
                             "Task {}[{}] retries exceeded",
-                            T::NAME,
-                            context.correlation_id
+                            self.task.name(),
+                            &self.task.request().id,
                         );
                         return Err(e);
                     }
                     info!(
                         "Task {}[{}] retrying ({} / {})",
-                        T::NAME,
-                        context.correlation_id,
+                        self.task.name(),
+                        &self.task.request().id,
                         retries + 1,
                         max_retries,
                     );
                 } else {
                     info!(
                         "Task {}[{}] retrying ({} / inf)",
-                        T::NAME,
-                        context.correlation_id,
+                        self.task.name(),
+                        &self.task.request().id,
                         retries + 1,
                     );
                 }
@@ -195,19 +182,19 @@ where
     }
 
     async fn wait(&self) {
-        if let Some(countdown) = self.countdown {
+        if let Some(countdown) = self.task.request().countdown() {
             time::delay_for(countdown).await;
         }
     }
 
     fn retry_eta(&self) -> Option<DateTime<Utc>> {
-        let retries = self.message.headers.retries.unwrap_or(0);
+        let retries = self.task.request().retries;
         let delay_secs = std::cmp::min(
             2u32.checked_pow(retries)
-                .unwrap_or_else(|| self.options.max_retry_delay),
-            self.options.max_retry_delay,
+                .unwrap_or_else(|| self.task.max_retry_delay().unwrap_or(3600)),
+            self.task.max_retry_delay().unwrap_or(3600),
         );
-        let delay_secs = std::cmp::max(delay_secs, self.options.min_retry_delay);
+        let delay_secs = std::cmp::max(delay_secs, self.task.min_retry_delay().unwrap_or(0));
         let between = Uniform::from(0..1000);
         let mut rng = rand::thread_rng();
         let delay_millis = between.sample(&mut rng);
@@ -227,15 +214,15 @@ where
     }
 
     fn is_delayed(&self) -> bool {
-        self.countdown.is_some()
+        self.task.request().is_delayed()
     }
 
     fn is_expired(&self) -> bool {
-        self.message.is_expired()
+        self.task.request().is_expired()
     }
 
     fn get_task_options(&self) -> &TaskOptions {
-        &self.options
+        self.task.options()
     }
 }
 
@@ -272,5 +259,7 @@ pub(super) fn build_tracer<T: Task + Send + 'static>(
     options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
 ) -> TraceBuilderResult {
-    Ok(Box::new(Tracer::<T>::new(message, options, event_tx)?))
+    let request = Request::<T>::try_from(message)?;
+    let task = T::from_request(request, options);
+    Ok(Box::new(Tracer::<T>::new(task, event_tx)?))
 }

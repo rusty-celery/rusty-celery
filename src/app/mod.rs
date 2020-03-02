@@ -2,6 +2,7 @@ use failure::Fail;
 use futures::stream::StreamExt;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{self, UnboundedSender};
@@ -14,7 +15,7 @@ mod trace;
 use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TaskError};
 use crate::protocol::{Message, TryCreateMessage};
-use crate::task::{Task, TaskEvent, TaskOptions, TaskSendOptions, TaskStatus};
+use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
@@ -57,9 +58,9 @@ where
                 task_options: TaskOptions {
                     timeout: None,
                     max_retries: None,
-                    min_retry_delay: 0,
-                    max_retry_delay: 3600,
-                    acks_late: false,
+                    min_retry_delay: Some(0),
+                    max_retry_delay: Some(3600),
+                    acks_late: Some(false),
                 },
                 task_routes: vec![],
             },
@@ -98,19 +99,19 @@ where
 
     /// Set a default minimum retry delay for tasks.
     pub fn task_min_retry_delay(mut self, task_min_retry_delay: u32) -> Self {
-        self.config.task_options.min_retry_delay = task_min_retry_delay;
+        self.config.task_options.min_retry_delay = Some(task_min_retry_delay);
         self
     }
 
     /// Set a default maximum retry delay for tasks.
     pub fn task_max_retry_delay(mut self, task_max_retry_delay: u32) -> Self {
-        self.config.task_options.max_retry_delay = task_max_retry_delay;
+        self.config.task_options.max_retry_delay = Some(task_max_retry_delay);
         self
     }
 
     /// Set whether by default a task is acknowledged before or after execution.
     pub fn acks_late(mut self, acks_late: bool) -> Self {
-        self.config.task_options.acks_late = acks_late;
+        self.config.task_options.acks_late = Some(acks_late);
         self
     }
 
@@ -232,31 +233,24 @@ where
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
-    /// Send a task to a remote worker with default options. Returns the correlation ID
-    /// of the task if successful.
-    pub async fn send_task<T: Task>(&self, task: T) -> Result<String, CeleryError> {
-        let queue = routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue);
-        let options = TaskSendOptions::builder().queue(queue).build();
-        self.send_task_with(task, &options).await
-    }
-
-    /// Send a task to a remote worker with custom options. Returns the correlation ID
-    /// of the task if successful.
-    pub async fn send_task_with<T: Task>(
+    /// Send a task to a remote worker. Returns the task ID of the task if successful.
+    pub async fn send_task<T: Task>(
         &self,
-        task: T,
-        options: &TaskSendOptions,
+        mut task_sig: Signature<T>,
     ) -> Result<String, CeleryError> {
-        let message = Message::builder(task)?.task_send_options(options).build();
-        let queue = options.queue.as_ref().unwrap_or(&self.default_queue);
+        let maybe_queue = task_sig.queue.take();
+        let queue = maybe_queue.as_ref().map(|s| s.as_str()).unwrap_or_else(|| {
+            routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
+        });
+        let message = Message::try_from(task_sig)?;
         info!(
             "Sending task {}[{}] to {}",
             T::NAME,
-            message.properties.correlation_id,
-            queue
+            message.task_id(),
+            queue,
         );
         self.broker.send(&message, queue).await?;
-        Ok(message.properties.correlation_id)
+        Ok(message.task_id().into())
     }
 
     /// Register a task.
@@ -348,7 +342,7 @@ where
         }
 
         // If acks_late is false, we acknowledge the message before tracing it.
-        if !tracer.get_task_options().acks_late {
+        if !tracer.get_task_options().acks_late.unwrap_or_default() {
             self.broker
                 .ack(&delivery)
                 .await
@@ -371,7 +365,7 @@ where
         }
 
         // If we have not done it before, we have to acknowledge the message now.
-        if tracer.get_task_options().acks_late {
+        if tracer.get_task_options().acks_late.unwrap_or_default() {
             self.broker
                 .ack(&delivery)
                 .await

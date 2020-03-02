@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::task::{Task, TaskContext};
+use celery::task::{Request, Signature, Task, TaskOptions};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -15,10 +15,21 @@ lazy_static! {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize)]
 struct add {
+    request: Request<Self>,
+    options: TaskOptions,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct AddParams {
     x: i32,
     y: i32,
+}
+
+impl add {
+    fn new(x: i32, y: i32) -> Signature<Self> {
+        Signature::<Self>::new(AddParams { x, y })
+    }
 }
 
 #[async_trait]
@@ -26,23 +37,30 @@ impl Task for add {
     const NAME: &'static str = "add";
     const ARGS: &'static [&'static str] = &["x", "y"];
 
+    type Params = AddParams;
     type Returns = i32;
 
-    async fn run(mut self) -> Result<Self::Returns, TaskError> {
-        Ok(self.x + self.y)
+    fn from_request(request: Request<Self>, options: TaskOptions) -> Self {
+        Self { request, options }
     }
 
-    async fn on_success(ctx: &TaskContext<'_>, returned: &Self::Returns) {
+    fn request(&self) -> &Request<Self> {
+        &self.request
+    }
+
+    fn options(&self) -> &TaskOptions {
+        &self.options
+    }
+
+    async fn run(&self, params: Self::Params) -> Result<Self::Returns, TaskError> {
+        Ok(params.x + params.y)
+    }
+
+    async fn on_success(&self, returned: &Self::Returns, task_id: &str, _params: Self::Params) {
         SUCCESSES
             .lock()
             .unwrap()
-            .insert(ctx.correlation_id.into(), Ok(*returned));
-    }
-}
-
-impl add {
-    fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
+            .insert(task_id.into(), Ok(*returned));
     }
 }
 

@@ -5,91 +5,90 @@
 //! type](../broker/trait.Broker.html#associatedtype.Delivery) must implement
 //! [`TryCreateMessage`](trait.TryCreateMessage.html).
 
-use chrono::{self, DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::convert::TryFrom;
 use std::time::SystemTime;
-use tokio::time::Duration;
 use uuid::Uuid;
 
 use crate::error::ProtocolError;
-use crate::task::{Task, TaskOptions, TaskSendOptions};
+use crate::task::{Signature, Task};
 
 /// Create a message with a custom configuration.
-pub struct MessageBuilder {
+pub struct MessageBuilder<T>
+where
+    T: Task,
+{
     message: Message,
+    params: Option<T::Params>,
 }
 
-impl MessageBuilder {
-    /// Create a new `MessageBuilder` with a given correlation ID, task name, and serialized body.
-    pub fn new(correlation_id: String, task_name: String, raw_body: Vec<u8>) -> Self {
+impl<T> MessageBuilder<T>
+where
+    T: Task,
+{
+    /// Create a new `MessageBuilder` with a given task ID.
+    pub fn new(id: String) -> Self {
         Self {
             message: Message {
                 properties: MessageProperties {
-                    correlation_id: correlation_id.clone(),
+                    correlation_id: id.clone(),
                     content_type: "application/json".into(),
                     content_encoding: "utf-8".into(),
                     reply_to: None,
                 },
                 headers: MessageHeaders {
-                    id: correlation_id,
-                    task: task_name,
+                    id,
+                    task: T::NAME.into(),
                     ..Default::default()
                 },
-                raw_body,
+                raw_body: Vec::new(),
             },
+            params: None,
         }
     }
 
-    /// Get a new `MessageBuilder` from a task.
-    pub fn from_task<T: Task>(task: T) -> Result<Self, ProtocolError> {
-        // Create random correlation id.
-        let mut buffer = Uuid::encode_buffer();
-        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
-        let correlation_id = uuid.to_owned();
-
-        let body = MessageBody::new(task);
-
-        Ok(Self::new(
-            correlation_id,
-            T::NAME.into(),
-            serde_json::to_vec(&body)?,
-        ))
-    }
-
-    pub fn task_options(mut self, options: &TaskOptions) -> Self {
-        self.message.headers.timelimit = (options.timeout, options.timeout);
+    pub fn timeout(mut self, timeout: u32) -> Self {
+        self.message.headers.timelimit = (Some(timeout), Some(timeout));
         self
     }
 
-    pub fn task_send_options(mut self, options: &TaskSendOptions) -> Self {
-        self.message.headers.timelimit = (options.timeout, options.timeout);
+    pub fn eta(mut self, eta: DateTime<Utc>) -> Self {
+        self.message.headers.eta = Some(eta);
+        self
+    }
 
-        // Set ETA.
-        if let Some(eta) = options.eta {
-            self.message.headers.eta = Some(eta);
-        } else if let Some(countdown) = options.countdown {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            let eta = now + chrono::Duration::seconds(countdown as i64);
-            self.message.headers.eta = Some(eta);
-        }
+    pub fn countdown(self, countdown: u32) -> Self {
+        let now = DateTime::<Utc>::from(SystemTime::now());
+        let eta = now + Duration::seconds(countdown as i64);
+        self.eta(eta)
+    }
 
-        // Set expiration time.
-        if let Some(expires) = options.expires {
-            self.message.headers.expires = Some(expires);
-        } else if let Some(expires_in) = options.expires_in {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            let expires = now + chrono::Duration::seconds(expires_in as i64);
-            self.message.headers.expires = Some(expires);
-        }
+    pub fn expires(mut self, expires: DateTime<Utc>) -> Self {
+        self.message.headers.expires = Some(expires);
+        self
+    }
 
+    pub fn expires_in(self, expires_in: u32) -> Self {
+        let now = DateTime::<Utc>::from(SystemTime::now());
+        let expires = now + Duration::seconds(expires_in as i64);
+        self.expires(expires)
+    }
+
+    pub fn params(mut self, params: T::Params) -> Self {
+        self.params = Some(params);
         self
     }
 
     /// Get the `Message` with the custom configuration.
-    pub fn build(self) -> Message {
-        self.message
+    pub fn build(mut self) -> Result<Message, ProtocolError> {
+        if let Some(params) = self.params.take() {
+            let body = MessageBody::<T>::new(params);
+            self.message.raw_body = serde_json::to_vec(&body)?;
+        };
+        Ok(self.message)
     }
 }
 
@@ -112,14 +111,6 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn builder<T: Task>(task: T) -> Result<MessageBuilder, ProtocolError> {
-        MessageBuilder::from_task::<T>(task)
-    }
-
-    pub fn new<T: Task>(task: T) -> Result<Self, ProtocolError> {
-        Ok(Self::builder(task)?.build())
-    }
-
     /// Try deserializing the body.
     pub fn body<T: Task>(&self) -> Result<MessageBody<T>, ProtocolError> {
         let value: Value = serde_json::from_slice(&self.raw_body)?;
@@ -142,7 +133,7 @@ impl Message {
                     }
                     return Ok(MessageBody(
                         vec![],
-                        serde_json::from_value::<T>(Value::Object(kwargs))?,
+                        serde_json::from_value::<T::Params>(Value::Object(kwargs))?,
                         serde_json::from_value::<MessageBodyEmbed>(Value::Object(embed))?,
                     ));
                 }
@@ -151,29 +142,44 @@ impl Message {
         Ok(serde_json::from_value::<MessageBody<T>>(value)?)
     }
 
-    /// Get the TTL countdown.
-    pub fn countdown(&self) -> Option<Duration> {
-        if let Some(eta) = self.headers.eta {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            let countdown = (eta - now).num_milliseconds();
-            if countdown < 0 {
-                None
-            } else {
-                Some(Duration::from_millis(countdown as u64))
-            }
-        } else {
-            None
-        }
+    /// Get thet task ID.
+    pub fn task_id(&self) -> &str {
+        &self.headers.id
     }
+}
 
-    /// Check if the message is expired.
-    pub fn is_expired(&self) -> bool {
-        if let Some(expires) = self.headers.expires {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            (now - expires).num_milliseconds() >= 0
-        } else {
-            false
+impl<T> TryFrom<Signature<T>> for Message
+where
+    T: Task,
+{
+    type Error = ProtocolError;
+
+    /// Get a new `MessageBuilder` from a task signature.
+    fn try_from(mut task_sig: Signature<T>) -> Result<Self, Self::Error> {
+        // Create random correlation id.
+        let mut buffer = Uuid::encode_buffer();
+        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let id = uuid.to_owned();
+
+        let mut builder = MessageBuilder::<T>::new(id);
+
+        if let Some(timeout) = task_sig.timeout.take() {
+            builder = builder.timeout(timeout);
         }
+
+        if let Some(countdown) = task_sig.countdown.take() {
+            builder = builder.countdown(countdown);
+        } else if task_sig.eta.is_some() {
+            builder = builder.eta(task_sig.eta.take().unwrap());
+        }
+
+        if let Some(expires_in) = task_sig.expires_in.take() {
+            builder = builder.expires_in(expires_in);
+        } else if task_sig.expires.is_some() {
+            builder = builder.expires(task_sig.expires.take().unwrap());
+        }
+
+        builder.params(task_sig.params).build()
     }
 }
 
@@ -192,7 +198,7 @@ impl TryCreateMessage for Message {
 /// Message meta data pertaining to the broker.
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct MessageProperties {
-    /// A unique ID associated with the task.
+    /// A unique ID associated with the task, usually the same as `MessageHeaders::id`.
     pub correlation_id: String,
 
     /// The MIME type of the body.
@@ -208,7 +214,7 @@ pub struct MessageProperties {
 /// Additional meta data pertaining to the Celery protocol.
 #[derive(Eq, PartialEq, Debug, Default, Clone)]
 pub struct MessageHeaders {
-    /// The correlation ID of the task.
+    /// A unique ID of the task.
     pub id: String,
 
     /// The name of the task.
@@ -223,7 +229,7 @@ pub struct MessageHeaders {
     /// The ID of the task that called this task within a work-flow.
     pub parent_id: Option<String>,
 
-    /// TODO
+    /// The unique ID of the task's group, if this task is a member.
     pub group: Option<String>,
 
     /// Currently unused but could be used in the future to specify class+method pairs.
@@ -258,17 +264,17 @@ pub struct MessageHeaders {
 /// The body of a message. Contains the task itself as well as callback / errback
 /// signatures and work-flow primitives.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
-pub struct MessageBody<T>(Vec<u8>, pub(crate) T, pub(crate) MessageBodyEmbed);
+pub struct MessageBody<T: Task>(Vec<u8>, pub(crate) T::Params, pub(crate) MessageBodyEmbed);
 
 impl<T> MessageBody<T>
 where
     T: Task,
 {
-    pub fn new(task: T) -> Self {
-        Self(vec![], task, MessageBodyEmbed::default())
+    pub fn new(params: T::Params) -> Self {
+        Self(vec![], params, MessageBodyEmbed::default())
     }
 
-    pub fn parts(self) -> (T, MessageBodyEmbed) {
+    pub fn parts(self) -> (T::Params, MessageBodyEmbed) {
         (self.1, self.2)
     }
 }
@@ -303,11 +309,16 @@ mod tests {
 
     use super::*;
     use crate::error::TaskError;
-    use crate::task::Task;
+    use crate::task::{Request, Task, TaskOptions};
 
-    #[derive(Serialize, Deserialize)]
-    struct TestTask {
+    #[derive(Clone, Serialize, Deserialize)]
+    struct TestTaskParams {
         a: i32,
+    }
+
+    struct TestTask {
+        request: Request<Self>,
+        options: TaskOptions,
     }
 
     #[async_trait]
@@ -315,16 +326,29 @@ mod tests {
         const NAME: &'static str = "test";
         const ARGS: &'static [&'static str] = &["a"];
 
+        type Params = TestTaskParams;
         type Returns = ();
 
-        async fn run(mut self) -> Result<(), TaskError> {
+        fn from_request(request: Request<Self>, options: TaskOptions) -> Self {
+            Self { request, options }
+        }
+
+        fn request(&self) -> &Request<Self> {
+            &self.request
+        }
+
+        fn options(&self) -> &TaskOptions {
+            &self.options
+        }
+
+        async fn run(&self, _params: Self::Params) -> Result<(), TaskError> {
             Ok(())
         }
     }
 
     #[test]
     fn test_serialize_body() {
-        let body = MessageBody::new(TestTask { a: 0 });
+        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 0 });
         let serialized = serde_json::to_string(&body).unwrap();
         assert_eq!(
             serialized,

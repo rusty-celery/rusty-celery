@@ -38,12 +38,21 @@ fn task_with_options() -> String {
 
 #[test]
 fn test_task_options() {
-    let t = task_with_options::new();
-    assert_eq!(t.timeout(), Some(2));
-    assert_eq!(t.max_retries(), Some(3));
-    assert_eq!(t.min_retry_delay(), Some(0));
-    assert_eq!(t.max_retry_delay(), Some(60));
-    assert_eq!(t.acks_late(), Some(true));
+    assert_eq!(task_with_options::DEFAULTS.timeout, Some(2));
+    assert_eq!(task_with_options::DEFAULTS.max_retries, Some(3));
+    assert_eq!(task_with_options::DEFAULTS.min_retry_delay, Some(0));
+    assert_eq!(task_with_options::DEFAULTS.max_retry_delay, Some(60));
+    assert_eq!(task_with_options::DEFAULTS.acks_late, Some(true));
+}
+
+#[celery::task(bind = true)]
+fn bound_task(t: &Self) -> Option<u32> {
+    t.timeout()
+}
+
+#[celery::task(bind = true)]
+fn bound_task_with_other_params(t: &Self, default_timeout: u32) -> u32 {
+    t.timeout().unwrap_or(default_timeout)
 }
 
 // This didn't work before since Task::run took a reference to self
@@ -61,11 +70,4 @@ fn test_task_options() {
 #[celery::task]
 fn task_with_strings(s1: String, s2: String) -> String {
     format!("{}, {}", s1, s2)
-}
-
-#[test]
-fn test_task_with_strings() {
-    let t = task_with_strings::new("hi".into(), "there".into());
-    let result = futures::executor::block_on(t.run()).unwrap();
-    assert_eq!(result, "hi, there");
 }

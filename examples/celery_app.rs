@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::task::TaskSendOptions;
+use celery::task::Task;
 use env_logger::Env;
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
@@ -24,10 +24,16 @@ fn buggy_task() {
 
 // Demonstrates a long running IO-bound task. By increasing the prefetch count, an arbitrary
 // number of these number can execute concurrently.
-#[celery::task]
+#[celery::task(max_retries = 2)]
 async fn long_running_task(secs: Option<u64>) {
     let secs = secs.unwrap_or(10);
     time::delay_for(Duration::from_secs(secs)).await;
+}
+
+// Demonstrates a task that is bound to the task instance, i.e. runs as an instance method.
+#[celery::task(bind = true)]
+fn bound_task(task: &Self) -> Option<u32> {
+    task.timeout()
 }
 
 #[derive(Debug, StructOpt)]
@@ -66,8 +72,10 @@ async fn main() -> Result<(), ExitFailure> {
             my_app.send_task(add::new(1, 2)).await?;
 
             // Demonstrates sending a task with additional options.
-            let send_options = TaskSendOptions::builder().countdown(10).build();
-            my_app.send_task_with(add::new(1, 3), &send_options).await?;
+            my_app.send_task(add::new(1, 3).with_countdown(5)).await?;
+            my_app
+                .send_task(long_running_task::new(Some(3)).with_timeout(2))
+                .await?;
         }
     };
 
