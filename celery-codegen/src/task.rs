@@ -489,7 +489,7 @@ impl ToTokens for Task {
         };
 
         let dummy_const = syn::Ident::new(
-            &format!("__IMPL_BATCH_JOB_FOR_{}", wrapper.to_string()),
+            &format!("__IMPL_CELERY_TASK_FOR_{}", wrapper.to_string()),
             Span::call_site(),
         );
 

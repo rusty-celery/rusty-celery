@@ -50,43 +50,35 @@ where
         }
     }
 
-    pub fn timeout(mut self, timeout: Option<u32>) -> Self {
-        self.message.headers.timelimit = (timeout, timeout);
+    pub fn timeout(mut self, timeout: u32) -> Self {
+        self.message.headers.timelimit = (Some(timeout), Some(timeout));
         self
     }
 
-    pub fn eta(mut self, eta: Option<DateTime<Utc>>) -> Self {
-        self.message.headers.eta = eta;
+    pub fn eta(mut self, eta: DateTime<Utc>) -> Self {
+        self.message.headers.eta = Some(eta);
         self
     }
 
-    pub fn countdown(self, countdown: Option<u32>) -> Self {
-        if let Some(seconds) = countdown {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            let eta = now + Duration::seconds(seconds as i64);
-            self.eta(Some(eta))
-        } else {
-            self
-        }
+    pub fn countdown(self, countdown: u32) -> Self {
+        let now = DateTime::<Utc>::from(SystemTime::now());
+        let eta = now + Duration::seconds(countdown as i64);
+        self.eta(eta)
     }
 
-    pub fn expires(mut self, expires: Option<DateTime<Utc>>) -> Self {
-        self.message.headers.expires = expires;
+    pub fn expires(mut self, expires: DateTime<Utc>) -> Self {
+        self.message.headers.expires = Some(expires);
         self
     }
 
-    pub fn expires_in(self, expires_in: Option<u32>) -> Self {
-        if let Some(seconds) = expires_in {
-            let now = DateTime::<Utc>::from(SystemTime::now());
-            let expires = now + Duration::seconds(seconds as i64);
-            self.expires(Some(expires))
-        } else {
-            self
-        }
+    pub fn expires_in(self, expires_in: u32) -> Self {
+        let now = DateTime::<Utc>::from(SystemTime::now());
+        let expires = now + Duration::seconds(expires_in as i64);
+        self.expires(expires)
     }
 
-    pub fn params(mut self, params: Option<T::Params>) -> Self {
-        self.params = params;
+    pub fn params(mut self, params: T::Params) -> Self {
+        self.params = Some(params);
         self
     }
 
@@ -169,14 +161,25 @@ where
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
         let id = uuid.to_owned();
 
-        MessageBuilder::<T>::new(id)
-            .timeout(task_sig.timeout.take())
-            .countdown(task_sig.countdown.take())
-            .eta(task_sig.eta.take())
-            .expires_in(task_sig.expires_in.take())
-            .expires(task_sig.expires.take())
-            .params(Some(task_sig.params))
-            .build()
+        let mut builder = MessageBuilder::<T>::new(id);
+
+        if let Some(timeout) = task_sig.timeout.take() {
+            builder = builder.timeout(timeout);
+        }
+
+        if let Some(countdown) = task_sig.countdown.take() {
+            builder = builder.countdown(countdown);
+        } else if task_sig.eta.is_some() {
+            builder = builder.eta(task_sig.eta.take().unwrap());
+        }
+
+        if let Some(expires_in) = task_sig.expires_in.take() {
+            builder = builder.expires_in(expires_in);
+        } else if task_sig.expires.is_some() {
+            builder = builder.expires(task_sig.expires.take().unwrap());
+        }
+
+        builder.params(task_sig.params).build()
     }
 }
 
