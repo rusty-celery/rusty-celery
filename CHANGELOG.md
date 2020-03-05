@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.1] - 2019-03-05
+
 ### Added
 
 - `on_failure` and `on_success` options to `task` attribute macro.
