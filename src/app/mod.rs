@@ -13,7 +13,7 @@ mod routing;
 mod trace;
 
 use crate::broker::{Broker, BrokerBuilder};
-use crate::error::{BrokerError, CeleryError, TaskError};
+use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, TryCreateMessage};
 use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use routing::Rule;
@@ -355,8 +355,7 @@ where
         // we only log errors at the broker and delivery level.
         if let Err(e) = tracer.trace().await {
             // If retry error -> retry the task.
-            if let TaskError::Retry = e {
-                let retry_eta = tracer.retry_eta();
+            if let TraceError::Retry(retry_eta) = e {
                 self.broker
                     .retry(&delivery, retry_eta)
                     .await
