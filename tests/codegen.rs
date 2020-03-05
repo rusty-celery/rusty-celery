@@ -73,11 +73,11 @@ fn task_with_strings(s1: String, s2: String) -> String {
     format!("{}, {}", s1, s2)
 }
 
-fn task_on_failure<T: Task>(task: &T, _err: &TaskError) {
+async fn task_on_failure<T: Task>(task: &T, _err: &TaskError) {
     println!("Ahhhhh task {}[{}] failed!", task.name(), task.request().id);
 }
 
-fn task_on_success<T: Task>(task: &T, _ret: &T::Returns) {
+async fn task_on_success<T: Task>(task: &T, _ret: &T::Returns) {
     println!(
         "Woooooo task {}[{}] succeeded!",
         task.name(),

@@ -526,14 +526,14 @@ impl ToTokens for Task {
 
         let call_on_failure = match self.on_failure.as_ref() {
             Some(ident) => quote! {
-                #ident(self, err)
+                #ident(self, err).await
             },
             None => quote! {},
         };
 
         let call_on_success = match self.on_success.as_ref() {
             Some(ident) => quote! {
-                #ident(self, returned)
+                #ident(self, returned).await
             },
             None => quote! {},
         };
