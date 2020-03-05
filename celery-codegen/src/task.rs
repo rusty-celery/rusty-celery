@@ -270,49 +270,53 @@ impl Task {
 
 impl VisitMut for Task {
     fn visit_item_fn_mut(&mut self, node: &mut syn::ItemFn) {
+        const ERR_GENERICS: &str = "functions with generic arguments are not supported";
+        const ERR_VARIADIC: &str = "functions with variadic arguments are not supported";
+        const ERR_MISSING_SELF: &str = "bound task should have &self as an argument";
         const ERR_ABI: &str = "functions with non-Rust ABI are not supported";
-        let ident = node.ident.clone();
 
-        self.visibility = node.vis.clone();
-        if let Some(ref mut it) = node.abi {
+        if let Some(ref mut it) = node.sig.abi {
             self.errors.push(Error::spanned(ERR_ABI, it.span()));
         };
+
+        if !node.sig.generics.params.is_empty() {
+            self.errors
+                .push(Error::spanned(ERR_GENERICS, node.sig.generics.span()));
+        }
+
+        if let Some(ref mut it) = node.sig.variadic {
+            self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
+        }
+
+        let ident = node.sig.ident.clone();
+
+        self.visibility = node.vis.clone();
+        self.inner_block = Some((*node.block).clone());
+        self.is_async = node.sig.asyncness.is_some();
+        self.inputs = Some(node.sig.inputs.clone());
+
+        if self.wrapper.is_none() {
+            self.wrapper = Some(ident.clone());
+        }
+
         if self.name.is_none() {
             self.name = Some(ident.to_string())
         }
+
         if self.params_type.is_none() {
             self.params_type = Some(syn::Ident::new(
                 &format!("{}Params", ident.to_string())[..],
                 Span::call_site(),
             ));
         }
-        if self.wrapper.is_none() {
-            self.wrapper = Some(ident);
-        }
-        self.visit_fn_decl_mut(&mut *node.decl);
-        self.inner_block = Some((*node.block).clone());
-        self.is_async = node.asyncness.is_some();
-    }
 
-    fn visit_fn_decl_mut(&mut self, node: &mut syn::FnDecl) {
-        const ERR_GENERICS: &str = "functions with generic arguments are not supported";
-        const ERR_VARIADIC: &str = "functions with variadic arguments are not supported";
-        const ERR_MISSING_SELF: &str = "bound task should have &self as an argument";
-
-        if !node.generics.params.is_empty() {
-            self.errors
-                .push(Error::spanned(ERR_GENERICS, node.generics.span()));
-        }
-        self.original_args = node.inputs.clone().into_iter().collect();
+        self.original_args = node.sig.inputs.clone().into_iter().collect();
         if self.bind && self.original_args.is_empty() {
             self.errors
-                .push(Error::spanned(ERR_MISSING_SELF, node.inputs.span()));
+                .push(Error::spanned(ERR_MISSING_SELF, node.sig.inputs.span()));
         }
-        self.inputs = Some(node.inputs.clone());
-        if let Some(ref mut it) = node.variadic {
-            self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
-        }
-        if let syn::ReturnType::Type(_arr, ref ty) = node.output {
+
+        if let syn::ReturnType::Type(_arr, ref ty) = node.sig.output {
             self.return_type = Some((**ty).clone());
         }
     }
@@ -325,8 +329,8 @@ fn args_to_fields<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => {
-                let ident = match cap.pat {
+            syn::FnArg::Typed(cap) => {
+                let ident = match *cap.pat {
                     syn::Pat::Ident(ref pat) => &pat.ident,
                     _ => return acc,
                 };
@@ -347,7 +351,7 @@ fn args_to_arg_names<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => match cap.pat {
+            syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
                     let name = &pat.ident.to_string();
                     quote! {
@@ -365,7 +369,7 @@ fn args_to_bindings<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>, bind: bo
     args.into_iter()
         .enumerate()
         .fold(TokenStream::new(), |acc, (i, arg)| match arg {
-            syn::FnArg::Captured(cap) => match cap.pat {
+            syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
                     let ident = &pat.ident;
                     if bind && i == 0 {
@@ -392,7 +396,7 @@ fn args_to_calling_args<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => match cap.pat {
+            syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
                     let ident = &pat.ident;
                     quote! {
@@ -413,8 +417,8 @@ fn args_to_typed_inputs<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => {
-                let ident = match cap.pat {
+            syn::FnArg::Typed(cap) => {
+                let ident = match *cap.pat {
                     syn::Pat::Ident(ref pat) => &pat.ident,
                     _ => return acc,
                 };
