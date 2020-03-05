@@ -1,7 +1,10 @@
 //! Provides the `Task` trait as well as options for configuring tasks.
 
 use async_trait::async_trait;
+use chrono::{DateTime, NaiveDateTime, Utc};
+use rand::distributions::{Distribution, Uniform};
 use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::TaskError;
 
@@ -69,6 +72,34 @@ pub trait Task: Send + Sync + std::marker::Sized {
     /// Returns the registered name of the task.
     fn name(&self) -> &'static str {
         Self::NAME
+    }
+
+    /// Get a future ETA at which time the task should be retried. By default this
+    /// uses a capped exponential backoff strategy.
+    fn retry_eta(&self) -> Option<DateTime<Utc>> {
+        let retries = self.request().retries;
+        let delay_secs = std::cmp::min(
+            2u32.checked_pow(retries)
+                .unwrap_or_else(|| self.max_retry_delay().unwrap_or(3600)),
+            self.max_retry_delay().unwrap_or(3600),
+        );
+        let delay_secs = std::cmp::max(delay_secs, self.min_retry_delay().unwrap_or(0));
+        let between = Uniform::from(0..1000);
+        let mut rng = rand::thread_rng();
+        let delay_millis = between.sample(&mut rng);
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(now) => {
+                let now_secs = now.as_secs() as u32;
+                let now_millis = now.subsec_millis();
+                let eta_secs = now_secs + delay_secs;
+                let eta_millis = now_millis + delay_millis;
+                Some(DateTime::<Utc>::from_utc(
+                    NaiveDateTime::from_timestamp(eta_secs as i64, eta_millis * 1000),
+                    Utc,
+                ))
+            }
+            Err(_) => None,
+        }
     }
 
     /// Default timeout for this task.

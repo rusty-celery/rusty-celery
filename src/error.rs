@@ -1,5 +1,6 @@
 //! Error types.
 
+use chrono::{DateTime, Utc};
 use failure::{Context, Fail};
 
 /// Errors that can occur while creating or using a `Celery` app.
@@ -37,7 +38,7 @@ pub enum CeleryError {
     UnregisteredTaskError(String),
 }
 
-/// Errors that can occur while running or tracing a task.
+/// Errors that can occur at the task level.
 #[derive(Debug, Fail)]
 pub enum TaskError {
     /// An error that is expected to happen every once in a while and should trigger
@@ -49,17 +50,25 @@ pub enum TaskError {
     #[fail(display = "{}", _0)]
     UnexpectedError(String),
 
+    /// Raised when a task runs over its time limit.
+    #[fail(display = "Task timed out")]
+    TimeoutError,
+}
+
+/// Errors that can occur while tracing a task.
+#[derive(Debug, Fail)]
+pub(crate) enum TraceError {
+    /// Raised when a task throws an error while executing.
+    #[fail(display = "Task failed with {}", _0)]
+    TaskError(TaskError),
+
     /// Raised when an expired task is received.
     #[fail(display = "Task expired")]
     ExpirationError,
 
     /// Raised when a task should be retried.
     #[fail(display = "Retrying task")]
-    Retry,
-
-    /// Raised when a task runs over its time limit.
-    #[fail(display = "Task timed out")]
-    TimeoutError,
+    Retry(Option<DateTime<Utc>>),
 }
 
 /// Errors that can occur at the broker level.
