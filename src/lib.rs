@@ -98,6 +98,10 @@ mod codegen;
 /// - `bind`: A bool. If true, the task will be run like an instance method and so the function's
 /// first argument should be a reference to `Self`. Note however that Rust won't allow you to call
 /// the argument `self`. Instead, you could use `task` or just `t`.
+/// - `on_failure`: A callback function to run when the task fails. Should accept a reference to
+/// a task instance and a reference to a `TaskError`.
+/// - `on_success`: A callback function to run when the task succeeds. Should accept a reference to
+/// a task instance and a reference to the value returned by the task.
 ///
 /// For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
 /// in the Rusty Celery Book.
@@ -143,6 +147,23 @@ mod codegen;
 /// #[celery::task(bind = true)]
 /// fn bound_task(task: &Self) {
 ///     println!("Hello, World! From {}", task.name());
+/// }
+/// ```
+///
+/// Run custom callbacks on failure and on success:
+///
+/// ```rust
+/// # use celery::task::Task;
+/// # use celery::error::TaskError;
+/// #[celery::task(on_failure = failure_callback, on_success = success_callback)]
+/// fn task_with_callbacks() {}
+///
+/// fn failure_callback<T: Task>(task: &T, err: &TaskError) {
+///     println!("{} failed with {:?}", task.name(), err);
+/// }
+///
+/// fn success_callback<T: Task>(task: &T, ret: &T::Returns) {
+///     println!("{} succeeded: {:?}", task.name(), ret);
 /// }
 /// ```
 #[cfg(feature = "codegen")]

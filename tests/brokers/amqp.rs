@@ -56,11 +56,11 @@ impl Task for add {
         Ok(params.x + params.y)
     }
 
-    async fn on_success(&self, returned: &Self::Returns, task_id: &str, _params: Self::Params) {
+    async fn on_success(&self, returned: &Self::Returns) {
         SUCCESSES
             .lock()
             .unwrap()
-            .insert(task_id.into(), Ok(*returned));
+            .insert(self.request().id.clone(), Ok(*returned));
     }
 }
 

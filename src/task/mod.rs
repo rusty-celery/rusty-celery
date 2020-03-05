@@ -60,11 +60,11 @@ pub trait Task: Send + Sync + std::marker::Sized {
 
     /// Callback that will run after a task fails.
     #[allow(unused_variables)]
-    async fn on_failure(&self, err: &TaskError, task_id: &str, params: Self::Params) {}
+    async fn on_failure(&self, err: &TaskError) {}
 
     /// Callback that will run after a task completes successfully.
     #[allow(unused_variables)]
-    async fn on_success(&self, returned: &Self::Returns, task_id: &str, params: Self::Params) {}
+    async fn on_success(&self, returned: &Self::Returns) {}
 
     /// Returns the registered name of the task.
     fn name(&self) -> &'static str {

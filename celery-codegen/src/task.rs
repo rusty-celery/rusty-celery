@@ -526,14 +526,14 @@ impl ToTokens for Task {
 
         let call_on_failure = match self.on_failure.as_ref() {
             Some(ident) => quote! {
-                #ident(self, err, task_id, params)
+                #ident(self, err)
             },
             None => quote! {},
         };
 
         let call_on_success = match self.on_success.as_ref() {
             Some(ident) => quote! {
-                #ident(self, returned, task_id, params)
+                #ident(self, returned)
             },
             None => quote! {},
         };
@@ -592,11 +592,11 @@ impl ToTokens for Task {
                         #call_run_implementation
                     }
 
-                    async fn on_failure(&self, err: &#krate::error::TaskError, task_id: &str, params: Self::Params) {
+                    async fn on_failure(&self, err: &#krate::error::TaskError) {
                         #call_on_failure
                     }
 
-                    async fn on_success(&self, returned: &Self::Returns, task_id: &str, params: Self::Params) {
+                    async fn on_success(&self, returned: &Self::Returns) {
                         #call_on_success
                     }
                 }

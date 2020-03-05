@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `on_failure` and `on_success` options to `task` attribute macro.
+
+### Changed
+
+- Removed `task_id` and `params` arguments to `on_failure` and `on_success` callbacks, since those can be gotten from the request object.
+
 ## [0.2.0] - 2019-03-02
 
 ### Added

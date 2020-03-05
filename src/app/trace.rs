@@ -92,13 +92,7 @@ where
                 );
 
                 // Run success callback.
-                self.task
-                    .on_success(
-                        &returned,
-                        &self.task.request().id,
-                        self.task.request().params.clone(),
-                    )
-                    .await;
+                self.task.on_success(&returned).await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
@@ -136,13 +130,7 @@ where
                 };
 
                 // Run failure callback.
-                self.task
-                    .on_failure(
-                        &e,
-                        &self.task.request().id,
-                        self.task.request().params.clone(),
-                    )
-                    .await;
+                self.task.on_failure(&e).await;
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
