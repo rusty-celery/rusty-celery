@@ -26,6 +26,8 @@ enum TaskAttr {
     MaxRetryDelay(syn::LitInt),
     AcksLate(syn::LitBool),
     Bind(syn::LitBool),
+    OnFailure(syn::Ident),
+    OnSuccess(syn::Ident),
 }
 
 #[derive(Clone)]
@@ -46,6 +48,8 @@ struct Task {
     return_type: Option<syn::Type>,
     is_async: bool,
     bind: bool,
+    on_failure: Option<syn::Ident>,
+    on_success: Option<syn::Ident>,
 }
 
 impl TaskAttrs {
@@ -138,6 +142,26 @@ impl TaskAttrs {
             })
             .next()
     }
+
+    fn on_failure(&self) -> Option<syn::Ident> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::OnFailure(i) => Some(i.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
+    fn on_success(&self) -> Option<syn::Ident> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::OnSuccess(i) => Some(i.clone()),
+                _ => None,
+            })
+            .next()
+    }
 }
 
 impl parse::Parse for TaskAttrs {
@@ -159,6 +183,8 @@ mod kw {
     syn::custom_keyword!(max_retry_delay);
     syn::custom_keyword!(acks_late);
     syn::custom_keyword!(bind);
+    syn::custom_keyword!(on_failure);
+    syn::custom_keyword!(on_success);
 }
 
 impl parse::Parse for TaskAttr {
@@ -200,6 +226,14 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::bind>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::Bind(input.parse()?))
+        } else if lookahead.peek(kw::on_failure) {
+            input.parse::<kw::on_failure>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::OnFailure(input.parse()?))
+        } else if lookahead.peek(kw::on_success) {
+            input.parse::<kw::on_success>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::OnSuccess(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -228,6 +262,8 @@ impl Task {
                 .bind()
                 .map(|lit_bool| lit_bool.value)
                 .unwrap_or_default(),
+            on_failure: attrs.on_failure(),
+            on_success: attrs.on_success(),
         })
     }
 }
@@ -488,6 +524,20 @@ impl ToTokens for Task {
             }
         };
 
+        let call_on_failure = match self.on_failure.as_ref() {
+            Some(ident) => quote! {
+                #ident(self, err, task_id, params)
+            },
+            None => quote! {},
+        };
+
+        let call_on_success = match self.on_success.as_ref() {
+            Some(ident) => quote! {
+                #ident(self, returned, task_id, params)
+            },
+            None => quote! {},
+        };
+
         let dummy_const = syn::Ident::new(
             &format!("__IMPL_CELERY_TASK_FOR_{}", wrapper.to_string()),
             Span::call_site(),
@@ -540,6 +590,14 @@ impl ToTokens for Task {
                     async fn run(&self, params: Self::Params) -> #krate::task::TaskResult<Self::Returns> {
                         #deserialized_bindings
                         #call_run_implementation
+                    }
+
+                    async fn on_failure(&self, err: &#krate::error::TaskError, task_id: &str, params: Self::Params) {
+                        #call_on_failure
+                    }
+
+                    async fn on_success(&self, returned: &Self::Returns, task_id: &str, params: Self::Params) {
+                        #call_on_success
                     }
                 }
             };

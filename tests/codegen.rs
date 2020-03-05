@@ -1,3 +1,4 @@
+use celery::error::TaskError;
 use celery::task::Task;
 
 #[celery::task(name = "add")]
@@ -70,4 +71,21 @@ fn bound_task_with_other_params(t: &Self, default_timeout: u32) -> u32 {
 #[celery::task]
 fn task_with_strings(s1: String, s2: String) -> String {
     format!("{}, {}", s1, s2)
+}
+
+fn task_on_failure<T: Task>(task: &T, _err: &TaskError, _task_id: &str, _params: T::Params) {
+    println!("Ahhhhh task {}[{}] failed!", task.name(), task.request().id);
+}
+
+fn task_on_success<T: Task>(task: &T, _ret: &T::Returns, _task_id: &str, _params: T::Params) {
+    println!(
+        "Woooooo task {}[{}] succeeded!",
+        task.name(),
+        task.request().id
+    );
+}
+
+#[celery::task(on_failure = task_on_failure, on_success = task_on_success)]
+fn task_with_callbacks() {
+    println!("Yeup yeup yeup");
 }
