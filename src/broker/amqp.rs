@@ -83,18 +83,20 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
         let conn = Connection::connect_uri(uri, ConnectionProperties::default()).await?;
-        let channel = conn.create_channel().await?;
+        let consume_channel = conn.create_channel().await?;
+        let produce_channel = Mutex::new(conn.create_channel().await?);
         let mut queues: HashMap<String, Queue> = HashMap::new();
         for (queue_name, queue_options) in &self.config.queues {
-            let queue = channel
+            let queue = consume_channel
                 .queue_declare(queue_name, queue_options.clone(), FieldTable::default())
                 .await?;
             queues.insert(queue_name.into(), queue);
         }
         let broker = AMQPBroker {
             conn,
-            channel,
-            channel_write_lock: Mutex::new(0),
+            consume_channel,
+            produce_channel,
+            consume_channel_write_lock: Mutex::new(0),
             queues,
             prefetch_count: Mutex::new(self.config.prefetch_count),
         };
@@ -110,17 +112,23 @@ pub struct AMQPBroker {
     /// Broker connection.
     conn: Connection,
 
-    /// Channel to read and write from.
-    channel: Channel,
+    /// Channel to consume messages from.
+    consume_channel: Channel,
 
-    /// When we publish to a channel (or do other write actions) we need to be careful
-    /// not to create race conditions. So we use this dummy mutex to ensure we complete
-    /// each write before doing another write.
+    /// Channel to produce messages from.
     ///
-    /// Note that we can't put the channel itself inside of a Mutex since a worker
+    /// To avoid race conditions when writing to the channel we have to wrap it
+    /// in a mutex.
+    produce_channel: Mutex<Channel>,
+
+    /// Like the `produce_channel`, we have to be careful to avoid race conditions
+    /// when writing to the `cosume_channel`, like when ack-ing or setting the
+    /// `prefetch_count` (these have to be done through the same channel that consumes
+    /// the messages). But we can't put `consume_channel` itself inside of a Mutex since a worker
     /// that is consuming would always own the lock on the mutex, so we'd never be able
-    /// to acquire it for anything else.
-    channel_write_lock: Mutex<u8>,
+    /// to acquire it for anything else. Hence this dummy Mutex that we only
+    /// try to acquire when writing.
+    consume_channel_write_lock: Mutex<u8>,
 
     /// Mapping of queue name to Queue struct.
     queues: HashMap<String, Queue>,
@@ -133,8 +141,8 @@ pub struct AMQPBroker {
 impl AMQPBroker {
     async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), BrokerError> {
         debug!("Setting prefetch count to {}", prefetch_count);
-        let _lock = self.channel_write_lock.lock().await;
-        self.channel
+        let _lock = self.consume_channel_write_lock.lock().await;
+        self.consume_channel
             .basic_qos(prefetch_count, BasicQosOptions { global: true })
             .await?;
         Ok(())
@@ -158,7 +166,7 @@ impl Broker for AMQPBroker {
             .queues
             .get(queue)
             .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
-        self.channel
+        self.consume_channel
             .basic_consume(
                 queue,
                 "",
@@ -170,8 +178,8 @@ impl Broker for AMQPBroker {
     }
 
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
-        let _lock = self.channel_write_lock.lock().await;
-        self.channel
+        let _lock = self.consume_channel_write_lock.lock().await;
+        self.consume_channel
             .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
             .await
             .map_err(|e| e.into())
@@ -204,8 +212,9 @@ impl Broker for AMQPBroker {
         };
 
         let properties = delivery.properties.clone().with_headers(headers);
-        let _lock = self.channel_write_lock.lock().await;
-        self.channel
+        self.produce_channel
+            .lock()
+            .await
             .basic_publish(
                 "",
                 delivery.routing_key.as_str(),
@@ -221,8 +230,9 @@ impl Broker for AMQPBroker {
     async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
         let properties = message.delivery_properties();
         debug!("Sending AMQP message with: {:?}", properties);
-        let _lock = self.channel_write_lock.lock().await;
-        self.channel
+        self.produce_channel
+            .lock()
+            .await
             .basic_publish(
                 "",
                 queue,
@@ -269,8 +279,7 @@ impl Broker for AMQPBroker {
     async fn close(&self) -> Result<(), BrokerError> {
         // 320 reply-code = "connection-forced", operator intervened.
         // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
-        let _lock = self.channel_write_lock.lock().await;
-        self.channel.close(320, "").await?;
+        let _lock = self.consume_channel_write_lock.lock().await;
         self.conn.close(320, "").await?;
         Ok(())
     }
