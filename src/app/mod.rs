@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::stream::StreamMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
@@ -384,22 +385,10 @@ where
     }
 
     /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
-    async fn handle_delivery(
-        &self,
-        delivery_result: Result<B::Delivery, B::DeliveryError>,
-        event_tx: UnboundedSender<TaskEvent>,
-    ) {
-        match delivery_result {
-            Ok(delivery) => {
-                debug!("Received delivery: {:?}", delivery);
-                if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
-                    error!("{}", e);
-                };
-            }
-            Err(e) => {
-                error!("Deliver failed: {}", e);
-            }
-        };
+    async fn handle_delivery(&self, delivery: B::Delivery, event_tx: UnboundedSender<TaskEvent>) {
+        if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
+            error!("{}", e);
+        }
     }
 
     /// Close channels and connections.
@@ -414,31 +403,38 @@ where
 {
     /// Consume tasks from the default queue.
     pub async fn consume(&'static self) -> Result<(), CeleryError> {
-        Ok(self.consume_from(&self.default_queue).await?)
+        Ok(self.consume_from(&[&self.default_queue]).await?)
     }
 
     /// Consume tasks from a queue.
     #[allow(clippy::cognitive_complexity)]
-    pub async fn consume_from(&'static self, queue: &str) -> Result<(), CeleryError> {
-        info!("Consuming from {}", queue);
+    pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+        info!("Consuming from {:?}", queues);
 
         // Stream of errors from broker. The capacity here is arbitrary because a single
         // error from the broker should trigger this method to return early.
         let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
 
         // Stream of deliveries from the queue.
-        let mut deliveries = Box::pin(
-            self.broker
-                .consume(
-                    queue,
-                    Box::new(move || {
-                        if broker_error_tx.clone().try_send(()).is_err() {
-                            error!("Failed to send broker error event");
-                        };
-                    }),
-                )
-                .await?,
-        );
+        let mut stream_map = StreamMap::new();
+        for queue in queues {
+            let broker_error_tx = broker_error_tx.clone();
+            stream_map.insert(
+                queue,
+                Box::pin(
+                    self.broker
+                        .consume(
+                            queue,
+                            Box::new(move || {
+                                if broker_error_tx.clone().try_send(()).is_err() {
+                                    error!("Failed to send broker error event");
+                                };
+                            }),
+                        )
+                        .await?,
+                ),
+            );
+        }
 
         // Stream of OS signals.
         let mut sigint = signal(SignalKind::interrupt())?;
@@ -458,10 +454,18 @@ where
         // tasks being delayed due to a future ETA).
         loop {
             select! {
-                maybe_delivery_result = deliveries.next() => {
-                    if let Some(delivery_result) = maybe_delivery_result {
-                        let task_event_tx = task_event_tx.clone();
-                        tokio::spawn(self.handle_delivery(delivery_result, task_event_tx));
+                maybe_delivery_result = stream_map.next() => {
+                    if let Some((queue, delivery_result)) = maybe_delivery_result {
+                        match delivery_result {
+                            Ok(delivery) => {
+                                let task_event_tx = task_event_tx.clone();
+                                debug!("Received delivery from {}: {:?}", queue, delivery);
+                                tokio::spawn(self.handle_delivery(delivery, task_event_tx));
+                            }
+                            Err(e) => {
+                                error!("Deliver failed: {}", e);
+                            }
+                        }
                     }
                 },
                 _ = sigint.next() => {
