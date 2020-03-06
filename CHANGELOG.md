@@ -6,8 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.2] - 2019-03-06
+
 ### Changed
 
+- `Celery::consume_from` now takes multiple queues instead of just a single queue.
 - Retry ETA method moved from tracer to task so that it can be customized.
 - `TaskError` variants restricted to only `ExpectedError`, `UnexpectedError`, and `TimeoutError`. The `Retry` and `ExpirationError` variants moved to a new (non-public) error type: `TracerError`.
 
