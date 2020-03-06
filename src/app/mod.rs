@@ -31,7 +31,7 @@ where
     broker_connection_max_retries: u32,
     default_queue: String,
     task_options: TaskOptions,
-    task_routes: Vec<Rule>,
+    task_routes: Vec<(String, String)>,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
@@ -117,10 +117,9 @@ where
     }
 
     /// Add a routing rule.
-    pub fn task_route(mut self, pattern: &str, queue: &str) -> Result<Self, CeleryError> {
-        let rule = Rule::new(pattern, queue)?;
-        self.config.task_routes.push(rule);
-        Ok(self)
+    pub fn task_route(mut self, pattern: &str, queue: &str) -> Self {
+        self.config.task_routes.push((pattern.into(), queue.into()));
+        self
     }
 
     /// Set a timeout in seconds before giving up establishing a connection to a broker.
@@ -150,9 +149,12 @@ where
             .broker_builder
             .declare_queue(&self.config.default_queue);
 
-        // Ensure all other queues mentioned in task_routes are declared to the broker.
-        for rule in &self.config.task_routes {
-            broker_builder = broker_builder.declare_queue(&rule.queue);
+        let mut task_routes: Vec<Rule> = Vec::with_capacity(self.config.task_routes.len());
+        for (pattern, queue) in &self.config.task_routes {
+            let rule = Rule::new(&pattern, &queue)?;
+            task_routes.push(rule);
+            // Ensure all other queues mentioned in task_routes are declared to the broker.
+            broker_builder = broker_builder.declare_queue(&queue);
         }
 
         // Try building / connecting to broker.
@@ -196,7 +198,7 @@ where
             broker: broker.ok_or_else(|| BrokerError::NotConnected)?,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
-            task_routes: self.config.task_routes,
+            task_routes,
             task_trace_builders: RwLock::new(HashMap::new()),
         })
     }

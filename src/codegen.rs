@@ -21,7 +21,7 @@ macro_rules! __app_internal {
             )*
 
             $(
-                builder = builder.task_route($pattern, $queue).unwrap();
+                builder = builder.task_route($pattern, $queue);
             )*
 
             let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();

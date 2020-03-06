@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `CeleryBuilder::task_route` now infallible. Error could be raised during the `build` phase instead.
+
 ## [0.2.2] - 2019-03-06
 
 ### Changed
