@@ -58,18 +58,23 @@ async fn main() -> Result<(), ExitFailure> {
             buggy_task,
             long_running_task,
         ],
-        task_routes = [],
+        task_routes = [
+            "buggy_task" => "buggy-queue",
+            "*" => "celery",
+        ],
         prefetch_count = 2,
         heartbeat = Some(10),
     );
 
     match opt {
         CeleryOpt::Consume => {
-            my_app.consume().await?;
+            my_app.consume_from(&["celery", "buggy-queue"]).await?;
         }
         CeleryOpt::Produce => {
             // Basic sending.
             my_app.send_task(add::new(1, 2)).await?;
+
+            my_app.send_task(buggy_task::new()).await?;
 
             // Demonstrates sending a task with additional options.
             my_app.send_task(add::new(1, 3).with_countdown(5)).await?;
