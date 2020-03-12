@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `CeleryBuilder::task_route` now infallible. Error could be raised during the `build` phase instead.
+- `Celery::consume_from` will return `Err(CeleryError::NoQueueToConsume)` if the slice of queues is empty.
 
 ## [0.2.2] - 2019-03-06
 

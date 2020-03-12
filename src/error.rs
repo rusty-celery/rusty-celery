@@ -10,6 +10,10 @@ pub enum CeleryError {
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueue(String),
 
+    /// Raised when `Celery::consume_from` is given an empty array of queues.
+    #[fail(display = "At least one queue required to consume from")]
+    NoQueueToConsume,
+
     /// Forced shutdown.
     #[fail(display = "Forced shutdown")]
     ForcedShutdown,
