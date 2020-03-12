@@ -242,7 +242,7 @@ where
         mut task_sig: Signature<T>,
     ) -> Result<String, CeleryError> {
         let maybe_queue = task_sig.queue.take();
-        let queue = maybe_queue.as_ref().map(|s| s.as_str()).unwrap_or_else(|| {
+        let queue = maybe_queue.as_deref().unwrap_or_else(|| {
             routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
         });
         let message = Message::try_from(task_sig)?;
@@ -411,6 +411,10 @@ where
     /// Consume tasks from a queue.
     #[allow(clippy::cognitive_complexity)]
     pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+        if queues.is_empty() {
+            return Err(CeleryError::NoQueueToConsume);
+        }
+
         info!("Consuming from {:?}", queues);
 
         // Stream of errors from broker. The capacity here is arbitrary because a single
