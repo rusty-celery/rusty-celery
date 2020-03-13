@@ -17,7 +17,7 @@
         <img alt="Docs" src="https://img.shields.io/badge/docs.rs-API%20docs-blue">
     </a>
     <a href="https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aissue+is%3Aopen+label%3A%22Status%3A+Help+Wanted%22">
-        <img alt="Docs" src="https://img.shields.io/github/issues/rusty-celery/rusty-celery/Status%3A%20Help%20Wanted?label=Help%20Wanted">
+        <img alt="Help wanted" src="https://img.shields.io/github/issues/rusty-celery/rusty-celery/Status%3A%20Help%20Wanted?label=Help%20Wanted">
     </a>
 </p>
 
