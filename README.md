@@ -65,8 +65,9 @@ my_app.consume().await?;
 
 The `./examples` directory contains a simple Celery app that is implemented in both Rust ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)) and Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)) using an AMQP broker. 
 
-If you already have an AMQP broker running you can set the environment variable `AMQP_URL` to your broker's URL. Otherwise simply run the helper script:
-
+If you already have an AMQP broker running you can set the environment variable `AMQP_ADDR` to your broker's URL (e.g., `amqp://localhost:5672//`, where
+the second slash at the end is the name of the [default vhost](https://www.rabbitmq.com/access-control.html#default-state)).
+Otherwise simply run the helper script:
 ```bash
 ./scripts/brokers/amqp.sh
 ```
