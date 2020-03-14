@@ -19,7 +19,7 @@ fn add(x: i32, y: i32) -> i32 {
 #[celery::task(max_retries = 3)]
 fn buggy_task() {
     #[allow(clippy::try_err)]
-    Err(TaskError::UnexpectedError("a bug caused this".into()))?
+    Err(TaskError::UnexpectedError("This error is part of the example: it is used to showcase a buggy task".into()))?
 }
 
 // Demonstrates a long running IO-bound task. By increasing the prefetch count, an arbitrary
