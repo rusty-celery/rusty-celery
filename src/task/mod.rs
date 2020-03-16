@@ -103,7 +103,6 @@ pub trait Task: Send + Sync + std::marker::Sized {
         }
     }
 
-    /// Whether or not to retry the task when an `UnexpectedError` occurs (default is `true`).
     fn retry_for_unexpected(&self) -> bool {
         Self::DEFAULTS
             .retry_for_unexpected
@@ -111,22 +110,16 @@ pub trait Task: Send + Sync + std::marker::Sized {
             .unwrap_or(true)
     }
 
-    /// Timeout for this task (default is `None`).
     fn timeout(&self) -> Option<u32> {
         self.request()
             .timeout
             .or_else(|| Self::DEFAULTS.timeout.or(self.options().timeout))
     }
 
-    /// Maximum number of retries for this task.
-    ///
-    /// If `None`, the task will continue to be retried on failure indefinitely.
-    /// Set to `Some(0)` if you don't want the task to be retried at all.
     fn max_retries(&self) -> Option<u32> {
         Self::DEFAULTS.max_retries.or(self.options().max_retries)
     }
 
-    /// Minimum retry delay (in seconds) for this task (default is 0).
     fn min_retry_delay(&self) -> u32 {
         Self::DEFAULTS
             .min_retry_delay
@@ -134,7 +127,6 @@ pub trait Task: Send + Sync + std::marker::Sized {
             .unwrap_or(0)
     }
 
-    /// Maximum retry delay (in seconds) for this task (default is 3600).
     fn max_retry_delay(&self) -> u32 {
         Self::DEFAULTS
             .max_retry_delay
@@ -142,8 +134,6 @@ pub trait Task: Send + Sync + std::marker::Sized {
             .unwrap_or(3600)
     }
 
-    /// Whether messages for this task will be acknowledged after the task has been executed,
-    /// or before (the default behavior, i.e. `false`).
     fn acks_late(&self) -> bool {
         Self::DEFAULTS
             .acks_late

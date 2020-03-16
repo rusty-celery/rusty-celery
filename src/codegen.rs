@@ -37,12 +37,33 @@ macro_rules! __app_internal {
 
 /// A macro for creating a [`Celery`](struct.Celery.html) app.
 ///
-/// At a minimum the `app!` macro requires 3 arguments:
-/// - a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
-/// - a list of tasks to register, and
-/// - a list of routing rules in the form of `pattern => queue`.
+/// At a minimum the `app!` macro requires these 3 arguments (in order):
+/// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
+/// - `tasks`: a list of tasks to register, and
+/// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
 ///
-/// For example:
+/// # Optional parameters
+///
+/// Following the task routing rules there are a number of other optional parameters that
+/// may appear in arbitrary order (all of which correspond to a method on the
+/// [`CeleryBuilder`](struct.CeleryBuilder.html) struct):
+///
+/// - `default_queue`: Set the
+/// [`CeleryBuilder::default_queue`](struct.CeleryBuilder.html#method.default_queue).
+/// - `prefetch_count`: Set the [`CeleryBuilder::prefect_count`](struct.CeleryBuilder.html#method.prefect_count).
+/// - `heartbeat`: Set the [`CeleryBuilder::heartbeat`](struct.CeleryBuilder.html#method.heartbeat).
+/// - `task_timeout`: Set an app-level [`TaskOptions::timeout`](task/struct.TaskOptions.html#structfield.timeout).
+/// - `task_max_retries`: Set an app-level [`TaskOptions::max_retries`](task/struct.TaskOptions.html#structfield.max_retries).
+/// - `task_min_retry_delay`: Set an app-level [`TaskOptions::min_retry_delay`](task/struct.TaskOptions.html#structfield.min_retry_delay).
+/// - `task_max_retry_delay`: Set an app-level [`TaskOptions::max_retry_delay`](task/struct.TaskOptions.html#structfield.max_retry_delay).
+/// - `task_retry_for_unexpected`: Set an app-level [`TaskOptions::retry_for_unexpected`](task/struct.TaskOptions.html#structfield.retry_for_unexpected).
+/// - `acks_late`: Set an app-level [`TaskOptions::acks_late`](task/struct.TaskOptions.html#structfield.acks_late).
+/// - `broker_connection_timeout`: Set the
+/// [`CeleryBuilder::broker_connection_timeout`](struct.CeleryBuilder.html#method.broker_connection_timeout).
+/// - `broker_connection_max_retries`: Set the
+/// [`CeleryBuilder::broker_connection_max_retries`](struct.CeleryBuilder.html#method.broker_connection_max_retries).
+///
+/// # Examples
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
@@ -59,10 +80,6 @@ macro_rules! __app_internal {
 /// );
 /// # }
 /// ```
-///
-/// Following the task routing rules there are a number of other optional parameters that
-/// may appear in arbitrary order, all of which correspond to a method on the
-/// [`CeleryBuilder`](struct.CeleryBuilder.html) struct such as `task_timeout`:
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
