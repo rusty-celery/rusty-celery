@@ -59,8 +59,9 @@ where
                 task_options: TaskOptions {
                     timeout: None,
                     max_retries: None,
-                    min_retry_delay: Some(0),
-                    max_retry_delay: Some(3600),
+                    min_retry_delay: None,
+                    max_retry_delay: None,
+                    retry_for_unexpected: None,
                     acks_late: Some(false),
                 },
                 task_routes: vec![],
@@ -345,7 +346,7 @@ where
         }
 
         // If acks_late is false, we acknowledge the message before tracing it.
-        if !tracer.get_task_options().acks_late.unwrap_or_default() {
+        if !tracer.acks_late() {
             self.broker
                 .ack(&delivery)
                 .await
@@ -367,7 +368,7 @@ where
         }
 
         // If we have not done it before, we have to acknowledge the message now.
-        if tracer.get_task_options().acks_late.unwrap_or_default() {
+        if tracer.acks_late() {
             self.broker
                 .ack(&delivery)
                 .await

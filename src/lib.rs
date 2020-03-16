@@ -94,6 +94,7 @@ mod codegen;
 /// - `max_retries`: Corresponds to [`Task::max_retries`](trait.Task.html#method.max_retries).
 /// - `min_retry_delay`: Corresponds to [`Task::min_retry_delay`](trait.Task.html#method.min_retry_delay).
 /// - `max_retry_delay`: Corresponds to [`Task::max_retry_delay`](trait.Task.html#method.max_retry_delay).
+/// - `retry_for_unexpected`: Corresponds to [`Task::retry_for_unexpected`](trait.Task.html#method.retry_for_unexpected).
 /// - `acks_late`: Corresponds to [`Task::acks_late`](trait.Task.html#method.acks_late).
 /// - `bind`: A bool. If true, the task will be run like an instance method and so the function's
 /// first argument should be a reference to `Self`. Note however that Rust won't allow you to call

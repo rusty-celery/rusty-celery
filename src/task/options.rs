@@ -5,5 +5,6 @@ pub struct TaskOptions {
     pub max_retries: Option<u32>,
     pub min_retry_delay: Option<u32>,
     pub max_retry_delay: Option<u32>,
+    pub retry_for_unexpected: Option<bool>,
     pub acks_late: Option<bool>,
 }
