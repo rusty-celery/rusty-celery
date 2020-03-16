@@ -48,10 +48,11 @@ pub enum TaskError {
     /// An error that is expected to happen every once in a while.
     ///
     /// These errors will only be logged at the `WARN` level and will always trigger a task
-    /// retry unless `max_retries` is set to `Some(0)` (or max retries is exceeded).
+    /// retry unless [`max_retries`](../task/struct.TaskOptions.html#structfield.max_retries)
+    /// is set to 0 (or max retries is exceeded).
     ///
     /// A typical example is a task that makes an HTTP request to an external service.
-    /// If that service is temporarily unavailable, the task should raise an `ExpectedError`.
+    /// If that service is temporarily unavailable the task should raise an `ExpectedError`.
     ///
     /// Tasks are always retried with capped exponential backoff.
     #[fail(display = "{}", _0)]
@@ -61,17 +62,16 @@ pub enum TaskError {
     ///
     /// These errors will always be logged at the `ERROR` level. The retry behavior
     /// when this error is encountered is determined by the
-    /// [`Task::retry_for_unexpected`](trait.Task.html#method.retry_for_unexpected)
+    /// [`TaskOptions::retry_for_unexpected`](../task/struct.TaskOptions.html#structfield.retry_for_unexpected)
     /// setting.
     #[fail(display = "{}", _0)]
     UnexpectedError(String),
 
-    /// Raised when a task runs over its time limit specified by the [`Task::timeout`](trait.Task.html#method.timeout)
-    /// setting.
+    /// Raised when a task runs over its time limit specified by the
+    /// [`TaskOptions::timeout`](../task/struct.TaskOptions.html#structfield.timeout) setting.
     ///
     /// These errors are logged at the `ERROR` level but are otherwise treated like
-    /// `ExpectedError`s in that they will trigger a retry when `max_retries` is anything but
-    /// `Some(0)`.
+    /// `ExpectedError`s in that they will trigger a retry when `max_retries` is anything but 0.
     ///
     /// Typically a task implementation doesn't need to return these errors directly
     /// because they will be raised automatically when the task runs over it's `timeout`,
