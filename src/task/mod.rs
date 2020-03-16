@@ -40,6 +40,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
         max_retries: None,
         min_retry_delay: None,
         max_retry_delay: None,
+        retry_for_unexpected: None,
         acks_late: None,
     };
 
@@ -80,10 +81,10 @@ pub trait Task: Send + Sync + std::marker::Sized {
         let retries = self.request().retries;
         let delay_secs = std::cmp::min(
             2u32.checked_pow(retries)
-                .unwrap_or_else(|| self.max_retry_delay().unwrap_or(3600)),
-            self.max_retry_delay().unwrap_or(3600),
+                .unwrap_or_else(|| self.max_retry_delay()),
+            self.max_retry_delay(),
         );
-        let delay_secs = std::cmp::max(delay_secs, self.min_retry_delay().unwrap_or(0));
+        let delay_secs = std::cmp::max(delay_secs, self.min_retry_delay());
         let between = Uniform::from(0..1000);
         let mut rng = rand::thread_rng();
         let delay_millis = between.sample(&mut rng);
@@ -102,36 +103,42 @@ pub trait Task: Send + Sync + std::marker::Sized {
         }
     }
 
-    /// Default timeout for this task.
+    fn retry_for_unexpected(&self) -> bool {
+        Self::DEFAULTS
+            .retry_for_unexpected
+            .or(self.options().retry_for_unexpected)
+            .unwrap_or(true)
+    }
+
     fn timeout(&self) -> Option<u32> {
         self.request()
             .timeout
             .or_else(|| Self::DEFAULTS.timeout.or(self.options().timeout))
     }
 
-    /// Default maximum number of retries for this task.
     fn max_retries(&self) -> Option<u32> {
         Self::DEFAULTS.max_retries.or(self.options().max_retries)
     }
 
-    /// Default minimum retry delay (in seconds) for this task (default is 0).
-    fn min_retry_delay(&self) -> Option<u32> {
+    fn min_retry_delay(&self) -> u32 {
         Self::DEFAULTS
             .min_retry_delay
             .or(self.options().min_retry_delay)
+            .unwrap_or(0)
     }
 
-    /// Default maximum retry delay (in seconds) for this task.
-    fn max_retry_delay(&self) -> Option<u32> {
+    fn max_retry_delay(&self) -> u32 {
         Self::DEFAULTS
             .max_retry_delay
             .or(self.options().max_retry_delay)
+            .unwrap_or(3600)
     }
 
-    /// Whether messages for this task will be acknowledged after the task has been executed,
-    /// or before (the default behavior).
-    fn acks_late(&self) -> Option<bool> {
-        Self::DEFAULTS.acks_late.or(self.options().acks_late)
+    fn acks_late(&self) -> bool {
+        Self::DEFAULTS
+            .acks_late
+            .or(self.options().acks_late)
+            .unwrap_or(false)
     }
 }
 

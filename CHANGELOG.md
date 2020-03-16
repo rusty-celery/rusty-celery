@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## Added
+
+- A `retry_for_unexpected` task configuration option. By default this is `true` (so the default behavior is unchanged).
+But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be retried.
+
 ## [0.2.3] - 2019-03-10
 
 ### Changed

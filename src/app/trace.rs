@@ -100,7 +100,7 @@ where
                 Ok(())
             }
             Err(e) => {
-                match e {
+                let should_retry = match e {
                     TaskError::ExpectedError(ref reason) => {
                         warn!(
                             "Task {}[{}] failed with expected error: {}",
@@ -108,6 +108,7 @@ where
                             &self.task.request().id,
                             reason
                         );
+                        true
                     }
                     TaskError::UnexpectedError(ref reason) => {
                         error!(
@@ -116,6 +117,7 @@ where
                             &self.task.request().id,
                             reason
                         );
+                        self.task.retry_for_unexpected()
                     }
                     TaskError::TimeoutError => {
                         error!(
@@ -124,6 +126,7 @@ where
                             &self.task.request().id,
                             duration.as_secs_f32(),
                         );
+                        true
                     }
                 };
 
@@ -135,6 +138,10 @@ where
                     .unwrap_or_else(|_| {
                         error!("Failed sending task event");
                     });
+
+                if !should_retry {
+                    return Err(TraceError::TaskError(e));
+                }
 
                 let retries = self.task.request().retries;
                 if let Some(max_retries) = self.task.max_retries() {
@@ -181,8 +188,8 @@ where
         self.task.request().is_expired()
     }
 
-    fn get_task_options(&self) -> &TaskOptions {
-        self.task.options()
+    fn acks_late(&self) -> bool {
+        self.task.acks_late()
     }
 }
 
@@ -199,7 +206,7 @@ pub(super) trait TracerTrait: Send + Sync {
 
     fn is_expired(&self) -> bool;
 
-    fn get_task_options(&self) -> &TaskOptions;
+    fn acks_late(&self) -> bool;
 }
 
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, ProtocolError>;

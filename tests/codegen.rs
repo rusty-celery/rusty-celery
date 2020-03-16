@@ -31,6 +31,7 @@ fn test_auto_name() {
     max_retries = 3,
     min_retry_delay = 0,
     max_retry_delay = 60,
+    retry_for_unexpected = false,
     acks_late = true
 )]
 fn task_with_options() -> String {
@@ -43,6 +44,10 @@ fn test_task_options() {
     assert_eq!(task_with_options::DEFAULTS.max_retries, Some(3));
     assert_eq!(task_with_options::DEFAULTS.min_retry_delay, Some(0));
     assert_eq!(task_with_options::DEFAULTS.max_retry_delay, Some(60));
+    assert_eq!(
+        task_with_options::DEFAULTS.retry_for_unexpected,
+        Some(false)
+    );
     assert_eq!(task_with_options::DEFAULTS.acks_late, Some(true));
 }
 

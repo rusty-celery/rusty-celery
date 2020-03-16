@@ -12,7 +12,7 @@ where
     /// A queue to send the task to.
     pub queue: Option<String>,
 
-    /// Timeout for the task execution. Overrides any default timeouts.
+    /// Timeout for the task execution. Overrides any app or task-level default timeouts.
     pub timeout: Option<u32>,
 
     /// The number of seconds to wait before executing the task. Related to `eta`.
