@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.4] - 2019-03-16
+
 ## Added
 
 - A `retry_for_unexpected` task configuration option. By default this is `true` (so the default behavior is unchanged).
