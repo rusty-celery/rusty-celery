@@ -15,8 +15,8 @@ use chrono::{DateTime, Utc};
 /// }
 ///
 /// let signature = add::new(1, 2);
-/// assert_eq!(add.params.x, 1);
-/// assert_eq!(add.params.y, 2);
+/// assert_eq!(signature.params.x, 1);
+/// assert_eq!(signature.params.y, 2);
 /// ```
 pub struct Signature<T>
 where
