@@ -19,6 +19,9 @@
     <a href="https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aissue+is%3Aopen+label%3A%22Status%3A+Help+Wanted%22">
         <img alt="Help wanted" src="https://img.shields.io/github/issues/rusty-celery/rusty-celery/Status%3A%20Help%20Wanted?label=Help%20Wanted">
     </a>
+    <a href="https://discord.gg/PV3azbB">
+        <img alt="Discord" src="https://img.shields.io/discord/689533070247723078?logo=discord&style=flat-square">
+    </a>
 </p>
 
 A Rust implementation of [Celery](https://github.com/celery/celery) for producing and consuming asyncronous tasks with a distributed message queue.
