@@ -20,7 +20,7 @@
         <img alt="Help wanted" src="https://img.shields.io/github/issues/rusty-celery/rusty-celery/Status%3A%20Help%20Wanted?label=Help%20Wanted">
     </a>
     <a href="https://discord.gg/PV3azbB">
-        <img alt="Discord" src="https://img.shields.io/discord/689533070247723078?logo=discord&style=flat-square">
+        <img alt="Discord" src="https://img.shields.io/discord/689533070247723078?logo=discord">
     </a>
 </p>
 
