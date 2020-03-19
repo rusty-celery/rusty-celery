@@ -13,6 +13,9 @@ repository = "https://github.com/rusty-celery/rusty-celery"
 homepage = "https://github.com/rusty-celery/rusty-celery"
 description = "Rust implementation of Celery"
 
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
 [lib]
 name = "celery"
 path = "src/lib.rs"
