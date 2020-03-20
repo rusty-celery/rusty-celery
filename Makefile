@@ -1,3 +1,7 @@
+#
+# Cargo helpers.
+#
+
 .PHONY : build
 build :
 	cargo build
@@ -37,12 +41,6 @@ rabbitmq :
 .PHONY : doc
 doc :
 	cargo doc --workspace
-
-level = alpha
-
-.PHONY : release
-release :
-	cargo release --workspace $(level)
 
 #
 # Git helpers.
