@@ -64,12 +64,19 @@ jobs:
         command: test
         args: --workspace --doc
 
-    - name: Run Codegen Tests
+    - name: Run Task Codegen Tests
       if: always()
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --test codegen
+        args: --test codegen task_codegen
+
+    - name: Compile App Codegen Tests
+      if: always()
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --no-run --test codegen app_codegen
 
   broker_amqp_test:
     name: Broker (AMQP)
