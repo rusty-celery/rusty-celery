@@ -98,21 +98,9 @@ macro_rules! __app_internal {
 macro_rules! app {
     // Just required fields without trailing comma.
     (
-        AMQP { $broker_url:expr },
-        [ $( $t:ty ),* $(,)? ],
-        [ $( $pattern:expr => $queue:expr ),* $(,)? ]
-    ) => {
-        $crate::__app_internal!(
-            $crate::broker::AMQPBroker { $broker_url },
-            [ $( $t ),* ],
-            [ $( $pattern => $queue ),* ],
-        );
-    };
-    // Just named required fields without trailing comma.
-    (
-        broker = AMQP { $broker_url:expr },
-        tasks = [ $( $t:ty ),* $(,)? ],
-        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+        $(broker =)? AMQP { $broker_url:expr },
+        $(tasks =)? [ $( $t:ty ),* $(,)? ],
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
     ) => {
         $crate::__app_internal!(
             $crate::broker::AMQPBroker { $broker_url },
@@ -122,23 +110,9 @@ macro_rules! app {
     };
     // Required fields with trailing comma and possibly additional options.
     (
-        AMQP { $broker_url:expr },
-        [ $( $t:ty ),* $(,)? ],
-        [ $( $pattern:expr => $queue:expr ),* $(,)? ],
-        $( $x:ident = $y:expr ),* $(,)?
-    ) => {
-        $crate::__app_internal!(
-            $crate::broker::AMQPBroker { $broker_url },
-            [ $( $t ),* ],
-            [ $( $pattern => $queue ),* ],
-            $( $x = $y, )*
-        );
-    };
-    // Named required fields with trailing comma and possibly additional options.
-    (
-        broker = AMQP { $broker_url:expr },
-        tasks = [ $( $t:ty ),* $(,)? ],
-        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ],
+        $(broker =)? AMQP { $broker_url:expr },
+        $(tasks =)? [ $( $t:ty ),* $(,)? ],
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
         $( $x:ident = $y:expr ),* $(,)?
     ) => {
         $crate::__app_internal!(
