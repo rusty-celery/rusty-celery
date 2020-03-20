@@ -23,7 +23,8 @@ lint :
 test :
 	@cargo test --workspace --lib
 	@cargo test --workspace --doc
-	@cargo test --test codegen
+	@cargo test --test codegen task_codegen
+	@cargo test --no-run --test codegen app_codegen
 
 .PHONY : broker-amqp-test
 broker-amqp-test :
