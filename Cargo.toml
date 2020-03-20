@@ -47,7 +47,6 @@ cookie-factory = "0.3.1"
 env_logger = "0.7"
 exitfailure = "0.5.1"
 structopt = "0.3"
-lazy_static = "1.4"
 
 [features]
 default = ["codegen"]
