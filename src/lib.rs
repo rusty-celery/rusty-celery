@@ -127,7 +127,6 @@ mod codegen;
 ///
 /// ```rust
 /// # use celery::TaskResult;
-///
 /// #[celery::task(name = "sum")]
 /// fn add(x: i32, y: i32) -> TaskResult<i32> {
 ///     Ok(x + y)
@@ -153,9 +152,9 @@ mod codegen;
 /// Bind the function to the task instance so it runs like an instance method:
 ///
 /// ```rust
-/// # use celery::task::Task;
+/// # use celery::task::{Task, TaskResult};
 /// #[celery::task(bind = true)]
-/// fn bound_task(task: &Self) {
+/// fn bound_task(task: &Self) -> TaskResult<()> {
 ///     println!("Hello, World! From {}", task.name());
 ///     Ok(())
 /// }
