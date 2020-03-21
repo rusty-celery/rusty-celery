@@ -499,7 +499,7 @@ impl ToTokens for Task {
             .return_type
             .as_ref()
             .map(|ty| quote!(#ty))
-            .unwrap_or_else(|| quote!(()));
+            .unwrap_or_else(|| quote!(#krate::task::TaskResult<()>));
         let typed_inputs = args_to_typed_inputs(&self.original_args, self.bind);
         let typed_run_inputs = args_to_typed_inputs(&self.original_args, false);
         let params_args = args_to_calling_args(&self.original_args, self.bind);
@@ -526,16 +526,16 @@ impl ToTokens for Task {
         let run_implementation = if self.is_async {
             quote! {
                 impl #wrapper {
-                    async fn _run(#typed_run_inputs) -> #krate::task::TaskResult<#return_type> {
-                        Ok(#inner_block)
+                    async fn _run(#typed_run_inputs) -> #return_type {
+                        #inner_block
                     }
                 }
             }
         } else {
             quote! {
                 impl #wrapper {
-                    fn _run(#typed_run_inputs) -> #krate::task::TaskResult<#return_type> {
-                        Ok(#inner_block)
+                    fn _run(#typed_run_inputs) -> #return_type {
+                        #inner_block
                     }
                 }
             }
@@ -598,7 +598,7 @@ impl ToTokens for Task {
                     };
 
                     type Params = #params_type;
-                    type Returns = #return_type;
+                    type Returns = <#return_type as #krate::task::AsTaskResult>::Returns;
 
                     fn from_request(
                         request: #krate::task::Request<Self>,
@@ -615,15 +615,18 @@ impl ToTokens for Task {
                         &self.options
                     }
 
-                    async fn run(&self, params: Self::Params) -> #krate::task::TaskResult<Self::Returns> {
+                    #[allow(unused_variables)]
+                    async fn run(&self, params: Self::Params) -> #return_type {
                         #deserialized_bindings
                         #call_run_implementation
                     }
 
+                    #[allow(unused_variables)]
                     async fn on_failure(&self, err: &#krate::error::TaskError) {
                         #call_on_failure
                     }
 
+                    #[allow(unused_variables)]
                     async fn on_success(&self, returned: &Self::Returns) {
                         #call_on_success
                     }

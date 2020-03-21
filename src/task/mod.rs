@@ -16,8 +16,20 @@ pub use options::TaskOptions;
 pub use request::Request;
 pub use signature::Signature;
 
-/// A return type for a task.
+/// The return type for a task.
 pub type TaskResult<R> = Result<R, TaskError>;
+
+#[doc(hidden)]
+pub trait AsTaskResult {
+    type Returns: Send + Sync + std::fmt::Debug;
+}
+
+impl<R> AsTaskResult for TaskResult<R>
+where
+    R: Send + Sync + std::fmt::Debug,
+{
+    type Returns = R;
+}
 
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///

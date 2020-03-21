@@ -35,9 +35,11 @@ If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-ce
 Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
 
 ```rust
+use celery::TaskResult;
+
 #[celery::task]
-fn add(x: i32, y: i32) -> i32 {
-    x + y
+fn add(x: i32, y: i32) -> TaskResult<i32> {
+    Ok(x + y)
 }
 ```
 

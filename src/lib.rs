@@ -6,9 +6,11 @@
 //! Define tasks by decorating functions with the [`task`](attr.task.html) attribute:
 //!
 //! ```rust
+//! use celery::TaskResult;
+//!
 //! #[celery::task]
-//! fn add(x: i32, y: i32) -> i32 {
-//!     x + y
+//! fn add(x: i32, y: i32) -> TaskResult<i32> {
+//!     Ok(x + y)
 //! }
 //! ```
 //!
@@ -17,8 +19,8 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> i32 {
-//! #     x + y
+//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
+//! #     Ok(x + y)
 //! # }
 //! let my_app = celery::app!(
 //!     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
@@ -32,8 +34,8 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> i32 {
-//! #     x + y
+//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
+//! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), exitfailure::ExitFailure> {
@@ -52,8 +54,8 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> i32 {
-//! #     x + y
+//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
+//! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), exitfailure::ExitFailure> {
@@ -80,6 +82,7 @@ pub mod broker;
 pub mod error;
 pub mod protocol;
 pub mod task;
+pub use task::TaskResult;
 
 #[cfg(feature = "codegen")]
 mod codegen;
@@ -112,32 +115,38 @@ mod codegen;
 /// Create a task named `add` with all of the default options:
 ///
 /// ```rust
+/// use celery::TaskResult;
+///
 /// #[celery::task]
-/// fn add(x: i32, y: i32) -> i32 {
-///     x + y
+/// fn add(x: i32, y: i32) -> TaskResult<i32> {
+///     Ok(x + y)
 /// }
 /// ```
 ///
 /// Use a name different from the function name:
 ///
 /// ```rust
+/// # use celery::TaskResult;
+///
 /// #[celery::task(name = "sum")]
-/// fn add(x: i32, y: i32) -> i32 {
-///     x + y
+/// fn add(x: i32, y: i32) -> TaskResult<i32> {
+///     Ok(x + y)
 /// }
 /// ```
 ///
 /// Customize the default retry behavior:
 ///
 /// ```rust
+/// # use celery::TaskResult;
 /// #[celery::task(
 ///     timeout = 3,
 ///     max_retries = 100,
 ///     min_retry_delay = 1,
 ///     max_retry_delay = 60,
 /// )]
-/// async fn io_task() {
+/// async fn io_task() -> TaskResult<()> {
 ///     // Do some async IO work that could possible fail, such as an HTTP request...
+///     Ok(())
 /// }
 /// ```
 ///
@@ -148,16 +157,17 @@ mod codegen;
 /// #[celery::task(bind = true)]
 /// fn bound_task(task: &Self) {
 ///     println!("Hello, World! From {}", task.name());
+///     Ok(())
 /// }
 /// ```
 ///
 /// Run custom callbacks on failure and on success:
 ///
 /// ```rust
-/// # use celery::task::Task;
+/// # use celery::task::{Task, TaskResult};
 /// # use celery::error::TaskError;
 /// #[celery::task(on_failure = failure_callback, on_success = success_callback)]
-/// fn task_with_callbacks() {}
+/// fn task_with_callbacks() -> TaskResult<()> { Ok(()) }
 ///
 /// async fn failure_callback<T: Task>(task: &T, err: &TaskError) {
 ///     println!("{} failed with {:?}", task.name(), err);

@@ -9,9 +9,11 @@ use chrono::{DateTime, Utc};
 /// # Examples
 ///
 /// ```rust
+/// use celery::TaskResult;
+///
 /// #[celery::task]
-/// fn add(x: i32, y: i32) -> i32 {
-///     x + y
+/// fn add(x: i32, y: i32) -> TaskResult<i32> {
+///     Ok(x + y)
 /// }
 ///
 /// let signature = add::new(1, 2);

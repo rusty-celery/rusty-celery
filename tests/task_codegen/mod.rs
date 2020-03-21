@@ -1,9 +1,9 @@
 use celery::error::TaskError;
-use celery::task::Task;
+use celery::task::{Task, TaskResult};
 
 #[celery::task(name = "add")]
-fn add(x: i32, y: i32) -> i32 {
-    x + y
+fn add(x: i32, y: i32) -> TaskResult<i32> {
+    Ok(x + y)
 }
 
 #[test]
@@ -17,8 +17,8 @@ fn test_add_arg_names() {
 }
 
 #[celery::task]
-fn add_auto_name(x: i32, y: i32) -> i32 {
-    x + y
+fn add_auto_name(x: i32, y: i32) -> TaskResult<i32> {
+    Ok(x + y)
 }
 
 #[test]
@@ -34,8 +34,8 @@ fn test_auto_name() {
     retry_for_unexpected = false,
     acks_late = true
 )]
-fn task_with_options() -> String {
-    "it worked!".into()
+fn task_with_options() -> TaskResult<String> {
+    Ok("it worked!".into())
 }
 
 #[test]
@@ -52,13 +52,13 @@ fn test_task_options() {
 }
 
 #[celery::task(bind = true)]
-fn bound_task(t: &Self) -> Option<u32> {
-    t.timeout()
+fn bound_task(t: &Self) -> TaskResult<Option<u32>> {
+    Ok(t.timeout())
 }
 
 #[celery::task(bind = true)]
-fn bound_task_with_other_params(t: &Self, default_timeout: u32) -> u32 {
-    t.timeout().unwrap_or(default_timeout)
+fn bound_task_with_other_params(t: &Self, default_timeout: u32) -> TaskResult<u32> {
+    Ok(t.timeout().unwrap_or(default_timeout))
 }
 
 // This didn't work before since Task::run took a reference to self
@@ -74,8 +74,8 @@ fn bound_task_with_other_params(t: &Self, default_timeout: u32) -> u32 {
 //
 // After changing the signature of `run` to consume `self` this now works.
 #[celery::task]
-fn task_with_strings(s1: String, s2: String) -> String {
-    format!("{}, {}", s1, s2)
+fn task_with_strings(s1: String, s2: String) -> TaskResult<String> {
+    Ok(format!("{}, {}", s1, s2))
 }
 
 async fn task_on_failure<T: Task>(task: &T, _err: &TaskError) {
@@ -93,4 +93,5 @@ async fn task_on_success<T: Task>(task: &T, _ret: &T::Returns) {
 #[celery::task(on_failure = task_on_failure, on_success = task_on_success)]
 fn task_with_callbacks() {
     println!("Yeup yeup yeup");
+    Ok(())
 }
