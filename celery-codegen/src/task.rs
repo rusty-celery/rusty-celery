@@ -523,7 +523,25 @@ impl ToTokens for Task {
             }
         };
 
-        let run_implementation = if self.is_async {
+        let run_implementation = if self.return_type.is_none() {
+            if self.is_async {
+                quote! {
+                    impl #wrapper {
+                        async fn _run(#typed_run_inputs) -> #return_type {
+                            Ok(#inner_block)
+                        }
+                    }
+                }
+            } else {
+                quote! {
+                    impl #wrapper {
+                        fn _run(#typed_run_inputs) -> #return_type {
+                            Ok(#inner_block)
+                        }
+                    }
+                }
+            }
+        } else if self.is_async {
             quote! {
                 impl #wrapper {
                     async fn _run(#typed_run_inputs) -> #return_type {

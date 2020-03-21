@@ -89,6 +89,9 @@ mod codegen;
 
 /// A procedural macro for generating a [`Task`](task/trait.Task.html) from a function.
 ///
+/// If the annotated function has a return value, the return value must be a
+/// [`TaskResult<R>`](task/type.TaskResult.html).
+///
 /// # Parameters
 ///
 /// - `name`: The name to use when registering the task. Should be unique. If not given the name
@@ -154,9 +157,8 @@ mod codegen;
 /// ```rust
 /// # use celery::task::{Task, TaskResult};
 /// #[celery::task(bind = true)]
-/// fn bound_task(task: &Self) -> TaskResult<()> {
+/// fn bound_task(task: &Self) {
 ///     println!("Hello, World! From {}", task.name());
-///     Ok(())
 /// }
 /// ```
 ///
@@ -166,7 +168,7 @@ mod codegen;
 /// # use celery::task::{Task, TaskResult};
 /// # use celery::error::TaskError;
 /// #[celery::task(on_failure = failure_callback, on_success = success_callback)]
-/// fn task_with_callbacks() -> TaskResult<()> { Ok(()) }
+/// fn task_with_callbacks() {}
 ///
 /// async fn failure_callback<T: Task>(task: &T, err: &TaskError) {
 ///     println!("{} failed with {:?}", task.name(), err);

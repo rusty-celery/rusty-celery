@@ -93,5 +93,9 @@ async fn task_on_success<T: Task>(task: &T, _ret: &T::Returns) {
 #[celery::task(on_failure = task_on_failure, on_success = task_on_success)]
 fn task_with_callbacks() {
     println!("Yeup yeup yeup");
-    Ok(())
+}
+
+#[celery::task]
+fn inferred_return_type() {
+    println!("Yeeeup");
 }

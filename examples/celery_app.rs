@@ -17,7 +17,7 @@ fn add(x: i32, y: i32) -> TaskResult<i32> {
 // Demonstrates a task that raises an error, and also how to customize task options.
 // In this case we override the default `max_retries`.
 #[celery::task(max_retries = 3)]
-fn buggy_task() {
+fn buggy_task() -> TaskResult<()> {
     Err(TaskError::UnexpectedError(
         "This error is part of the example: it is used to showcase a buggy task".into(),
     ))
@@ -29,7 +29,6 @@ fn buggy_task() {
 async fn long_running_task(secs: Option<u64>) {
     let secs = secs.unwrap_or(10);
     time::delay_for(Duration::from_secs(secs)).await;
-    Ok(())
 }
 
 // Demonstrates a task that is bound to the task instance, i.e. runs as an instance method.
