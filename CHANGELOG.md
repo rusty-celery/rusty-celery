@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Tasks must explicity return a `TaskResult<T>` now.
+
 ## [0.2.4] - 2019-03-16
 
 ## Added

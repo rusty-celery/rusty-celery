@@ -2,7 +2,7 @@
     <br>
     <img src="https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery.png" width="600"/>
     <br>
-<p>
+</p>
 <p align="center">
     <a href="https://github.com/rusty-celery/rusty-celery/actions">
         <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg?event=push&branch=master">
@@ -35,9 +35,11 @@ If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-ce
 Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
 
 ```rust
+use celery::TaskResult;
+
 #[celery::task]
-fn add(x: i32, y: i32) -> i32 {
-    x + y
+fn add(x: i32, y: i32) -> TaskResult<i32> {
+    Ok(x + y)
 }
 ```
 

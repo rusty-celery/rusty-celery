@@ -69,9 +69,11 @@ macro_rules! __app_internal {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
+/// use celery::TaskResult;
+///
 /// #[celery::task]
-/// fn add(x: i32, y: i32) -> i32 {
-///     x + y
+/// fn add(x: i32, y: i32) -> TaskResult<i32> {
+///     Ok(x + y)
 /// }
 ///
 /// # fn main() {
