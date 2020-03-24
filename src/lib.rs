@@ -80,6 +80,7 @@ mod app;
 pub use app::{Celery, CeleryBuilder};
 pub mod broker;
 pub mod error;
+pub use error::TaskResultExt;
 pub mod protocol;
 pub mod task;
 pub use task::TaskResult;
