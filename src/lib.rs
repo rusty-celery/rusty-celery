@@ -82,6 +82,7 @@ pub mod broker;
 pub mod error;
 pub use error::TaskResultExt;
 pub mod protocol;
+pub mod scheduler;
 pub mod task;
 pub use task::TaskResult;
 
