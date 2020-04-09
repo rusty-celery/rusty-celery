@@ -21,6 +21,8 @@ use std::collections::BinaryHeap;
 use std::pin::Pin;
 use std::time::{Duration, SystemTime};
 use tokio::time;
+use crate::task::{Task, Signature};
+use crate::protocol::Message;
 
 // The trait implemented by all schedules (regular, cron, solar).
 // We will only have regular for now.
@@ -56,29 +58,34 @@ impl Schedule for RegularSchedule {
     }
 }
 
-// A task which is scheduled for execution. It contains the Future to execute,
+trait MessageFactoryTrait {
+    fn make(&self) -> Message;
+}
+
+// A task which is scheduled for execution. It contains the task to execute,
 // the schedule which determines when to run the task, and some other info.
 struct ScheduleEntry {
     name: String,
-    future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>, // TODO somehow this must be cloneable
+    signature: Box<dyn MessageFactoryTrait>,
     schedule: Box<dyn Schedule>,
     last_run_at: Option<SystemTime>,
     total_run_count: u32,
 }
 
 impl ScheduleEntry {
-    fn new<F, S>(name: &str, future: F, schedule: S) -> ScheduleEntry
+    fn new<T, S>(name: &str, signature: Signature<T>, schedule: S) -> ScheduleEntry
     where
-        F: Future<Output = ()> + Send + 'static,
+        T: Task,
         S: Schedule + 'static,
     {
-        ScheduleEntry {
-            name: name.to_string(),
-            future: Box::pin(future),
-            schedule: Box::new(schedule),
-            last_run_at: None,
-            total_run_count: 0,
-        }
+        // ScheduleEntry {
+        //     name: name.to_string(),
+        //     signature,
+        //     schedule,
+        //     last_run_at: None,
+        //     total_run_count: 0,
+        // }
+        todo!() // the signature must be transformed into a MessageFactoryTrait
     }
     fn is_due(&self) -> (bool, Duration) {
         self.schedule.is_due(self.last_run_at)
@@ -140,12 +147,12 @@ impl Scheduler {
     // the user must use to register scheduled tasks, and this
     // function will accept a Future, with all task arguments
     // already provided:
-    pub fn add<F, S>(&mut self, name: &str, future: F, schedule: S)
+    pub fn add<T, S>(&mut self, name: &str, signature: Signature<T>, schedule: S)
     where
-        F: Future<Output = ()> + Send + 'static,
+        T: Task,
         S: Schedule + 'static,
     {
-        let entry = ScheduleEntry::new(name, future, schedule);
+        let entry = ScheduleEntry::new(name, signature, schedule);
         // TODO ask is_due and next_call_delay to Schedule
         self.heap.push(SortableScheduleEntry {
             is_due: true,
@@ -166,11 +173,10 @@ impl Scheduler {
         }) = self.heap.pop()
         {
             if is_due {
-                let future = entry.future;
-                tokio::spawn(async move { future.await });
-                // TODO we have to add the entry back to the heap,
-                // but currently we cannot
-                // because we have moved the future out of it.
+                // Here we have to use the message factory to create a message
+                // and send it to the queue.
+                // Then we have to add the entry back to the heap
+                // with an updated is_due.
                 Duration::from_secs(0) // Ask to immediately call tick again (that's what Python does, it may be improved?)
             } else {
                 next_call_delay
@@ -212,27 +218,34 @@ impl Service {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::*;
+//     use async_trait::async_trait;
 
-    // These tests are only meant for debugging purposes (for now).
+//     // These tests are only meant for debugging purposes (for now).
 
-    async fn scheduled_task() {
-        println!("I am a scheduled task");
-    }
+//     #[task]
+//     fn add(x: i32, y: i32) -> TaskResult<i32> {
+//         Ok(x + y)
+//     }
 
-    #[tokio::test]
-    async fn test_basic_flow() {
-        let mut scheduler = Scheduler::new();
-        scheduler.add(
-            "Scheduled Task",
-            scheduled_task(),
-            RegularSchedule::new(Duration::from_millis(40)),
-        );
+//     async fn scheduled_task() {
+//         println!("I am a scheduled task");
+//     }
 
-        let mut service = Service::new(scheduler);
-        let res = time::timeout(Duration::from_secs(1), service.start()).await;
-        assert!(res.is_err()) // we get an error because the timeout always fires
-    }
-}
+//     #[tokio::test]
+//     async fn test_basic_flow() {
+//         let mut scheduler = Scheduler::new();
+//         scheduler.add(
+//             "Scheduled Task",
+//             add::new(1, 2),
+//             RegularSchedule::new(Duration::from_millis(40)),
+//         );
+
+//         let mut service = Service::new(scheduler);
+//         let res = time::timeout(Duration::from_secs(1), service.start()).await;
+//         assert!(res.is_err()) // we get an error because the timeout always fires
+//     }
+// }
