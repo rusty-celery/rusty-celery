@@ -1,8 +1,11 @@
-<p align="center" style="font-size:300px;">
+<div align="center">
     <br>
-    <img src="https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery.png" width="600"/>
-    <br>
-</p>
+    <img src="img/rusty-celery-logo.png" width="400"/>
+    <p>
+    A Rust implementation of <a href="https://github.com/celery/celery">Celery</a> for producing and consuming asyncronous tasks with a distributed message queue.
+    </p>
+    <hr/>
+</div>
 <p align="center">
     <a href="https://github.com/rusty-celery/rusty-celery/actions">
         <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg?event=push&branch=master">
@@ -23,8 +26,8 @@
         <img alt="Discord" src="https://img.shields.io/discord/689533070247723078?logo=discord">
     </a>
 </p>
+<br/>
 
-A Rust implementation of [Celery](https://github.com/celery/celery) for producing and consuming asyncronous tasks with a distributed message queue.
 
 We welcome contributions from everyone regardless of your experience level with Rust. For complete beginners, see [HACKING_QUICKSTART.md](https://github.com/rusty-celery/rusty-celery/blob/master/HACKING_QUICKSTART.md).
 

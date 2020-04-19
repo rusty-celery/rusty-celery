@@ -20,6 +20,7 @@ use chrono::{DateTime, Utc};
 /// assert_eq!(signature.params.x, 1);
 /// assert_eq!(signature.params.y, 2);
 /// ```
+#[derive(Clone)]
 pub struct Signature<T>
 where
     T: Task,
