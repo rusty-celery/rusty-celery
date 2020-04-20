@@ -15,51 +15,78 @@
 // (just use a time delta), `crontab`, `solar`. They all inherit from
 // `BaseSchedule`.
 
-use futures::future::Future;
+use std::convert::TryFrom;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::pin::Pin;
 use std::time::{Duration, SystemTime};
 use tokio::time;
 use crate::task::{Task, Signature};
 use crate::protocol::Message;
+use crate::broker::Broker;
+use log::{debug, info, warn};
+
+
+const ZERO_SECS: Duration = Duration::from_secs(0);
 
 // The trait implemented by all schedules (regular, cron, solar).
 // We will only have regular for now.
 pub trait Schedule {
-    fn is_due(&self, last_run_at: Option<SystemTime>) -> (bool, Duration);
+    fn next_call_at(&self, last_run_at: Option<SystemTime>) -> SystemTime;
 }
 
 // When using this schedule, tasks are executed at regular intervals.
-struct RegularSchedule {
+pub struct RegularSchedule {
     interval: Duration,
 }
 
 impl RegularSchedule {
-    fn new(interval: Duration) -> RegularSchedule {
+    pub fn new(interval: Duration) -> RegularSchedule {
         RegularSchedule { interval }
     }
 }
 
 impl Schedule for RegularSchedule {
-    fn is_due(&self, last_run_at: Option<SystemTime>) -> (bool, Duration) {
+    fn next_call_at(&self, last_run_at: Option<SystemTime>) -> SystemTime {
         match last_run_at {
             Some(last_run_at) => {
-                let next_run_at = last_run_at.checked_add(self.interval).unwrap();
-                let now = SystemTime::now();
-                if next_run_at <= now {
-                    (true, Duration::from_secs(0))
-                } else {
-                    (false, next_run_at.duration_since(now).unwrap())
-                }
+                last_run_at.checked_add(self.interval).unwrap()
             }
-            None => (true, Duration::from_secs(0)),
+            None => SystemTime::now(),
         }
     }
 }
 
+type Queue = String;
+
 trait MessageFactoryTrait {
-    fn make(&self) -> Message;
+    fn make(&self) -> (Message, Queue);
+}
+
+struct MessageFactory<T> where T: Task + Clone {
+    signature: Signature<T>,
+}
+
+impl<T> MessageFactory<T> where T: Task + Clone {
+    fn new(signature: Signature<T>) -> MessageFactory<T> {
+        MessageFactory {
+            signature
+        }
+    }
+}
+
+impl<T> MessageFactoryTrait for MessageFactory<T> where T: Task + Clone {
+    fn make(&self) -> (Message, Queue) {
+        let mut cloned_signature = self.signature.clone();
+        let maybe_queue = cloned_signature.queue.take();
+
+        let queue = maybe_queue.unwrap_or("scheduled".to_string()); // TODO!
+        // TODO read queue from task_routes or default
+        // let queue = .unwrap_or_else(|| {
+        //     routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
+        // });
+        let message = Message::try_from(cloned_signature).expect("TODO");
+        (message, queue)
+    }
 }
 
 // A task which is scheduled for execution. It contains the task to execute,
@@ -75,20 +102,19 @@ struct ScheduleEntry {
 impl ScheduleEntry {
     fn new<T, S>(name: &str, signature: Signature<T>, schedule: S) -> ScheduleEntry
     where
-        T: Task,
+        T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
-        // ScheduleEntry {
-        //     name: name.to_string(),
-        //     signature,
-        //     schedule,
-        //     last_run_at: None,
-        //     total_run_count: 0,
-        // }
-        todo!() // the signature must be transformed into a MessageFactoryTrait
+        ScheduleEntry {
+            name: name.to_string(),
+            signature: Box::new(MessageFactory::new(signature)),
+            schedule: Box::new(schedule),
+            last_run_at: None,
+            total_run_count: 0,
+        }
     }
-    fn is_due(&self) -> (bool, Duration) {
-        self.schedule.is_due(self.last_run_at)
+    fn next_call_at(&self) -> SystemTime {
+        self.schedule.next_call_at(self.last_run_at)
     }
 }
 
@@ -96,8 +122,7 @@ impl ScheduleEntry {
 // We could directly add this info to ScheduleEntry, but for now we keep
 // the same structure.
 struct SortableScheduleEntry {
-    is_due: bool,
-    next_call_delay: Duration,
+    next_call_at: SystemTime,
     entry: ScheduleEntry,
 }
 
@@ -115,7 +140,7 @@ impl Ord for SortableScheduleEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         // The order is important (other is compared to self):
         // BinaryHeap is a max-heap by default, but we want a min-heap.
-        other.next_call_delay.cmp(&self.next_call_delay)
+        other.next_call_at.cmp(&self.next_call_at)
     }
 }
 
@@ -127,16 +152,18 @@ impl PartialOrd for SortableScheduleEntry {
 
 // Struct with all the main methods. It uses a min-heap to retrieve
 // the task which should run next.
-pub struct Scheduler {
+pub struct Scheduler<B: Broker + 'static> {
     heap: BinaryHeap<SortableScheduleEntry>,
     default_sleep_interval: Duration,
+    broker: &'static B,
 }
 
-impl Scheduler {
-    pub fn new() -> Scheduler {
+impl<B> Scheduler<B> where B: Broker + 'static {
+    pub fn new(broker: &'static B) -> Scheduler<B> {
         Scheduler {
             heap: BinaryHeap::new(),
             default_sleep_interval: Duration::from_millis(500),
+            broker,
         }
     }
 
@@ -149,50 +176,56 @@ impl Scheduler {
     // already provided:
     pub fn add<T, S>(&mut self, name: &str, signature: Signature<T>, schedule: S)
     where
-        T: Task,
+        T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
         let entry = ScheduleEntry::new(name, signature, schedule);
-        // TODO ask is_due and next_call_delay to Schedule
         self.heap.push(SortableScheduleEntry {
-            is_due: true,
-            next_call_delay: Duration::from_secs(0),
+            next_call_at: entry.next_call_at(),
             entry,
         });
     }
 
-    fn tick(&mut self) -> Duration {
+    async fn tick(&mut self) -> Duration {
         // Here we want to pop a scheduled entry and execute it if it is due,
         // then push it back on the heap with an updated due time,
         // and finally return when the next entry is due (may be due immediately).
         // At least, this is what Python does.
-        if let Some(SortableScheduleEntry {
-            is_due,
-            next_call_delay,
-            entry,
-        }) = self.heap.pop()
-        {
-            if is_due {
+        if let Some(mut sortable_entry) = self.heap.peek_mut() {
+            let now = SystemTime::now();
+            if sortable_entry.next_call_at <= now {
                 // Here we have to use the message factory to create a message
                 // and send it to the queue.
-                // Then we have to add the entry back to the heap
-                // with an updated is_due.
-                Duration::from_secs(0) // Ask to immediately call tick again (that's what Python does, it may be improved?)
+                let (message, queue) = sortable_entry.entry.signature.make();
+                info!(
+                    "Sending task to {}",
+                    queue,
+                );
+                self.broker.send(&message, &queue).await.expect("TODO");
+
+                sortable_entry.entry.last_run_at.replace(now);
+                sortable_entry.entry.total_run_count += 1;
+                sortable_entry.next_call_at = sortable_entry.entry.next_call_at();
+
+                ZERO_SECS // Ask to immediately call tick again (that's what Python does, it may be improved?)
             } else {
-                next_call_delay
+                debug!("Too early, let's sleep more");
+                sortable_entry.next_call_at.duration_since(now).unwrap()
             }
         } else {
+            debug!("Nothing to do!");
+            warn!("Currently, it is not possible to add tasks while the tick is going");
             self.default_sleep_interval
         }
     }
 }
 
 // Not sure yet what logic should end up here.
-trait SchedulerBackend {}
+// trait SchedulerBackend {}
 
 // The only Scheduler Backend implementation for now. It keeps
 // all data in memory.
-struct InMemoryBackend {}
+// struct InMemoryBackend {}
 
 // This is the structure that manages the main loop.
 // The main method is `start`, which calls scheduler.tick,
@@ -200,52 +233,21 @@ struct InMemoryBackend {}
 // Not sure if it is necessary for it to be a struct,
 // maybe just a function is enough.
 // This should be moved to another file later (beat.rs?)
-struct Service {
-    scheduler: Scheduler,
+pub struct Service<B: Broker + 'static> {
+    scheduler: Scheduler<B>,
 }
 
-impl Service {
-    pub fn new(scheduler: Scheduler) -> Service {
+impl<B> Service<B> where B: Broker + 'static {
+    pub fn new(scheduler: Scheduler<B>) -> Service<B> {
         Service { scheduler }
     }
 
     pub async fn start(&mut self) -> ! {
+        info!("Starting beat service");
         loop {
-            let sleep_interval = self.scheduler.tick();
-            println!("Now sleeping for {:?}", sleep_interval);
+            let sleep_interval = self.scheduler.tick().await;
+            debug!("Now sleeping for {:?}", sleep_interval);
             time::delay_for(sleep_interval).await;
         }
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::*;
-//     use async_trait::async_trait;
-
-//     // These tests are only meant for debugging purposes (for now).
-
-//     #[task]
-//     fn add(x: i32, y: i32) -> TaskResult<i32> {
-//         Ok(x + y)
-//     }
-
-//     async fn scheduled_task() {
-//         println!("I am a scheduled task");
-//     }
-
-//     #[tokio::test]
-//     async fn test_basic_flow() {
-//         let mut scheduler = Scheduler::new();
-//         scheduler.add(
-//             "Scheduled Task",
-//             add::new(1, 2),
-//             RegularSchedule::new(Duration::from_millis(40)),
-//         );
-
-//         let mut service = Service::new(scheduler);
-//         let res = time::timeout(Duration::from_secs(1), service.start()).await;
-//         assert!(res.is_err()) // we get an error because the timeout always fires
-//     }
-// }

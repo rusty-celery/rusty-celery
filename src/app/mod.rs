@@ -255,6 +255,11 @@ where
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
+    // TODO remove this method!
+    pub fn get_broker(&self) -> &B {
+        &self.broker
+    }
+
     /// Send a task to a remote worker. Returns the task ID of the task if successful.
     pub async fn send_task<T: Task>(
         &self,

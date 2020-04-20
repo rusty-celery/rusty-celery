@@ -507,6 +507,7 @@ impl ToTokens for Task {
 
         let wrapper_struct = quote! {
             #[allow(non_camel_case_types)]
+            #[derive(Clone)]
             #vis struct #wrapper {
                 request: #krate::task::Request<Self>,
                 options: #krate::task::TaskOptions,
