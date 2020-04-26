@@ -35,6 +35,33 @@ macro_rules! __app_internal {
     }};
 }
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __beat_internal {
+    (
+        $broker_type:ty { $broker_url:expr },
+        [ $( $pattern:expr => $queue:expr ),* ],
+        $( $x:ident = $y:expr, )*
+    ) => {{
+        let broker_url = $broker_url;
+
+        let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
+
+        $(
+            builder = builder.$x($y);
+        )*
+
+        $(
+            builder = builder.task_route($pattern, $queue);
+        )*
+
+        let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
+
+        let scheduler = $crate::to_beat_service(celery);
+        $crate::BeatService::new(scheduler)
+    }};
+}
+
 /// A macro for creating a [`Celery`](struct.Celery.html) app.
 ///
 /// At a minimum the `app!` macro requires these 3 arguments (in order):
@@ -120,6 +147,33 @@ macro_rules! app {
         $crate::__app_internal!(
             $crate::broker::AMQPBroker { $broker_url },
             [ $( $t ),* ],
+            [ $( $pattern => $queue ),* ],
+            $( $x = $y, )*
+        );
+    };
+}
+
+// TODO add support for scheduling tasks here.
+#[macro_export]
+macro_rules! beat {
+    // Just required fields without trailing comma.
+    (
+        $(broker =)? AMQP { $broker_url:expr },
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+    ) => {
+        $crate::__beat_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
+            [ $( $pattern => $queue ),* ],
+        );
+    };
+    // Required fields with trailing comma and possibly additional options.
+    (
+        $(broker =)? AMQP { $broker_url:expr },
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
+        $( $x:ident = $y:expr ),* $(,)?
+    ) => {
+        $crate::__beat_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );

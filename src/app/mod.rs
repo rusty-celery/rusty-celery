@@ -10,14 +10,14 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
 
-mod routing;
 mod trace;
 
+use crate::beat::Scheduler;
 use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, TryCreateMessage};
+use crate::routing::Rule;
 use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
-use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -246,6 +246,11 @@ pub struct Celery<B: Broker> {
     task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
 }
 
+// TODO this is a temporary hack, we'll have to write a proper SchedulerBuilder at some point
+pub fn to_beat_service<B: Broker>(celery: Celery<B>) -> Scheduler<B> {
+    Scheduler::new(celery.broker, celery.task_routes, celery.default_queue)
+}
+
 impl<B> Celery<B>
 where
     B: Broker,
@@ -255,11 +260,6 @@ where
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
-    // TODO remove this method!
-    pub fn get_broker(&self) -> &B {
-        &self.broker
-    }
-
     /// Send a task to a remote worker. Returns the task ID of the task if successful.
     pub async fn send_task<T: Task>(
         &self,
@@ -267,7 +267,7 @@ where
     ) -> Result<String, CeleryError> {
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
-            routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
+            crate::routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
         });
         let message = Message::try_from(task_sig)?;
         info!(

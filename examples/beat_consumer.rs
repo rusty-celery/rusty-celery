@@ -3,7 +3,6 @@ use env_logger::Env;
 use exitfailure::ExitFailure;
 use log::info;
 
-
 const QUEUE_NAME: &str = "scheduled";
 
 #[celery::task]
@@ -34,9 +33,7 @@ async fn main() -> Result<(), ExitFailure> {
         heartbeat = Some(10),
     );
 
-    my_app
-        .consume_from(&[QUEUE_NAME])
-        .await?;
+    my_app.consume_from(&[QUEUE_NAME]).await?;
 
     my_app.close().await?;
 
