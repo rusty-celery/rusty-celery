@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use celery::error::TaskError;
-use celery::task::Task;
+use celery::task::{Task, TaskResult};
 use env_logger::Env;
 use exitfailure::ExitFailure;
 use structopt::StructOpt;
@@ -10,16 +10,17 @@ use tokio::time::{self, Duration};
 
 // This generates the task struct and impl with the name set to the function name "add"
 #[celery::task]
-fn add(x: i32, y: i32) -> i32 {
-    x + y
+fn add(x: i32, y: i32) -> TaskResult<i32> {
+    Ok(x + y)
 }
 
 // Demonstrates a task that raises an error, and also how to customize task options.
 // In this case we override the default `max_retries`.
 #[celery::task(max_retries = 3)]
-fn buggy_task() {
-    #[allow(clippy::try_err)]
-    Err(TaskError::UnexpectedError("a bug caused this".into()))?
+fn buggy_task() -> TaskResult<()> {
+    Err(TaskError::UnexpectedError(
+        "This error is part of the example: it is used to showcase a buggy task".into(),
+    ))
 }
 
 // Demonstrates a long running IO-bound task. By increasing the prefetch count, an arbitrary
@@ -32,8 +33,8 @@ async fn long_running_task(secs: Option<u64>) {
 
 // Demonstrates a task that is bound to the task instance, i.e. runs as an instance method.
 #[celery::task(bind = true)]
-fn bound_task(task: &Self) -> Option<u32> {
-    task.timeout()
+fn bound_task(task: &Self) -> TaskResult<Option<u32>> {
+    Ok(task.timeout())
 }
 
 #[derive(Debug, StructOpt)]
@@ -58,18 +59,23 @@ async fn main() -> Result<(), ExitFailure> {
             buggy_task,
             long_running_task,
         ],
-        task_routes = [],
+        task_routes = [
+            "buggy_task" => "buggy-queue",
+            "*" => "celery",
+        ],
         prefetch_count = 2,
         heartbeat = Some(10),
     );
 
     match opt {
         CeleryOpt::Consume => {
-            my_app.consume().await?;
+            my_app.consume_from(&["celery", "buggy-queue"]).await?;
         }
         CeleryOpt::Produce => {
             // Basic sending.
             my_app.send_task(add::new(1, 2)).await?;
+
+            my_app.send_task(buggy_task::new()).await?;
 
             // Demonstrates sending a task with additional options.
             my_app.send_task(add::new(1, 3).with_countdown(5)).await?;

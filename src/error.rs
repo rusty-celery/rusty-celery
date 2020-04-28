@@ -1,5 +1,6 @@
 //! Error types.
 
+use chrono::{DateTime, Utc};
 use failure::{Context, Fail};
 
 /// Errors that can occur while creating or using a `Celery` app.
@@ -8,6 +9,10 @@ pub enum CeleryError {
     /// The queue you're attempting to use has not been defined.
     #[fail(display = "Unknown queue '{}'", _0)]
     UnknownQueue(String),
+
+    /// Raised when `Celery::consume_from` is given an empty array of queues.
+    #[fail(display = "At least one queue required to consume from")]
+    NoQueueToConsume,
 
     /// Forced shutdown.
     #[fail(display = "Forced shutdown")]
@@ -37,17 +42,50 @@ pub enum CeleryError {
     UnregisteredTaskError(String),
 }
 
-/// Errors that can occur while running or tracing a task.
+/// Errors that can occur at the task level.
 #[derive(Debug, Fail)]
 pub enum TaskError {
-    /// An error that is expected to happen every once in a while and should trigger
-    /// the task to be retried without causes a fit.
+    /// An error that is expected to happen every once in a while.
+    ///
+    /// These errors will only be logged at the `WARN` level and will always trigger a task
+    /// retry unless [`max_retries`](../task/struct.TaskOptions.html#structfield.max_retries)
+    /// is set to 0 (or max retries is exceeded).
+    ///
+    /// A typical example is a task that makes an HTTP request to an external service.
+    /// If that service is temporarily unavailable the task should raise an `ExpectedError`.
+    ///
+    /// Tasks are always retried with capped exponential backoff.
     #[fail(display = "{}", _0)]
     ExpectedError(String),
 
     /// Should be used when a task encounters an error that is unexpected.
+    ///
+    /// These errors will always be logged at the `ERROR` level. The retry behavior
+    /// when this error is encountered is determined by the
+    /// [`TaskOptions::retry_for_unexpected`](../task/struct.TaskOptions.html#structfield.retry_for_unexpected)
+    /// setting.
     #[fail(display = "{}", _0)]
     UnexpectedError(String),
+
+    /// Raised when a task runs over its time limit specified by the
+    /// [`TaskOptions::timeout`](../task/struct.TaskOptions.html#structfield.timeout) setting.
+    ///
+    /// These errors are logged at the `ERROR` level but are otherwise treated like
+    /// `ExpectedError`s in that they will trigger a retry when `max_retries` is anything but 0.
+    ///
+    /// Typically a task implementation doesn't need to return these errors directly
+    /// because they will be raised automatically when the task runs over it's `timeout`,
+    /// provided the task yields control at some point (like with non-blocking IO).
+    #[fail(display = "Task timed out")]
+    TimeoutError,
+}
+
+/// Errors that can occur while tracing a task.
+#[derive(Debug, Fail)]
+pub(crate) enum TraceError {
+    /// Raised when a task throws an error while executing.
+    #[fail(display = "Task failed with {}", _0)]
+    TaskError(TaskError),
 
     /// Raised when an expired task is received.
     #[fail(display = "Task expired")]
@@ -55,11 +93,7 @@ pub enum TaskError {
 
     /// Raised when a task should be retried.
     #[fail(display = "Retrying task")]
-    Retry,
-
-    /// Raised when a task runs over its time limit.
-    #[fail(display = "Task timed out")]
-    TimeoutError,
+    Retry(Option<DateTime<Utc>>),
 }
 
 /// Errors that can occur at the broker level.

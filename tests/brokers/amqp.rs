@@ -3,16 +3,14 @@
 use async_trait::async_trait;
 use celery::error::TaskError;
 use celery::task::{Request, Signature, Task, TaskOptions};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::time::{self, Duration};
 
-lazy_static! {
-    static ref SUCCESSES: Mutex<HashMap<String, Result<i32, TaskError>>> =
-        Mutex::new(HashMap::new());
-}
+static SUCCESSES: Lazy<Mutex<HashMap<String, Result<i32, TaskError>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[allow(non_camel_case_types)]
 struct add {
@@ -56,11 +54,11 @@ impl Task for add {
         Ok(params.x + params.y)
     }
 
-    async fn on_success(&self, returned: &Self::Returns, task_id: &str, _params: Self::Params) {
+    async fn on_success(&self, returned: &Self::Returns) {
         SUCCESSES
             .lock()
             .unwrap()
-            .insert(task_id.into(), Ok(*returned));
+            .insert(self.request().id.clone(), Ok(*returned));
     }
 }
 

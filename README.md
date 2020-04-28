@@ -1,8 +1,11 @@
-<p align="center" style="font-size:300px;">
+<div align="center">
     <br>
-    <img src="https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery.png" width="600"/>
-    <br>
-<p>
+    <img src="img/rusty-celery-logo.png" width="400"/>
+    <p>
+    A Rust implementation of <a href="https://github.com/celery/celery">Celery</a> for producing and consuming asyncronous tasks with a distributed message queue.
+    </p>
+    <hr/>
+</div>
 <p align="center">
     <a href="https://github.com/rusty-celery/rusty-celery/actions">
         <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg?event=push&branch=master">
@@ -17,11 +20,14 @@
         <img alt="Docs" src="https://img.shields.io/badge/docs.rs-API%20docs-blue">
     </a>
     <a href="https://github.com/rusty-celery/rusty-celery/issues?q=is%3Aissue+is%3Aopen+label%3A%22Status%3A+Help+Wanted%22">
-        <img alt="Docs" src="https://img.shields.io/github/issues/rusty-celery/rusty-celery/Status%3A%20Help%20Wanted?label=Help%20Wanted">
+        <img alt="Help wanted" src="https://img.shields.io/github/issues/rusty-celery/rusty-celery/Status%3A%20Help%20Wanted?label=Help%20Wanted">
+    </a>
+    <a href="https://discord.gg/PV3azbB">
+        <img alt="Discord" src="https://img.shields.io/discord/689533070247723078?logo=discord">
     </a>
 </p>
+<br/>
 
-A Rust implementation of [Celery](https://github.com/celery/celery) for producing and consuming asyncronous tasks with a distributed message queue.
 
 We welcome contributions from everyone regardless of your experience level with Rust. For complete beginners, see [HACKING_QUICKSTART.md](https://github.com/rusty-celery/rusty-celery/blob/master/HACKING_QUICKSTART.md).
 
@@ -32,9 +38,11 @@ If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-ce
 Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
 
 ```rust
+use celery::TaskResult;
+
 #[celery::task]
-fn add(x: i32, y: i32) -> i32 {
-    x + y
+fn add(x: i32, y: i32) -> TaskResult<i32> {
+    Ok(x + y)
 }
 ```
 
@@ -65,8 +73,9 @@ my_app.consume().await?;
 
 The `./examples` directory contains a simple Celery app that is implemented in both Rust ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)) and Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)) using an AMQP broker. 
 
-If you already have an AMQP broker running you can set the environment variable `AMQP_URL` to your broker's URL. Otherwise simply run the helper script:
-
+If you already have an AMQP broker running you can set the environment variable `AMQP_ADDR` to your broker's URL (e.g., `amqp://localhost:5672//`, where
+the second slash at the end is the name of the [default vhost](https://www.rabbitmq.com/access-control.html#default-state)).
+Otherwise simply run the helper script:
 ```bash
 ./scripts/brokers/amqp.sh
 ```
@@ -117,4 +126,6 @@ This sends a series of tasks from the Python app to the Rust app. You can also s
 
 ## Team
 
-Rusty Celery is an open source project backed by [Structurely](https://structurely.com/). Structurely is a start-up building customizable AI inside sales agents that has been using Celery in production back to circa 2017.
+[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/0)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/0)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/1)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/1)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/2)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/2)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/3)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/3)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/4)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/4)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/5)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/5)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/6)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/6)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/7)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/7)
+
+Rusty Celery is an open source community effort. It is also backed by [Structurely](https://structurely.com/), a start-up building conversational AI that has been using Python Celery in production since 2017.

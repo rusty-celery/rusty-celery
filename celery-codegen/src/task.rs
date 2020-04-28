@@ -24,8 +24,11 @@ enum TaskAttr {
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
     MaxRetryDelay(syn::LitInt),
+    RetryForUnexpected(syn::LitBool),
     AcksLate(syn::LitBool),
     Bind(syn::LitBool),
+    OnFailure(syn::Ident),
+    OnSuccess(syn::Ident),
 }
 
 #[derive(Clone)]
@@ -39,6 +42,7 @@ struct Task {
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
+    retry_for_unexpected: Option<syn::LitBool>,
     acks_late: Option<syn::LitBool>,
     original_args: Vec<syn::FnArg>,
     inputs: Option<Punctuated<FnArg, Comma>>,
@@ -46,6 +50,8 @@ struct Task {
     return_type: Option<syn::Type>,
     is_async: bool,
     bind: bool,
+    on_failure: Option<syn::Ident>,
+    on_success: Option<syn::Ident>,
 }
 
 impl TaskAttrs {
@@ -119,6 +125,16 @@ impl TaskAttrs {
             .next()
     }
 
+    fn retry_for_unexpected(&self) -> Option<syn::LitBool> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::RetryForUnexpected(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
     fn acks_late(&self) -> Option<syn::LitBool> {
         self.attrs
             .iter()
@@ -134,6 +150,26 @@ impl TaskAttrs {
             .iter()
             .filter_map(|a| match a {
                 TaskAttr::Bind(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
+    fn on_failure(&self) -> Option<syn::Ident> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::OnFailure(i) => Some(i.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
+    fn on_success(&self) -> Option<syn::Ident> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::OnSuccess(i) => Some(i.clone()),
                 _ => None,
             })
             .next()
@@ -157,8 +193,11 @@ mod kw {
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
     syn::custom_keyword!(max_retry_delay);
+    syn::custom_keyword!(retry_for_unexpected);
     syn::custom_keyword!(acks_late);
     syn::custom_keyword!(bind);
+    syn::custom_keyword!(on_failure);
+    syn::custom_keyword!(on_success);
 }
 
 impl parse::Parse for TaskAttr {
@@ -192,6 +231,10 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::max_retry_delay>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::MaxRetryDelay(input.parse()?))
+        } else if lookahead.peek(kw::retry_for_unexpected) {
+            input.parse::<kw::retry_for_unexpected>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::RetryForUnexpected(input.parse()?))
         } else if lookahead.peek(kw::acks_late) {
             input.parse::<kw::acks_late>()?;
             input.parse::<Token![=]>()?;
@@ -200,6 +243,14 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::bind>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::Bind(input.parse()?))
+        } else if lookahead.peek(kw::on_failure) {
+            input.parse::<kw::on_failure>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::OnFailure(input.parse()?))
+        } else if lookahead.peek(kw::on_success) {
+            input.parse::<kw::on_success>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::OnSuccess(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -218,6 +269,7 @@ impl Task {
             max_retries: attrs.max_retries(),
             min_retry_delay: attrs.min_retry_delay(),
             max_retry_delay: attrs.max_retry_delay(),
+            retry_for_unexpected: attrs.retry_for_unexpected(),
             acks_late: attrs.acks_late(),
             original_args: Vec::new(),
             inputs: None,
@@ -228,55 +280,61 @@ impl Task {
                 .bind()
                 .map(|lit_bool| lit_bool.value)
                 .unwrap_or_default(),
+            on_failure: attrs.on_failure(),
+            on_success: attrs.on_success(),
         })
     }
 }
 
 impl VisitMut for Task {
     fn visit_item_fn_mut(&mut self, node: &mut syn::ItemFn) {
+        const ERR_GENERICS: &str = "functions with generic arguments are not supported";
+        const ERR_VARIADIC: &str = "functions with variadic arguments are not supported";
+        const ERR_MISSING_SELF: &str = "bound task should have &self as an argument";
         const ERR_ABI: &str = "functions with non-Rust ABI are not supported";
-        let ident = node.ident.clone();
 
-        self.visibility = node.vis.clone();
-        if let Some(ref mut it) = node.abi {
+        if let Some(ref mut it) = node.sig.abi {
             self.errors.push(Error::spanned(ERR_ABI, it.span()));
         };
+
+        if !node.sig.generics.params.is_empty() {
+            self.errors
+                .push(Error::spanned(ERR_GENERICS, node.sig.generics.span()));
+        }
+
+        if let Some(ref mut it) = node.sig.variadic {
+            self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
+        }
+
+        let ident = node.sig.ident.clone();
+
+        self.visibility = node.vis.clone();
+        self.inner_block = Some((*node.block).clone());
+        self.is_async = node.sig.asyncness.is_some();
+        self.inputs = Some(node.sig.inputs.clone());
+
+        if self.wrapper.is_none() {
+            self.wrapper = Some(ident.clone());
+        }
+
         if self.name.is_none() {
             self.name = Some(ident.to_string())
         }
+
         if self.params_type.is_none() {
             self.params_type = Some(syn::Ident::new(
                 &format!("{}Params", ident.to_string())[..],
                 Span::call_site(),
             ));
         }
-        if self.wrapper.is_none() {
-            self.wrapper = Some(ident);
-        }
-        self.visit_fn_decl_mut(&mut *node.decl);
-        self.inner_block = Some((*node.block).clone());
-        self.is_async = node.asyncness.is_some();
-    }
 
-    fn visit_fn_decl_mut(&mut self, node: &mut syn::FnDecl) {
-        const ERR_GENERICS: &str = "functions with generic arguments are not supported";
-        const ERR_VARIADIC: &str = "functions with variadic arguments are not supported";
-        const ERR_MISSING_SELF: &str = "bound task should have &self as an argument";
-
-        if !node.generics.params.is_empty() {
-            self.errors
-                .push(Error::spanned(ERR_GENERICS, node.generics.span()));
-        }
-        self.original_args = node.inputs.clone().into_iter().collect();
+        self.original_args = node.sig.inputs.clone().into_iter().collect();
         if self.bind && self.original_args.is_empty() {
             self.errors
-                .push(Error::spanned(ERR_MISSING_SELF, node.inputs.span()));
+                .push(Error::spanned(ERR_MISSING_SELF, node.sig.inputs.span()));
         }
-        self.inputs = Some(node.inputs.clone());
-        if let Some(ref mut it) = node.variadic {
-            self.errors.push(Error::spanned(ERR_VARIADIC, it.span()));
-        }
-        if let syn::ReturnType::Type(_arr, ref ty) = node.output {
+
+        if let syn::ReturnType::Type(_arr, ref ty) = node.sig.output {
             self.return_type = Some((**ty).clone());
         }
     }
@@ -289,8 +347,8 @@ fn args_to_fields<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => {
-                let ident = match cap.pat {
+            syn::FnArg::Typed(cap) => {
+                let ident = match *cap.pat {
                     syn::Pat::Ident(ref pat) => &pat.ident,
                     _ => return acc,
                 };
@@ -311,7 +369,7 @@ fn args_to_arg_names<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => match cap.pat {
+            syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
                     let name = &pat.ident.to_string();
                     quote! {
@@ -329,7 +387,7 @@ fn args_to_bindings<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>, bind: bo
     args.into_iter()
         .enumerate()
         .fold(TokenStream::new(), |acc, (i, arg)| match arg {
-            syn::FnArg::Captured(cap) => match cap.pat {
+            syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
                     let ident = &pat.ident;
                     if bind && i == 0 {
@@ -356,7 +414,7 @@ fn args_to_calling_args<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => match cap.pat {
+            syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
                     let ident = &pat.ident;
                     quote! {
@@ -377,8 +435,8 @@ fn args_to_typed_inputs<'a>(
     args.into_iter()
         .skip(if !skip_first { 0 } else { 1 })
         .fold(TokenStream::new(), |acc, arg| match arg {
-            syn::FnArg::Captured(cap) => {
-                let ident = match cap.pat {
+            syn::FnArg::Typed(cap) => {
+                let ident = match *cap.pat {
                     syn::Pat::Ident(ref pat) => &pat.ident,
                     _ => return acc,
                 };
@@ -419,6 +477,11 @@ impl ToTokens for Task {
             .as_ref()
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { None });
+        let retry_for_unexpected = self
+            .retry_for_unexpected
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { None });
         let acks_late = self
             .acks_late
             .as_ref()
@@ -436,7 +499,7 @@ impl ToTokens for Task {
             .return_type
             .as_ref()
             .map(|ty| quote!(#ty))
-            .unwrap_or_else(|| quote!(()));
+            .unwrap_or_else(|| quote!(#krate::task::TaskResult<()>));
         let typed_inputs = args_to_typed_inputs(&self.original_args, self.bind);
         let typed_run_inputs = args_to_typed_inputs(&self.original_args, false);
         let params_args = args_to_calling_args(&self.original_args, self.bind);
@@ -460,19 +523,37 @@ impl ToTokens for Task {
             }
         };
 
-        let run_implementation = if self.is_async {
+        let run_implementation = if self.return_type.is_none() {
+            if self.is_async {
+                quote! {
+                    impl #wrapper {
+                        async fn _run(#typed_run_inputs) -> #return_type {
+                            Ok(#inner_block)
+                        }
+                    }
+                }
+            } else {
+                quote! {
+                    impl #wrapper {
+                        fn _run(#typed_run_inputs) -> #return_type {
+                            Ok(#inner_block)
+                        }
+                    }
+                }
+            }
+        } else if self.is_async {
             quote! {
                 impl #wrapper {
-                    async fn _run(#typed_run_inputs) -> #krate::task::TaskResult<#return_type> {
-                        Ok(#inner_block)
+                    async fn _run(#typed_run_inputs) -> #return_type {
+                        #inner_block
                     }
                 }
             }
         } else {
             quote! {
                 impl #wrapper {
-                    fn _run(#typed_run_inputs) -> #krate::task::TaskResult<#return_type> {
-                        Ok(#inner_block)
+                    fn _run(#typed_run_inputs) -> #return_type {
+                        #inner_block
                     }
                 }
             }
@@ -486,6 +567,20 @@ impl ToTokens for Task {
             quote! {
                 Ok(#wrapper::_run(#calling_args)?)
             }
+        };
+
+        let call_on_failure = match self.on_failure.as_ref() {
+            Some(ident) => quote! {
+                #ident(self, err).await
+            },
+            None => quote! {},
+        };
+
+        let call_on_success = match self.on_success.as_ref() {
+            Some(ident) => quote! {
+                #ident(self, returned).await
+            },
+            None => quote! {},
         };
 
         let dummy_const = syn::Ident::new(
@@ -516,11 +611,12 @@ impl ToTokens for Task {
                         max_retries: #max_retries,
                         min_retry_delay: #min_retry_delay,
                         max_retry_delay: #max_retry_delay,
+                        retry_for_unexpected: #retry_for_unexpected,
                         acks_late: #acks_late,
                     };
 
                     type Params = #params_type;
-                    type Returns = #return_type;
+                    type Returns = <#return_type as #krate::task::AsTaskResult>::Returns;
 
                     fn from_request(
                         request: #krate::task::Request<Self>,
@@ -537,9 +633,20 @@ impl ToTokens for Task {
                         &self.options
                     }
 
-                    async fn run(&self, params: Self::Params) -> #krate::task::TaskResult<Self::Returns> {
+                    #[allow(unused_variables)]
+                    async fn run(&self, params: Self::Params) -> #return_type {
                         #deserialized_bindings
                         #call_run_implementation
+                    }
+
+                    #[allow(unused_variables)]
+                    async fn on_failure(&self, err: &#krate::error::TaskError) {
+                        #call_on_failure
+                    }
+
+                    #[allow(unused_variables)]
+                    async fn on_success(&self, returned: &Self::Returns) {
+                        #call_on_success
                     }
                 }
             };

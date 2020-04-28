@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::stream::StreamMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
@@ -13,7 +14,7 @@ mod routing;
 mod trace;
 
 use crate::broker::{Broker, BrokerBuilder};
-use crate::error::{BrokerError, CeleryError, TaskError};
+use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, TryCreateMessage};
 use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use routing::Rule;
@@ -30,7 +31,7 @@ where
     broker_connection_max_retries: u32,
     default_queue: String,
     task_options: TaskOptions,
-    task_routes: Vec<Rule>,
+    task_routes: Vec<(String, String)>,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
@@ -58,8 +59,9 @@ where
                 task_options: TaskOptions {
                     timeout: None,
                     max_retries: None,
-                    min_retry_delay: Some(0),
-                    max_retry_delay: Some(3600),
+                    min_retry_delay: None,
+                    max_retry_delay: None,
+                    retry_for_unexpected: None,
                     acks_late: Some(false),
                 },
                 task_routes: vec![],
@@ -67,59 +69,76 @@ where
         }
     }
 
-    /// Set the name of the default queue.
+    /// Set the name of the default queue to something other than "celery".
     pub fn default_queue(mut self, queue_name: &str) -> Self {
         self.config.default_queue = queue_name.into();
         self
     }
 
-    /// Set the prefetch count.
+    /// Set the prefetch count. The default value depends on the broker implementation,
+    /// but it's recommended that you always set this to a value that works best
+    /// for your application.
+    ///
+    /// This may take some tuning, as it depends on a lot of factors, such
+    /// as whether your tasks are IO bound (higher prefetch count is better) or CPU bound (lower
+    /// prefetch count is better).
     pub fn prefetch_count(mut self, prefetch_count: u16) -> Self {
         self.config.broker_builder = self.config.broker_builder.prefetch_count(prefetch_count);
         self
     }
 
-    /// Set the broker heartbeat.
+    /// Set the broker heartbeat. The default value depends on the broker implementation.
     pub fn heartbeat(mut self, heartbeat: Option<u16>) -> Self {
         self.config.broker_builder = self.config.broker_builder.heartbeat(heartbeat);
         self
     }
 
-    /// Set a default timeout for tasks.
+    /// Set an app-level timeout for tasks (see
+    /// [`TaskOption::timeout`](task/struct.TaskOptions.html#structfield.timeout)).
     pub fn task_timeout(mut self, task_timeout: u32) -> Self {
         self.config.task_options.timeout = Some(task_timeout);
         self
     }
 
-    /// Set a default maximum number of retries for tasks.
+    /// Set an app-level maximum number of retries for tasks (see
+    /// [`TaskOption::max_retries`](task/struct.TaskOptions.html#structfield.max_retries)).
     pub fn task_max_retries(mut self, task_max_retries: u32) -> Self {
         self.config.task_options.max_retries = Some(task_max_retries);
         self
     }
 
-    /// Set a default minimum retry delay for tasks.
+    /// Set an app-level minimum retry delay for tasks (see
+    /// [`TaskOption::min_retry_delay`](task/struct.TaskOptions.html#structfield.min_retry_delay)).
     pub fn task_min_retry_delay(mut self, task_min_retry_delay: u32) -> Self {
         self.config.task_options.min_retry_delay = Some(task_min_retry_delay);
         self
     }
 
-    /// Set a default maximum retry delay for tasks.
+    /// Set an app-level maximum retry delay for tasks (see
+    /// [`TaskOption::max_retry_delay`](task/struct.TaskOptions.html#structfield.max_retry_delay)).
     pub fn task_max_retry_delay(mut self, task_max_retry_delay: u32) -> Self {
         self.config.task_options.max_retry_delay = Some(task_max_retry_delay);
         self
     }
 
-    /// Set whether by default a task is acknowledged before or after execution.
+    /// Set whether by default `UnexpectedError`s should be retried for (see
+    /// [`TaskOption::retry_for_unexpected`](task/struct.TaskOptions.html#structfield.retry_for_unexpected)).
+    pub fn task_retry_for_unexpected(mut self, retry_for_unexpected: bool) -> Self {
+        self.config.task_options.retry_for_unexpected = Some(retry_for_unexpected);
+        self
+    }
+
+    /// Set whether by default a task is acknowledged before or after execution (see
+    /// [`TaskOption::acks_late`](task/struct.TaskOptions.html#structfield.acks_late)).
     pub fn acks_late(mut self, acks_late: bool) -> Self {
         self.config.task_options.acks_late = Some(acks_late);
         self
     }
 
     /// Add a routing rule.
-    pub fn task_route(mut self, pattern: &str, queue: &str) -> Result<Self, CeleryError> {
-        let rule = Rule::new(pattern, queue)?;
-        self.config.task_routes.push(rule);
-        Ok(self)
+    pub fn task_route(mut self, pattern: &str, queue: &str) -> Self {
+        self.config.task_routes.push((pattern.into(), queue.into()));
+        self
     }
 
     /// Set a timeout in seconds before giving up establishing a connection to a broker.
@@ -149,9 +168,12 @@ where
             .broker_builder
             .declare_queue(&self.config.default_queue);
 
-        // Ensure all other queues mentioned in task_routes are declared to the broker.
-        for rule in &self.config.task_routes {
-            broker_builder = broker_builder.declare_queue(&rule.queue);
+        let mut task_routes: Vec<Rule> = Vec::with_capacity(self.config.task_routes.len());
+        for (pattern, queue) in &self.config.task_routes {
+            let rule = Rule::new(&pattern, &queue)?;
+            task_routes.push(rule);
+            // Ensure all other queues mentioned in task_routes are declared to the broker.
+            broker_builder = broker_builder.declare_queue(&queue);
         }
 
         // Try building / connecting to broker.
@@ -195,7 +217,7 @@ where
             broker: broker.ok_or_else(|| BrokerError::NotConnected)?,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
-            task_routes: self.config.task_routes,
+            task_routes,
             task_trace_builders: RwLock::new(HashMap::new()),
         })
     }
@@ -239,7 +261,7 @@ where
         mut task_sig: Signature<T>,
     ) -> Result<String, CeleryError> {
         let maybe_queue = task_sig.queue.take();
-        let queue = maybe_queue.as_ref().map(|s| s.as_str()).unwrap_or_else(|| {
+        let queue = maybe_queue.as_deref().unwrap_or_else(|| {
             routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
         });
         let message = Message::try_from(task_sig)?;
@@ -342,7 +364,7 @@ where
         }
 
         // If acks_late is false, we acknowledge the message before tracing it.
-        if !tracer.get_task_options().acks_late.unwrap_or_default() {
+        if !tracer.acks_late() {
             self.broker
                 .ack(&delivery)
                 .await
@@ -355,8 +377,7 @@ where
         // we only log errors at the broker and delivery level.
         if let Err(e) = tracer.trace().await {
             // If retry error -> retry the task.
-            if let TaskError::Retry = e {
-                let retry_eta = tracer.retry_eta();
+            if let TraceError::Retry(retry_eta) = e {
                 self.broker
                     .retry(&delivery, retry_eta)
                     .await
@@ -365,7 +386,7 @@ where
         }
 
         // If we have not done it before, we have to acknowledge the message now.
-        if tracer.get_task_options().acks_late.unwrap_or_default() {
+        if tracer.acks_late() {
             self.broker
                 .ack(&delivery)
                 .await
@@ -385,22 +406,10 @@ where
     }
 
     /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
-    async fn handle_delivery(
-        &self,
-        delivery_result: Result<B::Delivery, B::DeliveryError>,
-        event_tx: UnboundedSender<TaskEvent>,
-    ) {
-        match delivery_result {
-            Ok(delivery) => {
-                debug!("Received delivery: {:?}", delivery);
-                if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
-                    error!("{}", e);
-                };
-            }
-            Err(e) => {
-                error!("Deliver failed: {}", e);
-            }
-        };
+    async fn handle_delivery(&self, delivery: B::Delivery, event_tx: UnboundedSender<TaskEvent>) {
+        if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
+            error!("{}", e);
+        }
     }
 
     /// Close channels and connections.
@@ -415,31 +424,42 @@ where
 {
     /// Consume tasks from the default queue.
     pub async fn consume(&'static self) -> Result<(), CeleryError> {
-        Ok(self.consume_from(&self.default_queue).await?)
+        Ok(self.consume_from(&[&self.default_queue]).await?)
     }
 
     /// Consume tasks from a queue.
     #[allow(clippy::cognitive_complexity)]
-    pub async fn consume_from(&'static self, queue: &str) -> Result<(), CeleryError> {
-        info!("Consuming from {}", queue);
+    pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+        if queues.is_empty() {
+            return Err(CeleryError::NoQueueToConsume);
+        }
+
+        info!("Consuming from {:?}", queues);
 
         // Stream of errors from broker. The capacity here is arbitrary because a single
         // error from the broker should trigger this method to return early.
         let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
 
         // Stream of deliveries from the queue.
-        let mut deliveries = Box::pin(
-            self.broker
-                .consume(
-                    queue,
-                    Box::new(move || {
-                        if broker_error_tx.clone().try_send(()).is_err() {
-                            error!("Failed to send broker error event");
-                        };
-                    }),
-                )
-                .await?,
-        );
+        let mut stream_map = StreamMap::new();
+        for queue in queues {
+            let broker_error_tx = broker_error_tx.clone();
+            stream_map.insert(
+                queue,
+                Box::pin(
+                    self.broker
+                        .consume(
+                            queue,
+                            Box::new(move || {
+                                if broker_error_tx.clone().try_send(()).is_err() {
+                                    error!("Failed to send broker error event");
+                                };
+                            }),
+                        )
+                        .await?,
+                ),
+            );
+        }
 
         // Stream of OS signals.
         let mut sigint = signal(SignalKind::interrupt())?;
@@ -459,10 +479,18 @@ where
         // tasks being delayed due to a future ETA).
         loop {
             select! {
-                maybe_delivery_result = deliveries.next() => {
-                    if let Some(delivery_result) = maybe_delivery_result {
-                        let task_event_tx = task_event_tx.clone();
-                        tokio::spawn(self.handle_delivery(delivery_result, task_event_tx));
+                maybe_delivery_result = stream_map.next() => {
+                    if let Some((queue, delivery_result)) = maybe_delivery_result {
+                        match delivery_result {
+                            Ok(delivery) => {
+                                let task_event_tx = task_event_tx.clone();
+                                debug!("Received delivery from {}: {:?}", queue, delivery);
+                                tokio::spawn(self.handle_delivery(delivery, task_event_tx));
+                            }
+                            Err(e) => {
+                                error!("Deliver failed: {}", e);
+                            }
+                        }
                     }
                 },
                 _ = sigint.next() => {

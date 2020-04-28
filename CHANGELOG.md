@@ -6,6 +6,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.5] - 2019-03-24
+
+### Changed
+
+- Tasks must explicity return a `TaskResult<T>` now.
+
+## [0.2.4] - 2019-03-16
+
+## Added
+
+- A `retry_for_unexpected` task configuration option. By default this is `true` (so the default behavior is unchanged).
+But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be retried.
+
+## [0.2.3] - 2019-03-10
+
+### Changed
+
+- `CeleryBuilder::task_route` now infallible. Error could be raised during the `build` phase instead.
+- `Celery::consume_from` will return `Err(CeleryError::NoQueueToConsume)` if the slice of queues is empty.
+
+## [0.2.2] - 2019-03-06
+
+### Changed
+
+- `Celery::consume_from` now takes multiple queues instead of just a single queue.
+- Retry ETA method moved from tracer to task so that it can be customized.
+- `TaskError` variants restricted to only `ExpectedError`, `UnexpectedError`, and `TimeoutError`. The `Retry` and `ExpirationError` variants moved to a new (non-public) error type: `TracerError`.
+
+## [0.2.1] - 2019-03-05
+
+### Added
+
+- `on_failure` and `on_success` options to `task` attribute macro.
+
+### Changed
+
+- Removed `task_id` and `params` arguments to `on_failure` and `on_success` callbacks, since those can be gotten from the request object.
+
 ## [0.2.0] - 2019-03-02
 
 ### Added
