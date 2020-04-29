@@ -25,6 +25,7 @@ jobs:
         override: true
 
     - name: Fix ~/.cargo directory permissions
+      # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
       run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
     - name: Cache cargo registry
