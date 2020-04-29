@@ -120,7 +120,7 @@ jobs:
       uses: actions/cache@v1
       with:
         path: target
-        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}
 
     - name: Run broker integration tests
       uses: actions-rs/cargo@v1
