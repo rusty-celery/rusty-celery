@@ -27,6 +27,7 @@ jobs:
     - name: Fix ~/.cargo directory permissions
       run: |
         # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
+        # See https://github.com/actions/cache/issues/133.
         sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
     - name: Cache cargo registry
@@ -112,6 +113,7 @@ jobs:
     - name: Fix ~/.cargo directory permissions
       run: |
         # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
+        # See https://github.com/actions/cache/issues/133.
         sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
     - name: Cache cargo registry
