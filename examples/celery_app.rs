@@ -34,6 +34,8 @@ async fn long_running_task(secs: Option<u64>) {
 // Demonstrates a task that is bound to the task instance, i.e. runs as an instance method.
 #[celery::task(bind = true)]
 fn bound_task(task: &Self) -> TaskResult<Option<u32>> {
+    println!("{:?}", task.request.origin);
+    println!("{:?}", task.request.hostname);
     Ok(task.timeout())
 }
 
@@ -58,6 +60,7 @@ async fn main() -> Result<(), ExitFailure> {
             add,
             buggy_task,
             long_running_task,
+            bound_task,
         ],
         task_routes = [
             "buggy_task" => "buggy-queue",
@@ -72,16 +75,17 @@ async fn main() -> Result<(), ExitFailure> {
             my_app.consume_from(&["celery", "buggy-queue"]).await?;
         }
         CeleryOpt::Produce => {
+            my_app.send_task(bound_task::new()).await?;
             // Basic sending.
-            my_app.send_task(add::new(1, 2)).await?;
+            // my_app.send_task(add::new(1, 2)).await?;
 
-            my_app.send_task(buggy_task::new()).await?;
+            // my_app.send_task(buggy_task::new()).await?;
 
             // Demonstrates sending a task with additional options.
-            my_app.send_task(add::new(1, 3).with_countdown(5)).await?;
-            my_app
-                .send_task(long_running_task::new(Some(3)).with_timeout(2))
-                .await?;
+            // my_app.send_task(add::new(1, 3).with_countdown(5)).await?;
+            // my_app
+            //     .send_task(long_running_task::new(Some(3)).with_timeout(2))
+            //     .await?;
         }
     };
 

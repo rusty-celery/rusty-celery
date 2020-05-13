@@ -212,7 +212,7 @@ pub(super) trait TracerTrait: Send + Sync {
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, ProtocolError>;
 
 pub(super) type TraceBuilder = Box<
-    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>) -> TraceBuilderResult
+    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>, String) -> TraceBuilderResult
         + Send
         + Sync
         + 'static,
@@ -222,8 +222,17 @@ pub(super) fn build_tracer<T: Task + Send + 'static>(
     message: Message,
     options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
+    hostname: String,
 ) -> TraceBuilderResult {
-    let request = Request::<T>::try_from(message)?;
+    // Build request object.
+    let mut request = Request::<T>::try_from(message)?;
+    request.hostname = Some(hostname);
+
+    // Now construct the task from the request and options.
+    // It seems redundant to construct a request just to use it to construct a task,
+    // but the task keeps the request object so the task implementation can access
+    // it.
     let task = T::from_request(request, options);
+
     Ok(Box::new(Tracer::<T>::new(task, event_tx)?))
 }

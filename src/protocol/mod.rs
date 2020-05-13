@@ -21,7 +21,8 @@ use crate::task::{Signature, Task};
 static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
     hostname::get()
         .ok()
-        .map(|sys_hostname| format!("gen{}@{:?}", process::id(), sys_hostname))
+        .and_then(|sys_hostname| sys_hostname.into_string().ok())
+        .map(|sys_hostname| format!("gen{}@{}", process::id(), sys_hostname))
 });
 
 /// Create a message with a custom configuration.
