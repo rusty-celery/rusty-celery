@@ -58,7 +58,7 @@ where
                     hostname::get()
                         .ok()
                         .and_then(|sys_hostname| sys_hostname.into_string().ok())
-                        .unwrap_or("unknown".into())
+                        .unwrap_or_else(|| "unknown".into())
                 ),
                 broker_builder: Bb::new(broker_url),
                 broker_connection_timeout: 2,
