@@ -267,7 +267,7 @@ pub struct MessageHeaders {
     /// A string representation of the keyword arguments of the task.
     pub kwargsrepr: Option<String>,
 
-    /// A string representing the node that produced the task.
+    /// A string representing the nodename of the process that produced the task.
     pub origin: Option<String>,
 }
 
