@@ -34,6 +34,8 @@ async fn long_running_task(secs: Option<u64>) {
 // Demonstrates a task that is bound to the task instance, i.e. runs as an instance method.
 #[celery::task(bind = true)]
 fn bound_task(task: &Self) -> TaskResult<Option<u32>> {
+    println!("{:?}", task.request.origin);
+    println!("{:?}", task.request.hostname);
     Ok(task.timeout())
 }
 
@@ -58,6 +60,7 @@ async fn main() -> Result<(), ExitFailure> {
             add,
             buggy_task,
             long_running_task,
+            bound_task,
         ],
         task_routes = [
             "buggy_task" => "buggy-queue",
