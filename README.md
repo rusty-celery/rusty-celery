@@ -76,21 +76,37 @@ The `./examples` directory contains a simple Celery app that is implemented in b
 If you already have an AMQP broker running you can set the environment variable `AMQP_ADDR` to your broker's URL (e.g., `amqp://localhost:5672//`, where
 the second slash at the end is the name of the [default vhost](https://www.rabbitmq.com/access-control.html#default-state)).
 Otherwise simply run the helper script:
+
 ```bash
 ./scripts/brokers/amqp.sh
 ```
 
-This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) image (RabbitMQ is a popular AMQP broker). Then from a separate terminal run the script:
+This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) image (RabbitMQ is a popular AMQP broker). Then you can run a Rust worker with:
 
 ```bash
-./examples/python_to_rust.sh
+cargo run --example celery_app consume
 ```
 
-This sends a series of tasks from the Python app to the Rust app. You can also send tasks from Rust to Python by running:
+And then send tasks to the worker with:
 
 ```bash
-./examples/rust_to_python.sh
+cargo run --example celery_app produce
 ```
+
+Alternatively, you can consume or produce tasks from Python by running
+
+
+```bash
+python examples/celery_app.py consume
+```
+
+Or
+
+```bash
+python examples/celery_app.py produce
+```
+
+You'll need to have Python 3 installed, along with the requirements listed in the `requirements.txt` file.
 
 ## Road map and current state
 

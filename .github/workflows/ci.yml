@@ -130,3 +130,31 @@ jobs:
       env:
         AMQP_ADDR: amqp://127.0.0.1:5672/my_vhost
         RUST_LOG: info
+
+  test_python_example:
+    name: Check Python Example
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+
+    - name: Install requirements
+      run: |
+        pip install -r requirements.txt -r dev-requirements.txt
+
+    - name: Check formatting
+      run: |
+        black --check examples/
+
+    - name: Lint
+      run: |
+        flake8 examples/
+
+    - name: Typecheck
+      run: |
+        mypy --ignore-missing-imports examples/
