@@ -7,16 +7,11 @@ from celery import Celery
 from celery.bin.celery import main as _main
 
 
-my_app = Celery(
-    "celery", broker=os.environ.get("AMQP_ADDR", "amqp://127.0.0.1:5672/my_vhost")
-)
+my_app = Celery("celery", broker=os.environ.get("AMQP_ADDR", "amqp://127.0.0.1:5672/my_vhost"))
 my_app.conf.update(
     result_backend=None,
     task_ignore_result=True,
-    task_routes=(
-        [("buggy_task", {"queue": "buggy-queue"})],
-        [("*", {"queue": "celery"})],
-    ),
+    task_routes=([("buggy_task", {"queue": "buggy-queue"})], [("*", {"queue": "celery"})],),
 )
 
 
@@ -31,9 +26,7 @@ def add(x, y):
     name="buggy_task", max_retries=3, autoretry_for=(RuntimeError,), retry_backoff=True,
 )
 def buggy_task():
-    raise RuntimeError(
-        "This error is part of the example: it is used to showcase error handling"
-    )
+    raise RuntimeError("This error is part of the example: it is used to showcase error handling")
 
 
 @my_app.task(name="long_running_task", max_retries=2)
