@@ -32,7 +32,7 @@ jobs:
 
     - name: Set build variables
       run: |
-        # Need to set an environment variable for the Rust and cargo versions since cache depends on it.
+        # We use these variables as part of the cache keys.
         echo "::set-env name=RUST_VERSION::$(rustc --version)"
         echo "::set-env name=CARGO_VERSION::$(cargo --version)"
 
@@ -40,13 +40,17 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}-checks
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: |
+          cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
 
     - name: Cache cargo build
       uses: actions/cache@v1
       with:
         path: target
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-checks
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: |
+          cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
 
     - name: Lint with rustfmt
       if: always()
@@ -118,7 +122,6 @@ jobs:
 
     - name: Set build variables
       run: |
-        # Need to set an environment variable for the Rust and cargo versions since cache depends on it.
         echo "::set-env name=RUST_VERSION::$(rustc --version)"
         echo "::set-env name=CARGO_VERSION::$(cargo --version)"
 
@@ -126,13 +129,17 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}-integration-tests
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: |
+          cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
 
     - name: Cache cargo build
       uses: actions/cache@v1
       with:
         path: target
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-integration-tests
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: |
+          cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
 
     - name: Run broker integration tests
       uses: actions-rs/cargo@v1
@@ -154,6 +161,14 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
+
+    - name: Cache pip
+      uses: actions/cache@v1
+      with:
+        path: ~/.cache/pip # This path is specific to Ubuntu
+        key: pip ${{ runner.os }} ${{ env.pythonLocation }} ${{ hashFiles('requirements.txt') }} ${{ hashFiles('dev-requirements.txt') }}
+        restore-keys: |
+          pip ${{ runner.os }} ${{ env.pythonLocation }}
 
     - name: Install requirements
       run: |
