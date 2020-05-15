@@ -162,6 +162,14 @@ jobs:
       with:
         python-version: 3.7
 
+    - name: Cache pip
+      uses: actions/cache@v1
+      with:
+        path: ~/.cache/pip # This path is specific to Ubuntu
+        key: pip ${{ runner.os }} ${{ env.pythonLocation }} ${{ hashFiles('requirements.txt') }} ${{ hashFiles('dev-requirements.txt') }}
+        restore-keys: |
+          pip ${{ runner.os }} ${{ env.pythonLocation }}
+
     - name: Install requirements
       run: |
         pip install -r requirements.txt -r dev-requirements.txt
