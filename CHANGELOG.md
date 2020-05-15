@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.6] - 2019-05-14
+
 ### Fixed
 
 - `Message::headers::origin` field fixed. Before it included quotes around the hostname.
