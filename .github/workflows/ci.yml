@@ -40,13 +40,13 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}-checks
 
     - name: Cache cargo build
       uses: actions/cache@v1
       with:
         path: target
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-checks
 
     - name: Lint with rustfmt
       if: always()
