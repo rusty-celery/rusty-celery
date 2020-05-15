@@ -79,6 +79,7 @@ async fn main() -> Result<(), ExitFailure> {
         CeleryOpt::Produce => {
             // Basic task sending.
             my_app.send_task(add::new(1, 2)).await?;
+            my_app.send_task(bound_task::new()).await?;
 
             // Sending a task with additional options like `countdown`.
             my_app.send_task(add::new(1, 3).with_countdown(3)).await?;

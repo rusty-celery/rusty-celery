@@ -65,6 +65,7 @@ def main():
     else:
         # Basic task sending.
         add.apply_async(args=(1, 0))
+        bound_task.apply_async()
 
         # Send with additional options like `countdown`.
         add.apply_async(args=(1, 3), countdown=3)
