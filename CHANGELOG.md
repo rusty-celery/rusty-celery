@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Request::hostname` field now populated by the `Celery` app consuming the task.
 
+### Changed
+
+- Sending a task `with_timeout` will only set the `soft_time_limit` so that the behavior
+is the same for Python consumers.
+
 ## [0.2.5] - 2019-03-24
 
 ### Changed

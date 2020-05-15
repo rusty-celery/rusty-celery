@@ -1,0 +1,8 @@
+# Checks style, syntax, and other useful errors.
+flake8
+
+# Static type checking
+mypy==0.770
+
+# Automatic code formatting
+black
