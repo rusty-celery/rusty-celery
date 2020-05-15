@@ -110,29 +110,29 @@ jobs:
         components: rustfmt, clippy
         override: true
 
-    - name: Set build variables
-      run: |
-        # Need to set an environment variable for the Rust and cargo versions since cache depends on it.
-        echo "::set-env name=RUST_VERSION::$(rustc --version)"
-        echo "::set-env name=CARGO_VERSION::$(cargo --version)"
-
     - name: Fix ~/.cargo directory permissions
       run: |
         # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
         # See https://github.com/actions/cache/issues/133.
         sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
+    - name: Set build variables
+      run: |
+        # Need to set an environment variable for the Rust and cargo versions since cache depends on it.
+        echo "::set-env name=RUST_VERSION::$(rustc --version)"
+        echo "::set-env name=CARGO_VERSION::$(cargo --version)"
+
     - name: Cache cargo registry
       uses: actions/cache@v1
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}-integration-tests
 
     - name: Cache cargo build
       uses: actions/cache@v1
       with:
         path: target
-        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-${{ env.RUST_VERSION }}-${{ env.CARGO_VERSION }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-integration-tests
 
     - name: Run broker integration tests
       uses: actions-rs/cargo@v1
