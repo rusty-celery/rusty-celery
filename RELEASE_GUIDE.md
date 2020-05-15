@@ -24,7 +24,7 @@
 
 6. For each subcrate and the root crate (do the root crate last), build and publish to [crates.io](crates.io) by running `cargo publish` within the corresponding directory.
 
-7. Lastly, go to the corresponding release on GitHub on copy over the notes from the CHANGELOG. Then add a commits section with the output of this command:
+7. Lastly, go to the corresponding release on GitHub and copy over the notes from the CHANGELOG. Then add a "Commits" section with the output of this command:
 
     ```bash
     git log `git describe --always --tags --abbrev=0 HEAD^^`..HEAD^ --oneline
