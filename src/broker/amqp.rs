@@ -156,19 +156,19 @@ impl Broker for AMQPBroker {
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
 
-    async fn consume<E: Fn() + Send + 'static>(
+    async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
         handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError> {
-        self.conn.on_error(handler);
+        self.conn.on_error(move |e| handler(BrokerError::from(e)));
         let queue = self
             .queues
             .get(queue)
             .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
         self.consume_channel
             .basic_consume(
-                queue,
+                queue.name().as_str(),
                 "",
                 BasicConsumeOptions::default(),
                 FieldTable::default(),

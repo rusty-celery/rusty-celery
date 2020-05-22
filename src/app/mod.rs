@@ -207,14 +207,11 @@ where
                 broker_builder.build(),
             )
             .await
-            .map_err(|_| BrokerError::ConnectTimeout)
+            .map_err(|e| BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e)))
             .and_then(|res| res)
             {
                 Err(err) => match err {
-                    BrokerError::ConnectTimeout
-                    | BrokerError::ConnectionRefused
-                    | BrokerError::IoError
-                    | BrokerError::NotConnected => {
+                    BrokerError::IoError(_) | BrokerError::NotConnected => {
                         if i < max_retries {
                             error!("Failed to establish connection with broker, trying again in 200ms...")
                         }
@@ -474,7 +471,7 @@ where
                     self.broker
                         .consume(
                             queue,
-                            Box::new(move || {
+                            Box::new(move |_| {
                                 if broker_error_tx.clone().try_send(()).is_err() {
                                     error!("Failed to send broker error event");
                                 };

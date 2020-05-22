@@ -111,17 +111,9 @@ pub enum BrokerError {
     #[fail(display = "Broker not connected")]
     NotConnected,
 
-    /// Connection request timed-out.
-    #[fail(display = "Connection request timed-out.")]
-    ConnectTimeout,
-
-    /// Broker connection refused.
-    #[fail(display = "Broker connection refused")]
-    ConnectionRefused,
-
-    /// Broker IO error.
-    #[fail(display = "Broker IO error")]
-    IoError,
+    /// Any IO error that could occur.
+    #[fail(display = "{}", _0)]
+    IoError(#[fail(cause)] std::io::Error),
 
     /// Any other AMQP error that could happen.
     #[fail(display = "{}", _0)]
@@ -181,9 +173,9 @@ impl From<serde_json::Error> for ProtocolError {
 impl From<lapin::Error> for BrokerError {
     fn from(err: lapin::Error) -> Self {
         match err {
-            lapin::Error::NotConnected => BrokerError::NotConnected,
-            lapin::Error::IOError(_) => BrokerError::IoError,
-            lapin::Error::ConnectionRefused => BrokerError::ConnectionRefused,
+            lapin::Error::IOError(e) => {
+                BrokerError::IoError(std::io::Error::new((*e).kind(), format!("{}", *e)))
+            }
             _ => BrokerError::AMQPError(err),
         }
     }

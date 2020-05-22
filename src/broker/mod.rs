@@ -38,7 +38,7 @@ pub trait Broker: Send + Sync + Sized {
     /// type that can be coerced into a [`Message`](protocol/struct.Message.html)
     /// and an `Err` value is a
     /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError) type.
-    async fn consume<E: Fn() + Send + 'static>(
+    async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
         handler: Box<E>,
