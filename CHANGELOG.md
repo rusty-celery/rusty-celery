@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `BrokerError` variants trimmed and simplified.
+- The error handler closure passed to `Broker::consume` now takes a `BrokerError` as an argument.
+
 ## v0.2.6 - 2019-05-14
 
 ### Fixed
