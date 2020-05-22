@@ -63,7 +63,7 @@ where
                 broker_builder: Bb::new(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
-                broker_connection_max_retries: 100,
+                broker_connection_max_retries: 4,
                 default_queue: "celery".into(),
                 task_options: TaskOptions {
                     timeout: None,
@@ -212,10 +212,11 @@ where
             {
                 Err(err) => match err {
                     BrokerError::IoError(_) | BrokerError::NotConnected => {
+                        let retry_delay = 2_u64.pow(i);
                         if i < max_retries {
-                            error!("Failed to establish connection with broker, trying again in 200ms...")
+                            error!("Failed to establish connection with broker, trying again in {}s...", retry_delay)
                         }
-                        time::delay_for(Duration::from_millis(200)).await;
+                        time::delay_for(Duration::from_secs(retry_delay)).await;
                         continue;
                     }
                     _ => return Err(err.into()),
@@ -459,7 +460,7 @@ where
 
         // Stream of errors from broker. The capacity here is arbitrary because a single
         // error from the broker should trigger this method to return early.
-        let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<()>(100);
+        let (broker_error_tx, mut broker_error_rx) = mpsc::channel::<BrokerError>(100);
 
         // Stream of deliveries from the queue.
         let mut stream_map = StreamMap::new();
@@ -471,8 +472,8 @@ where
                     self.broker
                         .consume(
                             queue,
-                            Box::new(move |_| {
-                                if broker_error_tx.clone().try_send(()).is_err() {
+                            Box::new(move |e| {
+                                if broker_error_tx.clone().try_send(e).is_err() {
                                     error!("Failed to send broker error event");
                                 };
                             }),
@@ -533,9 +534,9 @@ where
                     }
                 },
                 maybe_broker_error = broker_error_rx.next() => {
-                    if maybe_broker_error.is_some() {
-                        error!("Broker lost connection");
-                        return Err(BrokerError::NotConnected.into());
+                    if let Some(broker_error) = maybe_broker_error {
+                        error!("{}", broker_error);
+                        return Err(broker_error.into());
                     }
                 }
             };

@@ -277,10 +277,14 @@ impl Broker for AMQPBroker {
     }
 
     async fn close(&self) -> Result<(), BrokerError> {
+        debug!("Connection status: {:?}", self.conn.status());
         // 320 reply-code = "connection-forced", operator intervened.
         // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
         let _lock = self.consume_channel_write_lock.lock().await;
-        self.conn.close(320, "").await?;
+        if self.conn.status().connected() {
+            debug!("Closing connection...");
+            self.conn.close(320, "").await?;
+        }
         Ok(())
     }
 }
