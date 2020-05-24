@@ -193,16 +193,10 @@ where
     }
 }
 
-/// A trait for attempting to create a `Message` from `self`. This is required to be implemented
+/// A trait for attempting to deserialize a `Message` from `self`. This is required to be implemented
 /// on a broker's `Delivery` type.
-pub trait TryCreateMessage {
-    fn try_create_message(&self) -> Result<Message, ProtocolError>;
-}
-
-impl TryCreateMessage for Message {
-    fn try_create_message(&self) -> Result<Message, ProtocolError> {
-        Ok(self.clone())
-    }
+pub trait TryDeserializeMessage {
+    fn try_deserialize_message(&self) -> Result<Message, ProtocolError>;
 }
 
 /// Message meta data pertaining to the broker.

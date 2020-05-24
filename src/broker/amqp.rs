@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
-use crate::protocol::{Message, MessageHeaders, MessageProperties, TryCreateMessage};
+use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
 
 struct Config {
     broker_url: String,
@@ -386,8 +386,8 @@ impl Message {
     }
 }
 
-impl TryCreateMessage for Delivery {
-    fn try_create_message(&self) -> Result<Message, ProtocolError> {
+impl TryDeserializeMessage for Delivery {
+    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
         let headers = self
             .properties
             .headers()
