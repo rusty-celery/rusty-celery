@@ -7,14 +7,23 @@
 
 use chrono::{DateTime, Duration, Utc};
 use log::debug;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::convert::TryFrom;
+use std::process;
 use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::error::ProtocolError;
 use crate::task::{Signature, Task};
+
+static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
+    hostname::get()
+        .ok()
+        .and_then(|sys_hostname| sys_hostname.into_string().ok())
+        .map(|sys_hostname| format!("gen{}@{}", process::id(), sys_hostname))
+});
 
 /// Create a message with a custom configuration.
 pub struct MessageBuilder<T>
@@ -42,6 +51,7 @@ where
                 headers: MessageHeaders {
                     id,
                     task: T::NAME.into(),
+                    origin: ORIGIN.to_owned(),
                     ..Default::default()
                 },
                 raw_body: Vec::new(),
@@ -51,7 +61,7 @@ where
     }
 
     pub fn timeout(mut self, timeout: u32) -> Self {
-        self.message.headers.timelimit = (Some(timeout), Some(timeout));
+        self.message.headers.timelimit = (None, Some(timeout));
         self
     }
 
@@ -248,7 +258,10 @@ pub struct MessageHeaders {
     /// The number of times the task has been retried without success.
     pub retries: Option<u32>,
 
-    /// A tuple specifying the soft and hard time limits.
+    /// A tuple specifying the hard and soft time limits, respectively.
+    ///
+    /// *Note that as of writting this, the Python celery docs actually have a typo where it says
+    /// these are reversed.*
     pub timelimit: (Option<u32>, Option<u32>),
 
     /// A string representation of the positional arguments of the task.
@@ -257,7 +270,7 @@ pub struct MessageHeaders {
     /// A string representation of the keyword arguments of the task.
     pub kwargsrepr: Option<String>,
 
-    /// A string representing the node that produced the task.
+    /// A string representing the nodename of the process that produced the task.
     pub origin: Option<String>,
 }
 

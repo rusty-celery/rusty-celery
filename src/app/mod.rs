@@ -25,6 +25,7 @@ where
     Bb: BrokerBuilder,
 {
     name: String,
+    hostname: String,
     broker_builder: Bb,
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
@@ -51,6 +52,14 @@ where
         Self {
             config: Config {
                 name: name.into(),
+                hostname: format!(
+                    "{}@{}",
+                    name,
+                    hostname::get()
+                        .ok()
+                        .and_then(|sys_hostname| sys_hostname.into_string().ok())
+                        .unwrap_or_else(|| "unknown".into())
+                ),
                 broker_builder: Bb::new(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
@@ -67,6 +76,15 @@ where
                 task_routes: vec![],
             },
         }
+    }
+
+    /// Set the node name of the app. Defaults to "{name}@{sys hostname}".
+    ///
+    /// *This field should probably be named "nodename" to avoid confusion with the
+    /// system hostname, but we're trying to be consistent with Python Celery.*
+    pub fn hostname(mut self, hostname: &str) -> Self {
+        self.config.hostname = hostname.into();
+        self
     }
 
     /// Set the name of the default queue to something other than "celery".
@@ -214,6 +232,7 @@ where
 
         Ok(Celery {
             name: self.config.name,
+            hostname: self.config.hostname,
             broker: broker.ok_or_else(|| BrokerError::NotConnected)?,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
@@ -228,6 +247,9 @@ where
 pub struct Celery<B: Broker> {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
+
+    /// Node name of the app.
+    hostname: String,
 
     /// The app's broker.
     broker: B,
@@ -299,8 +321,10 @@ where
     ) -> Result<Box<dyn TracerTrait>, Box<dyn Fail>> {
         let task_trace_builders = self.task_trace_builders.read().await;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
-            Ok(build_tracer(message, self.task_options, event_tx)
-                .map_err(|e| Box::new(e) as Box<dyn Fail>)?)
+            Ok(
+                build_tracer(message, self.task_options, event_tx, self.hostname.clone())
+                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?,
+            )
         } else {
             Err(Box::new(CeleryError::UnregisteredTaskError(message.headers.task)) as Box<dyn Fail>)
         }
