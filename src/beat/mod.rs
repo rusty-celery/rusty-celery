@@ -16,11 +16,9 @@
 // `BaseSchedule`.
 
 use crate::broker::Broker;
-use crate::protocol::TryCreateMessage;
 use crate::routing::{self, Rule};
 use crate::task::{Signature, Task};
 use log::{debug, info, warn};
-use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::time::{Duration, SystemTime};
 use tokio::time;
@@ -28,69 +26,19 @@ use tokio::time;
 mod schedule;
 pub use schedule::{RegularSchedule, Schedule};
 
+mod scheduled_task;
+use scheduled_task::ScheduledTask;
+
 const ZERO_SECS: Duration = Duration::from_secs(0);
 
-/// A task which is scheduled for execution. It contains the task to execute,
-/// the queue where to send it and the schedule which determines when to do it.
-struct ScheduledTask {
-    name: String,
-    message_factory: Box<dyn TryCreateMessage>,
-    queue: String,
-    schedule: Box<dyn Schedule>,
-    total_run_count: u32,
-    last_run_at: Option<SystemTime>,
-    next_call_at: SystemTime,
-}
-
-impl ScheduledTask {
-    fn new<T, S>(name: String, signature: Signature<T>, queue: String, schedule: S) -> ScheduledTask
-    where
-        T: Task + Clone + 'static,
-        S: Schedule + 'static,
-    {
-        let next_call_at = schedule.next_call_at(None);
-        ScheduledTask {
-            name,
-            message_factory: Box::new(signature),
-            queue,
-            schedule: Box::new(schedule),
-            total_run_count: 0,
-            last_run_at: None,
-            next_call_at,
-        }
-    }
-
-    fn next_call_at(&self) -> SystemTime {
-        self.schedule.next_call_at(self.last_run_at)
-    }
-}
-
-// TODO make impls coherent
-impl PartialEq for ScheduledTask {
-    fn eq(&self, other: &Self) -> bool {
-        // We should make sure that names are unique, or we should refine this implementation
-        self.name == other.name
-    }
-}
-
-impl Eq for ScheduledTask {}
-
-impl Ord for ScheduledTask {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // The order is important (other is compared to self):
-        // BinaryHeap is a max-heap by default, but we want a min-heap.
-        other.next_call_at.cmp(&self.next_call_at)
-    }
-}
-
-impl PartialOrd for ScheduledTask {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-// Struct with all the main methods. It uses a min-heap to retrieve
-// the task which should run next.
+/// A scheduler is in charge of executing scheduled tasks when they are due.
+///
+/// It is somehow similar to a future, in the sense that by itself it does nothing,
+/// and execution is driven by an "executor" (the `BeatService`) which is in charge
+/// of calling the scheduler tick.
+///
+/// Internally it uses a min-heap to store tasks and efficiently retrieve the ones
+/// that are due for execution.
 pub struct Scheduler<B: Broker> {
     heap: BinaryHeap<ScheduledTask>,
     default_sleep_interval: Duration,
