@@ -29,10 +29,10 @@ async fn main() -> Result<(), ExitFailure> {
     );
 
     let add_schedule = RegularSchedule::new(Duration::from_secs(1));
-    beat.schedule_task("add_task", add::new(1, 2), add_schedule);
+    beat.schedule_task(add::new(1, 2), add_schedule);
 
     let subtract_schedule = RegularSchedule::new(Duration::from_millis(700));
-    beat.schedule_task("subtract_task", subtract::new(2, 6), subtract_schedule);
+    beat.schedule_task(subtract::new(2, 6), subtract_schedule);
 
     beat.start().await;
 

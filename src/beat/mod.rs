@@ -16,137 +16,66 @@
 // `BaseSchedule`.
 
 use crate::broker::Broker;
-use crate::protocol::Message;
-use crate::routing::Rule;
+use crate::protocol::TryCreateMessage;
+use crate::routing::{self, Rule};
 use crate::task::{Signature, Task};
 use log::{debug, info, warn};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::convert::TryFrom;
 use std::time::{Duration, SystemTime};
 use tokio::time;
 
+mod schedule;
+pub use schedule::{RegularSchedule, Schedule};
+
 const ZERO_SECS: Duration = Duration::from_secs(0);
 
-// The trait implemented by all schedules (regular, cron, solar).
-// We will only have regular for now.
-pub trait Schedule {
-    fn next_call_at(&self, last_run_at: Option<SystemTime>) -> SystemTime;
-}
-
-// When using this schedule, tasks are executed at regular intervals.
-pub struct RegularSchedule {
-    interval: Duration,
-}
-
-impl RegularSchedule {
-    pub fn new(interval: Duration) -> RegularSchedule {
-        RegularSchedule { interval }
-    }
-}
-
-impl Schedule for RegularSchedule {
-    fn next_call_at(&self, last_run_at: Option<SystemTime>) -> SystemTime {
-        match last_run_at {
-            Some(last_run_at) => last_run_at.checked_add(self.interval).unwrap(),
-            None => SystemTime::now(),
-        }
-    }
-}
-
-// TODO it is enough for the queue to be a reference, but a little refactor is required
-type Queue = String;
-
-// This is a factory for messages: ideally the Scheduler would store signatures, but
-// a signature is parameterized by its underlying task. So we store these factories
-// instead.
-trait MessageFactoryTrait {
-    // For the moment, we conveniently return the queue too, but it could be a separate method.
-    fn make(&self, task_routes: &[Rule], default_queue: &str) -> (Message, Queue);
-}
-
-struct MessageFactory<T>
-where
-    T: Task + Clone,
-{
-    signature: Signature<T>,
-}
-
-impl<T> MessageFactory<T>
-where
-    T: Task + Clone,
-{
-    fn new(signature: Signature<T>) -> MessageFactory<T> {
-        MessageFactory { signature }
-    }
-}
-
-impl<T> MessageFactoryTrait for MessageFactory<T>
-where
-    T: Task + Clone,
-{
-    fn make(&self, task_routes: &[Rule], default_queue: &str) -> (Message, Queue) {
-        let mut cloned_signature = self.signature.clone();
-        let maybe_queue = cloned_signature.queue.take();
-
-        let queue = maybe_queue.unwrap_or_else(|| {
-            crate::routing::route(T::NAME, task_routes)
-                .unwrap_or(default_queue)
-                .to_string()
-        });
-        let message = Message::try_from(cloned_signature).expect("TODO");
-        (message, queue)
-    }
-}
-
-// A task which is scheduled for execution. It contains the task to execute,
-// the schedule which determines when to run the task, and some other info.
-struct ScheduleEntry {
+/// A task which is scheduled for execution. It contains the task to execute,
+/// the queue where to send it and the schedule which determines when to do it.
+struct ScheduledTask {
     name: String,
-    signature: Box<dyn MessageFactoryTrait>,
+    message_factory: Box<dyn TryCreateMessage>,
+    queue: String,
     schedule: Box<dyn Schedule>,
-    last_run_at: Option<SystemTime>,
     total_run_count: u32,
+    last_run_at: Option<SystemTime>,
+    next_call_at: SystemTime,
 }
 
-impl ScheduleEntry {
-    fn new<T, S>(name: &str, signature: Signature<T>, schedule: S) -> ScheduleEntry
+impl ScheduledTask {
+    fn new<T, S>(name: String, signature: Signature<T>, queue: String, schedule: S) -> ScheduledTask
     where
         T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
-        ScheduleEntry {
-            name: name.to_string(),
-            signature: Box::new(MessageFactory::new(signature)),
+        let next_call_at = schedule.next_call_at(None);
+        ScheduledTask {
+            name,
+            message_factory: Box::new(signature),
+            queue,
             schedule: Box::new(schedule),
-            last_run_at: None,
             total_run_count: 0,
+            last_run_at: None,
+            next_call_at,
         }
     }
+
     fn next_call_at(&self) -> SystemTime {
         self.schedule.next_call_at(self.last_run_at)
     }
 }
 
-// The Python impl stores a tuple with this structure inside the heap (see the Scheduler struct).
-// We could directly add this info to ScheduleEntry, but for now we keep
-// the same structure.
-struct SortableScheduleEntry {
-    next_call_at: SystemTime,
-    entry: ScheduleEntry,
-}
-
 // TODO make impls coherent
-impl PartialEq for SortableScheduleEntry {
+impl PartialEq for ScheduledTask {
     fn eq(&self, other: &Self) -> bool {
         // We should make sure that names are unique, or we should refine this implementation
-        self.entry.name == other.entry.name
+        self.name == other.name
     }
 }
 
-impl Eq for SortableScheduleEntry {}
+impl Eq for ScheduledTask {}
 
-impl Ord for SortableScheduleEntry {
+impl Ord for ScheduledTask {
     fn cmp(&self, other: &Self) -> Ordering {
         // The order is important (other is compared to self):
         // BinaryHeap is a max-heap by default, but we want a min-heap.
@@ -154,7 +83,7 @@ impl Ord for SortableScheduleEntry {
     }
 }
 
-impl PartialOrd for SortableScheduleEntry {
+impl PartialOrd for ScheduledTask {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -163,7 +92,7 @@ impl PartialOrd for SortableScheduleEntry {
 // Struct with all the main methods. It uses a min-heap to retrieve
 // the task which should run next.
 pub struct Scheduler<B: Broker> {
-    heap: BinaryHeap<SortableScheduleEntry>,
+    heap: BinaryHeap<ScheduledTask>,
     default_sleep_interval: Duration,
     broker: B,
     task_routes: Vec<Rule>,
@@ -191,16 +120,20 @@ where
     // the user must use to register scheduled tasks, and this
     // function will accept a Future, with all task arguments
     // already provided:
-    fn schedule_task<T, S>(&mut self, name: &str, signature: Signature<T>, schedule: S)
+    fn schedule_task<T, S>(&mut self, name: String, signature: Signature<T>, schedule: S)
     where
         T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
-        let entry = ScheduleEntry::new(name, signature, schedule);
-        self.heap.push(SortableScheduleEntry {
-            next_call_at: entry.next_call_at(),
-            entry,
-        });
+        let queue = match &signature.queue {
+            Some(queue) => queue.to_string(),
+            None => routing::route(T::NAME, &self.task_routes)
+                .unwrap_or(&self.default_queue)
+                .to_string(),
+        };
+
+        self.heap
+            .push(ScheduledTask::new(name, signature, queue, schedule));
     }
 
     async fn tick(&mut self) -> Duration {
@@ -208,26 +141,25 @@ where
         // then push it back on the heap with an updated due time,
         // and finally return when the next entry is due (may be due immediately).
         // At least, this is what Python does.
-        if let Some(mut sortable_entry) = self.heap.peek_mut() {
+        if let Some(mut scheduled_task) = self.heap.peek_mut() {
             let now = SystemTime::now();
-            if sortable_entry.next_call_at <= now {
-                // Here we use the message factory to create a message
-                // and send it to the queue.
-                let (message, queue) = sortable_entry
-                    .entry
-                    .signature
-                    .make(&self.task_routes, &self.default_queue);
-                info!("Sending task to {}", queue,);
+            if scheduled_task.next_call_at <= now {
+                let message = scheduled_task
+                    .message_factory
+                    .try_create_message()
+                    .expect("TODO");
+                let queue = &scheduled_task.queue;
+                debug!("Sending task {} to {} queue", scheduled_task.name, queue);
                 self.broker.send(&message, &queue).await.expect("TODO");
 
-                sortable_entry.entry.last_run_at.replace(now);
-                sortable_entry.entry.total_run_count += 1;
-                sortable_entry.next_call_at = sortable_entry.entry.next_call_at();
+                scheduled_task.last_run_at.replace(now);
+                scheduled_task.total_run_count += 1;
+                scheduled_task.next_call_at = scheduled_task.next_call_at();
 
-                ZERO_SECS // Ask to immediately call tick again (that's what Python does, it may be improved?)
+                ZERO_SECS // Ask to immediately call tick again
             } else {
                 debug!("Too early, let's sleep more");
-                sortable_entry.next_call_at.duration_since(now).unwrap()
+                scheduled_task.next_call_at.duration_since(now).unwrap()
             }
         } else {
             debug!("Nothing to do!");
@@ -264,12 +196,13 @@ where
         BeatService { scheduler }
     }
 
-    pub fn schedule_task<T, S>(&mut self, name: &str, signature: Signature<T>, schedule: S)
+    pub fn schedule_task<T, S>(&mut self, signature: Signature<T>, schedule: S)
     where
         T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
-        self.scheduler.schedule_task(name, signature, schedule);
+        self.scheduler
+            .schedule_task(Signature::<T>::task_name().to_string(), signature, schedule);
     }
 
     pub async fn start(&mut self) -> ! {
