@@ -1,8 +1,5 @@
 use super::Schedule;
-use crate::{
-    protocol::TryCreateMessage,
-    task::{Signature, Task},
-};
+use crate::protocol::TryCreateMessage;
 use std::{cmp::Ordering, time::SystemTime};
 
 /// A task which is scheduled for execution. It contains the task to execute,
@@ -18,20 +15,19 @@ pub struct ScheduledTask {
 }
 
 impl ScheduledTask {
-    pub fn new<T, S>(
+    pub fn new<S>(
         name: String,
-        signature: Signature<T>,
+        message_factory: Box<dyn TryCreateMessage>,
         queue: String,
         schedule: S,
+        next_call_at: SystemTime,
     ) -> ScheduledTask
     where
-        T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
-        let next_call_at = schedule.next_call_at(None);
         ScheduledTask {
             name,
-            message_factory: Box::new(signature),
+            message_factory,
             queue,
             schedule: Box::new(schedule),
             total_run_count: 0,
@@ -40,7 +36,7 @@ impl ScheduledTask {
         }
     }
 
-    pub fn next_call_at(&self) -> SystemTime {
+    pub fn next_call_at(&self) -> Option<SystemTime> {
         self.schedule.next_call_at(self.last_run_at)
     }
 }

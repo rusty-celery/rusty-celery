@@ -12,12 +12,15 @@ use tokio::time::{self, Duration};
 
 mod trace;
 
-use crate::beat::Scheduler;
+use crate::beat::{InMemoryBackend, Scheduler};
 use crate::broker::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, TryDeserializeMessage};
 use crate::routing::Rule;
-use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::{
+    task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus},
+    BeatService,
+};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -269,8 +272,9 @@ pub struct Celery<B: Broker> {
 }
 
 // TODO this is a temporary hack, we'll have to write a proper SchedulerBuilder at some point
-pub fn to_beat_service<B: Broker>(celery: Celery<B>) -> Scheduler<B> {
-    Scheduler::new(celery.broker, celery.task_routes, celery.default_queue)
+pub fn to_beat_service<B: Broker>(celery: Celery<B>) -> BeatService<B, InMemoryBackend> {
+    let scheduler = Scheduler::new(celery.broker);
+    BeatService::new(scheduler, celery.task_routes, celery.default_queue)
 }
 
 impl<B> Celery<B>

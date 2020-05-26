@@ -17,19 +17,23 @@
 
 use crate::broker::Broker;
 use crate::routing::{self, Rule};
-use crate::task::{Signature, Task};
-use log::{debug, info, warn};
+use crate::{
+    protocol::TryCreateMessage,
+    task::{Signature, Task},
+};
+use log::{debug, error, info};
 use std::collections::BinaryHeap;
 use std::time::{Duration, SystemTime};
 use tokio::time;
+
+mod backend;
+pub use backend::{InMemoryBackend, SchedulerBackend};
 
 mod schedule;
 pub use schedule::{RegularSchedule, Schedule};
 
 mod scheduled_task;
 use scheduled_task::ScheduledTask;
-
-const ZERO_SECS: Duration = Duration::from_secs(0);
 
 /// A scheduler is in charge of executing scheduled tasks when they are due.
 ///
@@ -39,36 +43,173 @@ const ZERO_SECS: Duration = Duration::from_secs(0);
 ///
 /// Internally it uses a min-heap to store tasks and efficiently retrieve the ones
 /// that are due for execution.
-pub struct Scheduler<B: Broker> {
+pub(crate) struct Scheduler<B: Broker> {
     heap: BinaryHeap<ScheduledTask>,
     default_sleep_interval: Duration,
     broker: B,
-    task_routes: Vec<Rule>,
-    default_queue: String,
 }
 
 impl<B> Scheduler<B>
 where
     B: Broker,
 {
-    pub(crate) fn new(broker: B, task_routes: Vec<Rule>, default_queue: String) -> Scheduler<B> {
+    pub(crate) fn new(broker: B) -> Scheduler<B> {
         Scheduler {
             heap: BinaryHeap::new(),
             default_sleep_interval: Duration::from_millis(500),
             broker,
+        }
+    }
+
+    fn schedule_task<S>(
+        &mut self,
+        name: String,
+        message_factory: Box<dyn TryCreateMessage>,
+        queue: String,
+        schedule: S,
+    ) where
+        S: Schedule + 'static,
+    {
+        match schedule.next_call_at(None) {
+            Some(next_call_at) => self.heap.push(ScheduledTask::new(
+                name,
+                message_factory,
+                queue,
+                schedule,
+                next_call_at,
+            )),
+            None => debug!(
+                "The schedule of task {} never scheduled the task to run, so it has been dropped.",
+                name
+            ),
+        }
+    }
+
+    fn get_scheduled_tasks(&mut self) -> &mut BinaryHeap<ScheduledTask> {
+        &mut self.heap
+    }
+
+    async fn tick(&mut self) -> SystemTime {
+        let now = SystemTime::now();
+        let scheduled_task = self.heap.pop();
+
+        if let Some(mut scheduled_task) = scheduled_task {
+            if scheduled_task.next_call_at <= now {
+                self.send_scheduled_task(&mut scheduled_task).await;
+
+                if let Some(next_call_at) = scheduled_task.next_call_at() {
+                    scheduled_task.next_call_at = next_call_at;
+                    self.heap.push(scheduled_task);
+                } else {
+                    debug!(
+                        "Task {} is not scheduled to run anymore and will be dropped",
+                        scheduled_task.name
+                    );
+                }
+            }
+        }
+
+        self.next_tick_at(now)
+    }
+
+    async fn send_scheduled_task(&self, scheduled_task: &mut ScheduledTask) {
+        let queue = &scheduled_task.queue;
+
+        match scheduled_task.message_factory.try_create_message() {
+            Ok(message) => {
+                debug!("Sending task {} to {} queue", scheduled_task.name, queue);
+                match self.broker.send(&message, &queue).await {
+                    Ok(()) => {
+                        scheduled_task.last_run_at.replace(SystemTime::now());
+                        scheduled_task.total_run_count += 1;
+                    }
+                    Err(err) => {
+                        error!(
+                            "Cannot send message for task {}. Error: {}",
+                            scheduled_task.name, err
+                        );
+                    }
+                }
+            }
+            Err(err) => {
+                error!(
+                    "Cannot create message for task {}. Error: {}",
+                    scheduled_task.name, err
+                );
+                // TODO should we remove the task in this case?
+            }
+        }
+    }
+
+    fn next_tick_at(&self, now: SystemTime) -> SystemTime {
+        if let Some(scheduled_task) = self.heap.peek() {
+            debug!(
+                "Next scheduled task is at {:?}",
+                scheduled_task.next_call_at
+            );
+            scheduled_task.next_call_at
+        } else {
+            debug!(
+                "No scheduled tasks, sleeping for {:?}",
+                self.default_sleep_interval
+            );
+            now + self.default_sleep_interval
+        }
+    }
+}
+
+/// The beat service is in charge of executing scheduled tasks when
+/// they are due and add or remove tasks as required. It drives execution by
+/// making the internal scheduler "tick", and updates the list of scheduled
+/// tasks through a customizable scheduler backend.
+pub struct BeatService<Br: Broker + 'static, Sb: SchedulerBackend> {
+    scheduler: Scheduler<Br>,
+    scheduler_backend: Sb,
+    task_routes: Vec<Rule>,
+    default_queue: String,
+}
+
+impl<Br> BeatService<Br, InMemoryBackend>
+where
+    Br: Broker + 'static,
+{
+    pub(crate) fn new(
+        scheduler: Scheduler<Br>,
+        task_routes: Vec<Rule>,
+        default_queue: String,
+    ) -> BeatService<Br, InMemoryBackend> {
+        BeatService {
+            scheduler,
+            scheduler_backend: InMemoryBackend::new(),
             task_routes,
             default_queue,
         }
     }
+}
 
-    // TODO Check the format of a schedule on file,
-    // though we don't want to implement that now,
-    // because it will require to serialize the task to run, somehow.
-    // Better to start with a function which
-    // the user must use to register scheduled tasks, and this
-    // function will accept a Future, with all task arguments
-    // already provided:
-    fn schedule_task<T, S>(&mut self, name: String, signature: Signature<T>, schedule: S)
+impl<Br, Sb> BeatService<Br, Sb>
+where
+    Br: Broker + 'static,
+    Sb: SchedulerBackend,
+{
+    // TODO add a function to create a BeatService with a custom scheduler backend
+
+    #[allow(dead_code)]
+    fn schedule_message_factory<S>(
+        &mut self,
+        name: String,
+        message_factory: Box<dyn TryCreateMessage>,
+        queue: Option<String>,
+        schedule: S,
+    ) where
+        S: Schedule + 'static,
+    {
+        let queue = queue.unwrap_or(self.default_queue.clone());
+        self.scheduler
+            .schedule_task(name, message_factory, queue, schedule);
+    }
+
+    pub fn schedule_task<T, S>(&mut self, signature: Signature<T>, schedule: S)
     where
         T: Task + Clone + 'static,
         S: Schedule + 'static,
@@ -79,86 +220,34 @@ where
                 .unwrap_or(&self.default_queue)
                 .to_string(),
         };
+        let message_factory = Box::new(signature);
 
-        self.heap
-            .push(ScheduledTask::new(name, signature, queue, schedule));
-    }
-
-    async fn tick(&mut self) -> Duration {
-        // Here we want to pop a scheduled entry and execute it if it is due,
-        // then push it back on the heap with an updated due time,
-        // and finally return when the next entry is due (may be due immediately).
-        // At least, this is what Python does.
-        if let Some(mut scheduled_task) = self.heap.peek_mut() {
-            let now = SystemTime::now();
-            if scheduled_task.next_call_at <= now {
-                let message = scheduled_task
-                    .message_factory
-                    .try_create_message()
-                    .expect("TODO");
-                let queue = &scheduled_task.queue;
-                debug!("Sending task {} to {} queue", scheduled_task.name, queue);
-                self.broker.send(&message, &queue).await.expect("TODO");
-
-                scheduled_task.last_run_at.replace(now);
-                scheduled_task.total_run_count += 1;
-                scheduled_task.next_call_at = scheduled_task.next_call_at();
-
-                ZERO_SECS // Ask to immediately call tick again
-            } else {
-                debug!("Too early, let's sleep more");
-                scheduled_task.next_call_at.duration_since(now).unwrap()
-            }
-        } else {
-            debug!("Nothing to do!");
-            warn!(
-                "Currently, it is not possible to schedule tasks while the beat service is running"
-            );
-            self.default_sleep_interval
-        }
-    }
-}
-
-// Not sure yet what logic should end up here.
-// trait SchedulerBackend {}
-
-// The only Scheduler Backend implementation for now. It keeps
-// all data in memory.
-// struct InMemoryBackend {}
-
-// This is the structure that manages the main loop.
-// The main method is `start`, which calls scheduler.tick,
-// sleeps if necessary and then calls scheduler.sync.
-// Not sure if it is necessary for it to be a struct,
-// maybe just a function is enough.
-// This should be moved to another file later (beat.rs?)
-pub struct BeatService<B: Broker + 'static> {
-    scheduler: Scheduler<B>,
-}
-
-impl<B> BeatService<B>
-where
-    B: Broker + 'static,
-{
-    pub fn new(scheduler: Scheduler<B>) -> BeatService<B> {
-        BeatService { scheduler }
-    }
-
-    pub fn schedule_task<T, S>(&mut self, signature: Signature<T>, schedule: S)
-    where
-        T: Task + Clone + 'static,
-        S: Schedule + 'static,
-    {
-        self.scheduler
-            .schedule_task(Signature::<T>::task_name().to_string(), signature, schedule);
+        self.scheduler.schedule_task(
+            Signature::<T>::task_name().to_string(),
+            message_factory,
+            queue,
+            schedule,
+        );
     }
 
     pub async fn start(&mut self) -> ! {
         info!("Starting beat service");
         loop {
-            let sleep_interval = self.scheduler.tick().await;
-            debug!("Now sleeping for {:?}", sleep_interval);
-            time::delay_for(sleep_interval).await;
+            let next_tick_at = self.scheduler.tick().await;
+
+            if self.scheduler_backend.should_sync() {
+                self.scheduler_backend
+                    .sync(self.scheduler.get_scheduled_tasks());
+            }
+
+            let now = SystemTime::now();
+            if now < next_tick_at {
+                let sleep_interval = next_tick_at.duration_since(now).expect(
+                    "Unexpected error when unwrapping a SystemTime comparison that cannot fail",
+                );
+                debug!("Now sleeping for {:?}", sleep_interval);
+                time::delay_for(sleep_interval).await;
+            }
         }
     }
 }

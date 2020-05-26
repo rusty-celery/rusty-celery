@@ -57,8 +57,7 @@ macro_rules! __beat_internal {
 
         let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
 
-        let scheduler = $crate::to_beat_service(celery);
-        $crate::BeatService::new(scheduler)
+        $crate::to_beat_service(celery)
     }};
 }
 
