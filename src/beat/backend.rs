@@ -4,8 +4,6 @@ use std::collections::BinaryHeap;
 pub trait SchedulerBackend {
     fn should_sync(&self) -> bool;
 
-    // TODO: For the moment, this method can only add new tasks. We should think how tasks can
-    // be removed too.
     fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>);
 
     // Maybe we should consider some methods to inform the backend that a task has been executed.
@@ -16,6 +14,7 @@ pub trait SchedulerBackend {
 // The only Scheduler Backend implementation for now. It does basically nothing.
 pub struct InMemoryBackend {}
 
+#[allow(clippy::new_without_default)]
 impl InMemoryBackend {
     pub fn new() -> Self {
         Self {}

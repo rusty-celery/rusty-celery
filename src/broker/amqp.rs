@@ -549,7 +549,7 @@ mod tests {
             data: vec![],
         };
 
-        let message2 = delivery.try_create_message();
+        let message2 = delivery.try_deserialize_message();
         assert!(message2.is_ok());
 
         let message2 = message2.unwrap();

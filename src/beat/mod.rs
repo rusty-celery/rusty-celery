@@ -15,16 +15,18 @@
 // (just use a time delta), `crontab`, `solar`. They all inherit from
 // `BaseSchedule`.
 
-use crate::broker::Broker;
+use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::routing::{self, Rule};
 use crate::{
-    protocol::TryCreateMessage,
+    error::CeleryError,
     task::{Signature, Task},
 };
-use log::{debug, error, info};
-use std::collections::BinaryHeap;
-use std::time::{Duration, SystemTime};
+use log::{debug, info};
+use std::time::SystemTime;
 use tokio::time;
+
+mod scheduler;
+use scheduler::Scheduler;
 
 mod backend;
 pub use backend::{InMemoryBackend, SchedulerBackend};
@@ -33,128 +35,143 @@ mod schedule;
 pub use schedule::{RegularSchedule, Schedule};
 
 mod scheduled_task;
-use scheduled_task::ScheduledTask;
+pub use scheduled_task::ScheduledTask;
 
-/// A scheduler is in charge of executing scheduled tasks when they are due.
-///
-/// It is somehow similar to a future, in the sense that by itself it does nothing,
-/// and execution is driven by an "executor" (the `BeatService`) which is in charge
-/// of calling the scheduler tick.
-///
-/// Internally it uses a min-heap to store tasks and efficiently retrieve the ones
-/// that are due for execution.
-pub(crate) struct Scheduler<B: Broker> {
-    heap: BinaryHeap<ScheduledTask>,
-    default_sleep_interval: Duration,
-    broker: B,
+struct Config<Bb>
+where
+    Bb: BrokerBuilder,
+{
+    name: String,
+    broker_builder: Bb,
+    broker_connection_timeout: u32,
+    broker_connection_retry: bool,
+    broker_connection_max_retries: u32,
+    default_queue: String,
+    task_routes: Vec<(String, String)>,
 }
 
-impl<B> Scheduler<B>
+pub struct BeatBuilder<Bb, Sb>
 where
-    B: Broker,
+    Bb: BrokerBuilder,
+    Sb: SchedulerBackend,
 {
-    pub(crate) fn new(broker: B) -> Scheduler<B> {
-        Scheduler {
-            heap: BinaryHeap::new(),
-            default_sleep_interval: Duration::from_millis(500),
-            broker,
+    config: Config<Bb>,
+    scheduler_backend: Sb,
+}
+
+impl<Bb> BeatBuilder<Bb, InMemoryBackend>
+where
+    Bb: BrokerBuilder,
+{
+    /// Get a `BeatBuilder` for creating a `Beat` app with a default scheduler backend
+    /// and a custom configuration.
+    pub fn with_default_scheduler_backend(name: &str, broker_url: &str) -> Self {
+        Self {
+            config: Config {
+                name: name.into(),
+                broker_builder: Bb::new(broker_url),
+                broker_connection_timeout: 2,
+                broker_connection_retry: true,
+                broker_connection_max_retries: 100,
+                default_queue: "celery".into(),
+                task_routes: vec![],
+            },
+            scheduler_backend: InMemoryBackend::new(),
+        }
+    }
+}
+
+impl<Bb, Sb> BeatBuilder<Bb, Sb>
+where
+    Bb: BrokerBuilder,
+    Sb: SchedulerBackend,
+{
+    /// Get a `BeatBuilder` for creating a `Beat` app with custom scheduler backend and
+    /// configuration.
+    pub fn with_custom_scheduler_backend(
+        name: &str,
+        broker_url: &str,
+        scheduler_backend: Sb,
+    ) -> Self {
+        Self {
+            config: Config {
+                name: name.into(),
+                broker_builder: Bb::new(broker_url),
+                broker_connection_timeout: 2,
+                broker_connection_retry: true,
+                broker_connection_max_retries: 100,
+                default_queue: "celery".into(),
+                task_routes: vec![],
+            },
+            scheduler_backend,
         }
     }
 
-    fn schedule_task<S>(
-        &mut self,
-        name: String,
-        message_factory: Box<dyn TryCreateMessage>,
-        queue: String,
-        schedule: S,
-    ) where
-        S: Schedule + 'static,
-    {
-        match schedule.next_call_at(None) {
-            Some(next_call_at) => self.heap.push(ScheduledTask::new(
-                name,
-                message_factory,
-                queue,
-                schedule,
-                next_call_at,
-            )),
-            None => debug!(
-                "The schedule of task {} never scheduled the task to run, so it has been dropped.",
-                name
-            ),
-        }
+    /// Set the name of the default queue to something other than "celery".
+    pub fn default_queue(mut self, queue_name: &str) -> Self {
+        self.config.default_queue = queue_name.into();
+        self
     }
 
-    fn get_scheduled_tasks(&mut self) -> &mut BinaryHeap<ScheduledTask> {
-        &mut self.heap
+    /// Set the broker heartbeat. The default value depends on the broker implementation.
+    pub fn heartbeat(mut self, heartbeat: Option<u16>) -> Self {
+        self.config.broker_builder = self.config.broker_builder.heartbeat(heartbeat);
+        self
     }
 
-    async fn tick(&mut self) -> SystemTime {
-        let now = SystemTime::now();
-        let scheduled_task = self.heap.pop();
-
-        if let Some(mut scheduled_task) = scheduled_task {
-            if scheduled_task.next_call_at <= now {
-                self.send_scheduled_task(&mut scheduled_task).await;
-
-                if let Some(next_call_at) = scheduled_task.next_call_at() {
-                    scheduled_task.next_call_at = next_call_at;
-                    self.heap.push(scheduled_task);
-                } else {
-                    debug!(
-                        "Task {} is not scheduled to run anymore and will be dropped",
-                        scheduled_task.name
-                    );
-                }
-            }
-        }
-
-        self.next_tick_at(now)
+    /// Add a routing rule.
+    pub fn task_route(mut self, pattern: &str, queue: &str) -> Self {
+        self.config.task_routes.push((pattern.into(), queue.into()));
+        self
     }
 
-    async fn send_scheduled_task(&self, scheduled_task: &mut ScheduledTask) {
-        let queue = &scheduled_task.queue;
-
-        match scheduled_task.message_factory.try_create_message() {
-            Ok(message) => {
-                debug!("Sending task {} to {} queue", scheduled_task.name, queue);
-                match self.broker.send(&message, &queue).await {
-                    Ok(()) => {
-                        scheduled_task.last_run_at.replace(SystemTime::now());
-                        scheduled_task.total_run_count += 1;
-                    }
-                    Err(err) => {
-                        error!(
-                            "Cannot send message for task {}. Error: {}",
-                            scheduled_task.name, err
-                        );
-                    }
-                }
-            }
-            Err(err) => {
-                error!(
-                    "Cannot create message for task {}. Error: {}",
-                    scheduled_task.name, err
-                );
-                // TODO should we remove the task in this case?
-            }
-        }
+    /// Set a timeout in seconds before giving up establishing a connection to a broker.
+    pub fn broker_connection_timeout(mut self, timeout: u32) -> Self {
+        self.config.broker_connection_timeout = timeout;
+        self
     }
 
-    fn next_tick_at(&self, now: SystemTime) -> SystemTime {
-        if let Some(scheduled_task) = self.heap.peek() {
-            debug!(
-                "Next scheduled task is at {:?}",
-                scheduled_task.next_call_at
-            );
-            scheduled_task.next_call_at
-        } else {
-            debug!(
-                "No scheduled tasks, sleeping for {:?}",
-                self.default_sleep_interval
-            );
-            now + self.default_sleep_interval
-        }
+    /// Set whether or not to automatically try to re-establish connection to the AMQP broker.
+    pub fn broker_connection_retry(mut self, retry: bool) -> Self {
+        self.config.broker_connection_retry = retry;
+        self
+    }
+
+    /// Set the maximum number of retries before we give up trying to re-establish connection
+    /// to the AMQP broker.
+    pub fn broker_connection_max_retries(mut self, max_retries: u32) -> Self {
+        self.config.broker_connection_max_retries = max_retries;
+        self
+    }
+
+    /// Construct a `Beat` app with the current configuration.
+    pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, CeleryError> {
+        // Declare default queue to broker.
+        let broker_builder = self
+            .config
+            .broker_builder
+            .declare_queue(&self.config.default_queue);
+
+        let (broker_builder, task_routes) =
+            configure_task_routes(broker_builder, &self.config.task_routes)?;
+
+        let broker = build_and_connect(
+            broker_builder,
+            self.config.broker_connection_timeout,
+            self.config.broker_connection_retry,
+            self.config.broker_connection_max_retries,
+        )
+        .await?;
+
+        let scheduler = Scheduler::new(broker);
+
+        Ok(Beat {
+            name: self.config.name,
+            scheduler,
+            scheduler_backend: self.scheduler_backend,
+            task_routes,
+            default_queue: self.config.default_queue,
+        })
     }
 }
 
@@ -162,51 +179,46 @@ where
 /// they are due and add or remove tasks as required. It drives execution by
 /// making the internal scheduler "tick", and updates the list of scheduled
 /// tasks through a customizable scheduler backend.
-pub struct BeatService<Br: Broker + 'static, Sb: SchedulerBackend> {
+pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
+    pub name: String,
     scheduler: Scheduler<Br>,
     scheduler_backend: Sb,
     task_routes: Vec<Rule>,
     default_queue: String,
 }
 
-impl<Br> BeatService<Br, InMemoryBackend>
+impl<Br> Beat<Br, InMemoryBackend>
 where
-    Br: Broker + 'static,
+    Br: Broker,
 {
-    pub(crate) fn new(
-        scheduler: Scheduler<Br>,
-        task_routes: Vec<Rule>,
-        default_queue: String,
-    ) -> BeatService<Br, InMemoryBackend> {
-        BeatService {
-            scheduler,
-            scheduler_backend: InMemoryBackend::new(),
-            task_routes,
-            default_queue,
-        }
+    /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and a
+    /// default scheduler backend.
+    pub fn default_builder(
+        name: &str,
+        broker_url: &str,
+    ) -> BeatBuilder<Br::Builder, InMemoryBackend> {
+        BeatBuilder::<Br::Builder, InMemoryBackend>::with_default_scheduler_backend(
+            name, broker_url,
+        )
     }
 }
 
-impl<Br, Sb> BeatService<Br, Sb>
+impl<Br, Sb> Beat<Br, Sb>
 where
-    Br: Broker + 'static,
+    Br: Broker,
     Sb: SchedulerBackend,
 {
-    // TODO add a function to create a BeatService with a custom scheduler backend
-
-    #[allow(dead_code)]
-    fn schedule_message_factory<S>(
-        &mut self,
-        name: String,
-        message_factory: Box<dyn TryCreateMessage>,
-        queue: Option<String>,
-        schedule: S,
-    ) where
-        S: Schedule + 'static,
-    {
-        let queue = queue.unwrap_or(self.default_queue.clone());
-        self.scheduler
-            .schedule_task(name, message_factory, queue, schedule);
+    /// Get a `BeatBuilder` for creating a `Beat` app with custom configuration and scheduler backend.
+    pub fn custom_builder(
+        name: &str,
+        broker_url: &str,
+        scheduler_backend: Sb,
+    ) -> BeatBuilder<Br::Builder, Sb> {
+        BeatBuilder::<Br::Builder, Sb>::with_custom_scheduler_backend(
+            name,
+            broker_url,
+            scheduler_backend,
+        )
     }
 
     pub fn schedule_task<T, S>(&mut self, signature: Signature<T>, schedule: S)
