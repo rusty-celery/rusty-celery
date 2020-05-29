@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `lapin` dependency updated to 1.0.
 - `BrokerError` variants trimmed and simplified.
 - The error handler closure passed to `Broker::consume` now takes a `BrokerError` as an argument.
 - Improved error messages.
