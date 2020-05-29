@@ -152,7 +152,7 @@ impl AMQPBroker {
 #[async_trait]
 impl Broker for AMQPBroker {
     type Builder = AMQPBrokerBuilder;
-    type Delivery = Delivery;
+    type Delivery = (Channel, Delivery);
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
 
@@ -180,7 +180,7 @@ impl Broker for AMQPBroker {
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
         let _lock = self.consume_channel_write_lock.lock().await;
         self.consume_channel
-            .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
+            .basic_ack(delivery.1.delivery_tag, BasicAckOptions::default())
             .await
             .map_err(|e| e.into())
     }
@@ -191,6 +191,7 @@ impl Broker for AMQPBroker {
         eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError> {
         let mut headers = delivery
+            .1
             .properties
             .headers()
             .clone()
@@ -211,15 +212,15 @@ impl Broker for AMQPBroker {
             );
         };
 
-        let properties = delivery.properties.clone().with_headers(headers);
+        let properties = delivery.1.properties.clone().with_headers(headers);
         self.produce_channel
             .lock()
             .await
             .basic_publish(
                 "",
-                delivery.routing_key.as_str(),
+                delivery.1.routing_key.as_str(),
                 BasicPublishOptions::default(),
-                delivery.data.clone(),
+                delivery.1.data.clone(),
                 properties,
             )
             .await?;
@@ -387,6 +388,12 @@ impl Message {
             );
         }
         headers
+    }
+}
+
+impl TryCreateMessage for (Channel, Delivery) {
+    fn try_create_message(&self) -> Result<Message, ProtocolError> {
+        self.1.try_create_message()
     }
 }
 
