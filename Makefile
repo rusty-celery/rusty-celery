@@ -19,9 +19,7 @@ format :
 lint :
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-targets --all-features -- \
-			-D warnings \
-			-A clippy::let_and_return \
-			-A clippy::redundant_clone
+			-D warnings
 
 .PHONY : test
 test :

@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## v0.2.6 - 2019-05-14
+## v0.3.0 - 2020-05-28
+
+### Changed
+
+- `lapin` dependency updated to 1.0.
+- `BrokerError` variants trimmed and simplified.
+- The error handler closure passed to `Broker::consume` now takes a `BrokerError` as an argument.
+- Improved error messages.
+
+## v0.2.6 - 2020-05-14
 
 ### Fixed
 
@@ -21,27 +31,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sending a task `with_timeout` will only set the `soft_time_limit` so that the behavior
 is the same for Python consumers.
 
-## v0.2.5 - 2019-03-24
+## v0.2.5 - 2020-03-24
 
 ### Changed
 
 - Tasks must explicity return a `TaskResult<T>` now.
 
-## v0.2.4 - 2019-03-16
+## v0.2.4 - 2020-03-16
 
 ## Added
 
 - A `retry_for_unexpected` task configuration option. By default this is `true` (so the default behavior is unchanged).
 But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be retried.
 
-## v0.2.3 - 2019-03-10
+## v0.2.3 - 2020-03-10
 
 ### Changed
 
 - `CeleryBuilder::task_route` now infallible. Error could be raised during the `build` phase instead.
 - `Celery::consume_from` will return `Err(CeleryError::NoQueueToConsume)` if the slice of queues is empty.
 
-## v0.2.2 - 2019-03-06
+## v0.2.2 - 2020-03-06
 
 ### Changed
 
@@ -49,7 +59,7 @@ But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be r
 - Retry ETA method moved from tracer to task so that it can be customized.
 - `TaskError` variants restricted to only `ExpectedError`, `UnexpectedError`, and `TimeoutError`. The `Retry` and `ExpirationError` variants moved to a new (non-public) error type: `TracerError`.
 
-## v0.2.1 - 2019-03-05
+## v0.2.1 - 2020-03-05
 
 ### Added
 
@@ -59,7 +69,7 @@ But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be r
 
 - Removed `task_id` and `params` arguments to `on_failure` and `on_success` callbacks, since those can be gotten from the request object.
 
-## v0.2.0 - 2019-03-02
+## v0.2.0 - 2020-03-02
 
 ### Added
 
@@ -81,7 +91,7 @@ But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be r
 - `TaskSendOptions`.
 - `Celery::send_task_with`.
 
-## v0.2.0-alpha.2 - 2019-02-24
+## v0.2.0-alpha.2 - 2020-02-24
 
 ### Changed
 
@@ -93,13 +103,13 @@ But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be r
 
 - The `SyncError` variants have been removed.
 
-## v0.2.0-alpha.1 - 2019-02-19
+## v0.2.0-alpha.1 - 2020-02-19
 
 ### Changed
 
 - `Celery::consume_from` now only accepts a single queue (once again) since there was a critical bug when we allowed consuming from multiple queues.
 
-## v0.2.0-alpha.0 - 2019-02-17
+## v0.2.0-alpha.0 - 2020-02-17
 
 ### Added
 
