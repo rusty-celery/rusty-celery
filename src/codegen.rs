@@ -87,6 +87,8 @@ macro_rules! __beat_internal {
 /// - `acks_late`: Set an app-level [`TaskOptions::acks_late`](task/struct.TaskOptions.html#structfield.acks_late).
 /// - `broker_connection_timeout`: Set the
 /// [`CeleryBuilder::broker_connection_timeout`](struct.CeleryBuilder.html#method.broker_connection_timeout).
+/// - `broker_connection_retry`: Set the
+/// [`CeleryBuilder::broker_connection_retry`](struct.CeleryBuilder.html#method.broker_connection_retry).
 /// - `broker_connection_max_retries`: Set the
 /// [`CeleryBuilder::broker_connection_max_retries`](struct.CeleryBuilder.html#method.broker_connection_max_retries).
 ///
@@ -151,8 +153,58 @@ macro_rules! app {
     };
 }
 
-// TODO add docs
 // TODO add support for scheduling tasks here.
+/// A macro for creating a [`Beat`](struct.Beat.html) app.
+///
+/// At a minimum the `beat!` macro requires these 2 arguments (in order):
+/// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
+/// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
+///
+/// These arguments can be given with or without their keywords.
+///
+/// # Custom scheduler backend
+///
+/// A custom scheduler backend can be given as third argument (with or without using the keyword `scheduler_backend`).
+/// If not given, the default [`DummyBackend`](struct.DummyBackend.html) will be used.
+///
+/// # Optional parameters
+///
+/// A number of other optional parameters can be passed as last arguments and in arbitrary order
+/// (all of which correspond to a method on the [`BeatBuilder`](struct.BeatBuilder.html) struct):
+///
+/// - `default_queue`: Set the
+/// [`BeatBuilder::default_queue`](struct.BeatBuilder.html#method.default_queue).
+/// - `heartbeat`: Set the [`BeatBuilder::heartbeat`](struct.BeatBuilder.html#method.heartbeat).
+/// - `broker_connection_timeout`: Set the
+/// [`BeatBuilder::broker_connection_timeout`](struct.BeatBuilder.html#method.broker_connection_timeout).
+/// - `broker_connection_retry`: Set the
+/// [`BeatBuilder::broker_connection_retry`](struct.BeatBuilder.html#method.broker_connection_retry).
+/// - `broker_connection_max_retries`: Set the
+/// [`BeatBuilder::broker_connection_max_retries`](struct.BeatBuilder.html#method.broker_connection_max_retries).
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+///
+/// # fn main() {
+/// let app = celery::beat!(
+///     AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     [ "*" => "celery" ],
+/// );
+/// # }
+/// ```
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+/// # fn main() {
+/// let beat = celery::beat!(
+///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     task_routes = [],
+///     default_queue = "beat_queue"
+/// );
+/// # }
+/// ```
 #[macro_export]
 macro_rules! beat {
     // Just required fields without trailing comma.
@@ -163,7 +215,7 @@ macro_rules! beat {
         $crate::__beat_internal!(
             $crate::broker::AMQPBroker { $broker_url },
             [ $( $pattern => $queue ),* ],
-            $crate::InMemoryBackend::new(),
+            $crate::DummyBackend::new(),
         );
     };
     // Just required fields and a custom scheduler backend without trailing comma.
@@ -201,7 +253,7 @@ macro_rules! beat {
         $crate::__beat_internal!(
             $crate::broker::AMQPBroker { $broker_url },
             [ $( $pattern => $queue ),* ],
-            $crate::InMemoryBackend::new(),
+            $crate::DummyBackend::new(),
             $( $x = $y, )*
         );
     };

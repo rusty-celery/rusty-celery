@@ -1,20 +1,26 @@
-// TERMINOLOGY (for the moment, this is very similar to Python implementation, but it will probably evolve):
-// - schedule: the strategy used to decide when a task must be executed (each scheduled task has its
-//   own schedule)
-// - schedule entry: a task together with its schedule
-// - scheduler: the component in charge of keeping track of tasks to execute
-// - beat service: the background service that drives execution, calling the appropriate
-//   methods of the scheduler in an infinite loop (called just service in Python)
-
-// We have changed a little the architecture compared to Python. In Python,
-// there is a Scheduler base class and all schedulers inherit from that.
-// The main logic is in the scheduler though, so here we use a scheduler
-// struct and a trait for the scheduler backend (not implemented for now).
-
-// In Python, there are three different types of schedules: `schedule`
-// (just use a time delta), `crontab`, `solar`. They all inherit from
-// `BaseSchedule`.
-
+/// This module contains the implementation of the Celery **beat**, which is a component
+/// that can be used to automatically execute tasks at scheduled times.
+///
+/// ### Terminology
+///
+/// This is the terminology used in this module (with references to the corresponding names
+/// in the Python implementation):
+/// - schedule: the strategy used to decide when a task must be executed (each scheduled
+///   task has its own schedule);
+/// - scheduled task: a task together with its schedule (it more or less corresponds to
+///   a *schedule entry* in Python);
+/// - scheduler: the component in charge of keeping track of tasks to execute;
+/// - backend: the component that updates the internal state of the scheduler according to
+///   to an external source of truth (e.g., a database); there is no equivalent in Python,
+///   due to the fact that another pattern is used (see below);
+/// - beat: the service that drives the execution, calling the appropriate
+///   methods of the scheduler in an infinite loop (called just *service* in Python).
+///
+/// The main difference with the architecture used in Python is that in Python
+/// there is a base scheduler class which contains the scheduling logic, then different
+/// implementations use different strategies to synchronize the scheduler.
+/// Here instead we have only one scheduler struct, and the different backends
+/// correspond to the different scheduler implementations in Python.
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::routing::{self, Rule};
 use crate::{
@@ -29,7 +35,7 @@ mod scheduler;
 use scheduler::Scheduler;
 
 mod backend;
-pub use backend::{InMemoryBackend, SchedulerBackend};
+pub use backend::{DummyBackend, SchedulerBackend};
 
 mod schedule;
 pub use schedule::{RegularSchedule, Schedule};
@@ -50,6 +56,7 @@ where
     task_routes: Vec<(String, String)>,
 }
 
+/// Used to create a `Beat` app with a custom configuration.
 pub struct BeatBuilder<Bb, Sb>
 where
     Bb: BrokerBuilder,
@@ -59,7 +66,7 @@ where
     scheduler_backend: Sb,
 }
 
-impl<Bb> BeatBuilder<Bb, InMemoryBackend>
+impl<Bb> BeatBuilder<Bb, DummyBackend>
 where
     Bb: BrokerBuilder,
 {
@@ -76,7 +83,7 @@ where
                 default_queue: "celery".into(),
                 task_routes: vec![],
             },
-            scheduler_backend: InMemoryBackend::new(),
+            scheduler_backend: DummyBackend::new(),
         }
     }
 }
@@ -86,8 +93,8 @@ where
     Bb: BrokerBuilder,
     Sb: SchedulerBackend,
 {
-    /// Get a `BeatBuilder` for creating a `Beat` app with custom scheduler backend and
-    /// configuration.
+    /// Get a `BeatBuilder` for creating a `Beat` app with a custom scheduler backend and
+    /// a custom configuration.
     pub fn with_custom_scheduler_backend(
         name: &str,
         broker_url: &str,
@@ -175,7 +182,10 @@ where
     }
 }
 
-/// The beat service is in charge of executing scheduled tasks when
+/// A `Beat` app is used to execute scheduled tasks. This is the struct that is
+/// created with the [`beat`](macro.beat.html) macro.
+///
+/// The *beat* is in charge of executing scheduled tasks when
 /// they are due and add or remove tasks as required. It drives execution by
 /// making the internal scheduler "tick", and updates the list of scheduled
 /// tasks through a customizable scheduler backend.
@@ -187,19 +197,14 @@ pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     default_queue: String,
 }
 
-impl<Br> Beat<Br, InMemoryBackend>
+impl<Br> Beat<Br, DummyBackend>
 where
     Br: Broker,
 {
     /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and a
     /// default scheduler backend.
-    pub fn default_builder(
-        name: &str,
-        broker_url: &str,
-    ) -> BeatBuilder<Br::Builder, InMemoryBackend> {
-        BeatBuilder::<Br::Builder, InMemoryBackend>::with_default_scheduler_backend(
-            name, broker_url,
-        )
+    pub fn default_builder(name: &str, broker_url: &str) -> BeatBuilder<Br::Builder, DummyBackend> {
+        BeatBuilder::<Br::Builder, DummyBackend>::with_default_scheduler_backend(name, broker_url)
     }
 }
 
@@ -208,7 +213,8 @@ where
     Br: Broker,
     Sb: SchedulerBackend,
 {
-    /// Get a `BeatBuilder` for creating a `Beat` app with custom configuration and scheduler backend.
+    /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and
+    /// a custom scheduler backend.
     pub fn custom_builder(
         name: &str,
         broker_url: &str,
@@ -221,6 +227,7 @@ where
         )
     }
 
+    /// Schedule the execution of a task.
     pub fn schedule_task<T, S>(&mut self, signature: Signature<T>, schedule: S)
     where
         T: Task + Clone + 'static,
@@ -242,6 +249,7 @@ where
         );
     }
 
+    /// Start the *beat*.
     pub async fn start(&mut self) -> ! {
         info!("Starting beat service");
         loop {
@@ -255,7 +263,7 @@ where
             let now = SystemTime::now();
             if now < next_tick_at {
                 let sleep_interval = next_tick_at.duration_since(now).expect(
-                    "Unexpected error when unwrapping a SystemTime comparison that cannot fail",
+                    "Unexpected error when unwrapping a SystemTime comparison that is not supposed to fail",
                 );
                 debug!("Now sleeping for {:?}", sleep_interval);
                 time::delay_for(sleep_interval).await;

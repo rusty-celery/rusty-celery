@@ -1,6 +1,12 @@
+/// This module contains the definition of application-provided schedules.
+///
+/// This structs have not changed a lot compared to Python: in Python there are three
+/// different types of schedules: `schedule` (correspinding to `RegularSchedule`),
+/// `crontab`, `solar`. They all inherit from `BaseSchedule`.
 use std::time::{Duration, SystemTime};
 
-/// All schedules implement this trait (regular, cron, solar).
+/// The trait that all schedules implement.
+///
 /// For now, we only support regular schedules.
 pub trait Schedule {
     fn next_call_at(&self, last_run_at: Option<SystemTime>) -> Option<SystemTime>;

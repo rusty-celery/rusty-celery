@@ -81,7 +81,7 @@ mod routing;
 pub use app::{Celery, CeleryBuilder};
 mod beat;
 pub use beat::{
-    Beat, BeatBuilder, InMemoryBackend, RegularSchedule, Schedule, ScheduledTask, SchedulerBackend,
+    Beat, BeatBuilder, DummyBackend, RegularSchedule, Schedule, ScheduledTask, SchedulerBackend,
 };
 pub mod broker;
 pub mod error;

@@ -134,21 +134,23 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
             Duration::from_secs(connection_timeout as u64),
             broker_builder.build(),
         )
-            .await
-            .map_err(|e| BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e)))
-            .and_then(|res| res)
+        .await
+        .map_err(|e| BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e)))
+        .and_then(|res| res)
         {
-            Err(err) => match err {
-                BrokerError::IoError(_) | BrokerError::NotConnected => {
-                    let retry_delay = 2_u64.pow(i);
-                    if i < max_retries {
-                        error!("Failed to establish connection with broker, trying again in {}s...", retry_delay)
+            Err(err) => {
+                match err {
+                    BrokerError::IoError(_) | BrokerError::NotConnected => {
+                        let retry_delay = 2_u64.pow(i);
+                        if i < max_retries {
+                            error!("Failed to establish connection with broker, trying again in {}s...", retry_delay)
+                        }
+                        time::delay_for(Duration::from_secs(retry_delay)).await;
+                        continue;
                     }
-                    time::delay_for(Duration::from_secs(retry_delay)).await;
-                    continue;
+                    _ => return Err(err),
                 }
-                _ => return Err(err.into()),
-            },
+            }
             Ok(b) => {
                 broker = Some(b);
                 break;

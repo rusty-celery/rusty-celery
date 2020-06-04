@@ -15,6 +15,7 @@ pub struct ScheduledTask {
 }
 
 impl ScheduledTask {
+    /// Create a new scheduled task.
     pub fn new<S>(
         name: String,
         message_factory: Box<dyn TryCreateMessage>,
@@ -36,12 +37,14 @@ impl ScheduledTask {
         }
     }
 
-    pub fn next_call_at(&self) -> Option<SystemTime> {
+    /// Check when the task should be executed next.
+    pub(super) fn next_call_at(&self) -> Option<SystemTime> {
         self.schedule.next_call_at(self.last_run_at)
     }
 }
 
-// We implement PartialEq, Eq, PartialOrd and Ord for ScheduledTask because we want to use it in a BinaryHeap.
+// We implement PartialEq, Eq, PartialOrd and Ord for ScheduledTask
+// because we want to use it in a BinaryHeap.
 
 impl Ord for ScheduledTask {
     fn cmp(&self, other: &Self) -> Ordering {

@@ -7,8 +7,8 @@ use std::time::{Duration, SystemTime};
 /// A scheduler is in charge of executing scheduled tasks when they are due.
 ///
 /// It is somehow similar to a future, in the sense that by itself it does nothing,
-/// and execution is driven by an "executor" (the `BeatService`) which is in charge
-/// of calling the scheduler tick.
+/// and execution is driven by an "executor" (the [`Beat`](struct.beat.html)) which
+/// is in charge of calling the scheduler *tick*.
 ///
 /// Internally it uses a min-heap to store tasks and efficiently retrieve the ones
 /// that are due for execution.
@@ -22,6 +22,7 @@ impl<B> Scheduler<B>
 where
     B: Broker,
 {
+    /// Create a new scheduler which uses the given `broker`.
     pub fn new(broker: B) -> Scheduler<B> {
         Scheduler {
             heap: BinaryHeap::new(),
@@ -30,6 +31,7 @@ where
         }
     }
 
+    /// Schedule the execution of a task.
     pub fn schedule_task<S>(
         &mut self,
         name: String,
@@ -54,10 +56,14 @@ where
         }
     }
 
+    /// Get all scheduled tasks.
     pub fn get_scheduled_tasks(&mut self) -> &mut BinaryHeap<ScheduledTask> {
         &mut self.heap
     }
 
+    /// Tick once. This method checks if there is a scheduled task which is due
+    /// for execution and, if so, sends it to the broker.
+    /// It returns the time by which `tick` should be called again.
     pub async fn tick(&mut self) -> SystemTime {
         let now = SystemTime::now();
         let scheduled_task = self.heap.pop();
@@ -81,6 +87,7 @@ where
         self.next_tick_at(now)
     }
 
+    /// Send a task to the broker.
     async fn send_scheduled_task(&self, scheduled_task: &mut ScheduledTask) {
         let queue = &scheduled_task.queue;
 
@@ -110,6 +117,7 @@ where
         }
     }
 
+    /// Check when the next tick is due.
     fn next_tick_at(&self, now: SystemTime) -> SystemTime {
         if let Some(scheduled_task) = self.heap.peek() {
             debug!(
