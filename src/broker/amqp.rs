@@ -88,7 +88,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         let mut queues: HashMap<String, Queue> = HashMap::new();
         for (queue_name, queue_options) in &self.config.queues {
             let queue = consume_channel
-                .queue_declare(queue_name, queue_options.clone(), FieldTable::default())
+                .queue_declare(queue_name, *queue_options, FieldTable::default())
                 .await?;
             queues.insert(queue_name.into(), queue);
         }
