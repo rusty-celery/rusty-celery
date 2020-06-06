@@ -6,7 +6,7 @@ use env_logger::Env;
 use exitfailure::ExitFailure;
 use tokio::time::Duration;
 
-const QUEUE_NAME: &str = "beat_queue";
+const QUEUE_NAME: &str = "celery";
 
 #[celery::task]
 fn add(x: i32, y: i32) -> TaskResult<i32> {
@@ -14,7 +14,7 @@ fn add(x: i32, y: i32) -> TaskResult<i32> {
 }
 
 #[celery::task]
-fn subtract(x: i32, y: i32) -> TaskResult<i32> {
+fn long_running_task(secs: Option<u64>) -> TaskResult<()> {
     unimplemented!()
 }
 
@@ -34,8 +34,8 @@ async fn main() -> Result<(), ExitFailure> {
     let add_schedule = RegularSchedule::new(Duration::from_secs(1));
     beat.schedule_task(add::new(1, 2), add_schedule);
 
-    let subtract_schedule = RegularSchedule::new(Duration::from_millis(700));
-    beat.schedule_task(subtract::new(2, 6), subtract_schedule);
+    let long_running_schedule = RegularSchedule::new(Duration::from_millis(700));
+    beat.schedule_task(long_running_task::new(Some(1)), long_running_schedule);
 
     beat.start().await;
 
