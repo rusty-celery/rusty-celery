@@ -2,14 +2,11 @@
 
 use celery::task::TaskResult;
 use celery::RegularSchedule;
-use celery::ScheduledTask;
-use celery::SchedulerBackend;
 use env_logger::Env;
 use exitfailure::ExitFailure;
-use std::collections::BinaryHeap;
 use tokio::time::Duration;
 
-const QUEUE_NAME: &str = "scheduled";
+const QUEUE_NAME: &str = "beat_queue";
 
 #[celery::task]
 fn add(x: i32, y: i32) -> TaskResult<i32> {
@@ -19,24 +16,6 @@ fn add(x: i32, y: i32) -> TaskResult<i32> {
 #[celery::task]
 fn subtract(x: i32, y: i32) -> TaskResult<i32> {
     unimplemented!()
-}
-
-struct CustomSchedulerBackend {}
-
-impl CustomSchedulerBackend {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-impl SchedulerBackend for CustomSchedulerBackend {
-    fn should_sync(&self) -> bool {
-        unimplemented!()
-    }
-
-    fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) {
-        unimplemented!()
-    }
 }
 
 #[tokio::main]
@@ -49,15 +28,6 @@ async fn main() -> Result<(), ExitFailure> {
         task_routes = [
             "*" => QUEUE_NAME,
         ],
-    );
-
-    // Build a `Beat` with a custom scheduler backend.
-    let custom_backend_beat = celery::beat!(
-        broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
-        task_routes = [
-            "*" => QUEUE_NAME,
-        ],
-        scheduler_backend = { CustomSchedulerBackend::new() }
     );
 
     // Add scheduled tasks to the default `Beat` and start it.

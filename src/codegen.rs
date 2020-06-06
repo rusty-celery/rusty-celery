@@ -184,16 +184,19 @@ macro_rules! app {
 ///
 /// # Examples
 ///
+/// Create a `beat` which will send all messages to the `celery` queue:
+///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-///
 /// # fn main() {
-/// let app = celery::beat!(
+/// let beat = celery::beat!(
 ///     AMQP { std::env::var("AMQP_ADDR").unwrap() },
 ///     [ "*" => "celery" ],
 /// );
 /// # }
 /// ```
+///
+/// Create a `beat` with optional parameters:
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
@@ -202,6 +205,33 @@ macro_rules! app {
 ///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 ///     task_routes = [],
 ///     default_queue = "beat_queue"
+/// );
+/// # }
+/// ```
+///
+/// Create a `beat` with a custom scheduler backend:
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+/// struct CustomSchedulerBackend {}
+///
+/// impl SchedulerBackend for CustomSchedulerBackend {
+///     fn should_sync(&self) -> bool {
+///         unimplemented!()
+///     }
+///
+///     fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) {
+///         unimplemented!()
+///     }
+/// }
+///
+/// # fn main() {
+/// let beat = celery::beat!(
+///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     task_routes = [
+///         "*" => "beat_queue",
+///     ],
+///     scheduler_backend = { CustomSchedulerBackend {} }
 /// );
 /// # }
 /// ```

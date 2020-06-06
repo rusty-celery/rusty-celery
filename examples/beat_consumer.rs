@@ -3,7 +3,7 @@ use env_logger::Env;
 use exitfailure::ExitFailure;
 use log::info;
 
-const QUEUE_NAME: &str = "scheduled";
+const QUEUE_NAME: &str = "beat_queue";
 
 #[celery::task]
 fn add(x: i32, y: i32) -> TaskResult<i32> {
