@@ -213,6 +213,9 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
+/// use celery::{ScheduledTask, SchedulerBackend};
+/// use std::collections::BinaryHeap;
+///
 /// struct CustomSchedulerBackend {}
 ///
 /// impl SchedulerBackend for CustomSchedulerBackend {

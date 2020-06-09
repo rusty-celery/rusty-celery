@@ -1,3 +1,4 @@
+#![allow(clippy::unit_arg)]
 /// NOTE: The tests in this module are time-sensitive.
 ///
 /// Errors in the order of 1-2 milliseconds are expected, so checks
