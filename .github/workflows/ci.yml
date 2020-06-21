@@ -9,6 +9,8 @@ on:
       - master
   schedule:
     - cron: '0 10 * * *' # run at 10 AM UTC
+  release:
+    types: [published]
 
 jobs:
   changelog:
@@ -208,3 +210,35 @@ jobs:
       if: always()
       run: |
         mypy --ignore-missing-imports examples/
+
+  publish:
+    name: Publish
+    needs: [test, broker_amqp_test]
+    runs-on: ubuntu-latest
+    # Only run on main repo releases .
+    if: github.repository == 'rusty-celery/rusty-celery' && github.event_name == 'release'
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Log in to crates.io
+      uses: actions-rs/cargo@v1
+      with:
+        command: login
+        args: ${{ secrets.CARGO_TOKEN }}
+
+    - name: Publish celery-codegen
+      run: |
+        cd celery-codegen
+        cargo publish
+
+    - name: Publish celery
+      run: |
+        # Wait a few seconds to publish the main crate since it depends on the
+        # new versions of the other workspace crates.
+        sleep 10
+        cargo publish
