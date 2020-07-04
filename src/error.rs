@@ -45,6 +45,18 @@ pub enum CeleryError {
     UnregisteredTaskError(String),
 }
 
+/// Errors that can occur while creating or using a `Beat` app.
+#[derive(Debug, Fail)]
+pub enum BeatError {
+    /// Any broker-level error.
+    #[fail(display = "BeatError: {}. Cause: {}", _0, _1)]
+    BrokerError(String, #[fail(cause)] BrokerError),
+
+    /// A protocol error.
+    #[fail(display = "BeatError: {}. Cause: {}", _0, _1)]
+    ProtocolError(String, #[fail(cause)] ProtocolError),
+}
+
 /// Errors that can occur at the task level.
 #[derive(Debug, Fail)]
 pub enum TaskError {

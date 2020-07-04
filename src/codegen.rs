@@ -213,7 +213,7 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// use celery::{ScheduledTask, SchedulerBackend};
+/// use celery::{ScheduledTask, SchedulerBackend, error::BeatError};
 /// use std::collections::BinaryHeap;
 ///
 /// struct CustomSchedulerBackend {}
@@ -223,7 +223,7 @@ macro_rules! app {
 ///         unimplemented!()
 ///     }
 ///
-///     fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) {
+///     fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) -> Result<(), BeatError> {
 ///         unimplemented!()
 ///     }
 /// }

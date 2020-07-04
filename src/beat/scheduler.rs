@@ -1,6 +1,6 @@
 use super::{scheduled_task::ScheduledTask, Schedule};
-use crate::{broker::Broker, protocol::TryCreateMessage};
-use log::{debug, error};
+use crate::{broker::Broker, error::BeatError, protocol::TryCreateMessage};
+use log::{debug, info};
 use std::collections::BinaryHeap;
 use std::time::{Duration, SystemTime};
 
@@ -64,73 +64,68 @@ where
     /// Tick once. This method checks if there is a scheduled task which is due
     /// for execution and, if so, sends it to the broker.
     /// It returns the time by which `tick` should be called again.
-    pub async fn tick(&mut self) -> SystemTime {
+    pub async fn tick(&mut self) -> Result<SystemTime, BeatError> {
         let now = SystemTime::now();
         let scheduled_task = self.heap.pop();
 
         if let Some(mut scheduled_task) = scheduled_task {
             if scheduled_task.next_call_at <= now {
-                self.send_scheduled_task(&mut scheduled_task).await;
+                let result = self.send_scheduled_task(&mut scheduled_task).await;
 
-                if let Some(next_call_at) = scheduled_task.next_call_at() {
-                    scheduled_task.next_call_at = next_call_at;
-                    self.heap.push(scheduled_task);
+                // Reschedule the task before checking if the task execution was successful.
+                // TODO: we may have more fine-grained logic here and reschedule the task
+                // only after examining the type of error.
+                if let Some(rescheduled_task) = scheduled_task.reschedule_task() {
+                    self.heap.push(rescheduled_task);
                 } else {
-                    debug!(
-                        "Task {} is not scheduled to run anymore and will be dropped",
-                        scheduled_task.name
-                    );
+                    debug!("A task is not scheduled to run anymore and will be dropped");
                 }
+
+                result?
             }
         }
 
-        self.next_tick_at(now)
-    }
-
-    /// Send a task to the broker.
-    async fn send_scheduled_task(&self, scheduled_task: &mut ScheduledTask) {
-        let queue = &scheduled_task.queue;
-
-        match scheduled_task.message_factory.try_create_message() {
-            Ok(message) => {
-                debug!("Sending task {} to {} queue", scheduled_task.name, queue);
-                match self.broker.send(&message, &queue).await {
-                    Ok(()) => {
-                        scheduled_task.last_run_at.replace(SystemTime::now());
-                        scheduled_task.total_run_count += 1;
-                    }
-                    Err(err) => {
-                        error!(
-                            "Cannot send message for task {}. Error: {}",
-                            scheduled_task.name, err
-                        );
-                    }
-                }
-            }
-            Err(err) => {
-                error!(
-                    "Cannot create message for task {}. Error: {}",
-                    scheduled_task.name, err
-                );
-                // TODO should we remove the task in this case?
-            }
-        }
-    }
-
-    /// Check when the next tick is due.
-    fn next_tick_at(&self, now: SystemTime) -> SystemTime {
         if let Some(scheduled_task) = self.heap.peek() {
             debug!(
                 "Next scheduled task is at {:?}",
                 scheduled_task.next_call_at
             );
-            scheduled_task.next_call_at
+            Ok(scheduled_task.next_call_at)
         } else {
             debug!(
                 "No scheduled tasks, sleeping for {:?}",
                 self.default_sleep_interval
             );
-            now + self.default_sleep_interval
+            Ok(now + self.default_sleep_interval)
         }
+    }
+
+    /// Send a task to the broker.
+    async fn send_scheduled_task(
+        &self,
+        scheduled_task: &mut ScheduledTask,
+    ) -> Result<(), BeatError> {
+        let queue = &scheduled_task.queue;
+
+        let message = scheduled_task
+            .message_factory
+            .try_create_message()
+            .map_err(|e| {
+                BeatError::ProtocolError(
+                    format!("Cannot create message for task {}", scheduled_task.name),
+                    e,
+                )
+            })?;
+
+        info!("Sending task {} to {} queue", scheduled_task.name, queue);
+        self.broker.send(&message, &queue).await.map_err(|e| {
+            BeatError::BrokerError(
+                format!("Cannot send message for task {}", scheduled_task.name),
+                e,
+            )
+        })?;
+        scheduled_task.last_run_at.replace(SystemTime::now());
+        scheduled_task.total_run_count += 1;
+        Ok(())
     }
 }

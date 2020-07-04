@@ -24,10 +24,10 @@
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::routing::{self, Rule};
 use crate::{
-    error::CeleryError,
+    error::{BeatError, CeleryError},
     task::{Signature, Task},
 };
-use log::{debug, info};
+use log::{debug, error, info};
 use std::time::SystemTime;
 use tokio::time;
 
@@ -186,7 +186,7 @@ where
 /// created with the [`beat`](macro.beat.html) macro.
 ///
 /// The *beat* is in charge of executing scheduled tasks when
-/// they are due and add or remove tasks as required. It drives execution by
+/// they are due and to add or remove tasks as required. It drives execution by
 /// making the internal scheduler "tick", and updates the list of scheduled
 /// tasks through a customizable scheduler backend.
 pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
@@ -249,15 +249,19 @@ where
         );
     }
 
-    /// Start the *beat*.
-    pub async fn start(&mut self) -> ! {
+    /// Start the *beat*. For each error that occurs, pause the execution
+    /// and return the error.
+    ///
+    /// Use the [`start`](struct.Beat.html#method.start) method if you prefer not to pause
+    /// the execution in case of errors.
+    pub async fn try_start(&mut self) -> Result<(), BeatError> {
         info!("Starting beat service");
         loop {
-            let next_tick_at = self.scheduler.tick().await;
+            let next_tick_at = self.scheduler.tick().await?;
 
             if self.scheduler_backend.should_sync() {
                 self.scheduler_backend
-                    .sync(self.scheduler.get_scheduled_tasks());
+                    .sync(self.scheduler.get_scheduled_tasks())?;
             }
 
             let now = SystemTime::now();
@@ -267,6 +271,18 @@ where
                 );
                 debug!("Now sleeping for {:?}", sleep_interval);
                 time::delay_for(sleep_interval).await;
+            }
+        }
+    }
+
+    /// Start the *beat*. Do not stop the execution in case of errors but just log them.
+    ///
+    /// Use the [`try_start`](struct.Beat.html#method.try_start) method if you prefer to
+    /// handle errors in a custom way.
+    pub async fn start(&mut self) -> ! {
+        loop {
+            if let Err(err) = self.try_start().await {
+                error!("{}", err);
             }
         }
     }

@@ -37,9 +37,17 @@ impl ScheduledTask {
         }
     }
 
-    /// Check when the task should be executed next.
-    pub(super) fn next_call_at(&self) -> Option<SystemTime> {
-        self.schedule.next_call_at(self.last_run_at)
+    /// Update the `next_call_at` field of the task.
+    /// If the task is not scheduled to run again, this method
+    /// will return `None`.
+    pub(super) fn reschedule_task(mut self) -> Option<ScheduledTask> {
+        match self.schedule.next_call_at(self.last_run_at) {
+            Some(next_call_at) => {
+                self.next_call_at = next_call_at;
+                Some(self)
+            }
+            None => None,
+        }
     }
 }
 

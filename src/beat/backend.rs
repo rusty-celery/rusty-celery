@@ -1,5 +1,6 @@
 /// This module contains the definition of application-provided scheduler backends.
 use super::scheduled_task::ScheduledTask;
+use crate::error::BeatError;
 use std::collections::BinaryHeap;
 
 /// This trait is implemented by all `Scheduler` backends.
@@ -16,7 +17,7 @@ pub trait SchedulerBackend {
     /// multiple calls to `sync`).
     ///
     /// This method will not be called if `should_sync` returns `false`.
-    fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>);
+    fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) -> Result<(), BeatError>;
 
     // Maybe we should consider some methods to inform the backend that a task has been executed.
     // Not sure about what Python does, but at least it keeps a counter with the number of executed tasks,
@@ -39,7 +40,7 @@ impl SchedulerBackend for DummyBackend {
     }
 
     #[allow(unused_variables)]
-    fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) {
+    fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) -> Result<(), BeatError> {
         unimplemented!()
     }
 }
