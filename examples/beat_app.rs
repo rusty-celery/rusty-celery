@@ -37,7 +37,7 @@ async fn main() -> Result<(), ExitFailure> {
     let long_running_schedule = RegularSchedule::new(Duration::from_millis(700));
     beat.schedule_task(long_running_task::new(Some(1)), long_running_schedule);
 
-    beat.start().await;
+    beat.start().await?;
 
     Ok(())
 }
