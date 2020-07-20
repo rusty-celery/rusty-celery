@@ -148,8 +148,8 @@ And then you can consume tasks from Rust or Python as explained above.
 | Producers        | ✅      | |
 | Consumers        | ✅      | |
 | Brokers          | ✅      | |
+| Beat             | ✅      | |
 | Backends         | 🔴      | |
-| [Beat](https://github.com/rusty-celery/rusty-celery/issues/55)    | 🔴      | |
 | [Baskets](https://github.com/rusty-celery/rusty-celery/issues/53) | 🔴      | |
 
 ### Brokers
