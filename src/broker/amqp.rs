@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
-use crate::protocol::{Message, MessageHeaders, MessageProperties, TryCreateMessage};
+use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
 
 struct Config {
     broker_url: String,
@@ -391,14 +391,14 @@ impl Message {
     }
 }
 
-impl TryCreateMessage for (Channel, Delivery) {
-    fn try_create_message(&self) -> Result<Message, ProtocolError> {
-        self.1.try_create_message()
+impl TryDeserializeMessage for (Channel, Delivery) {
+    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
+        self.1.try_deserialize_message()
     }
 }
 
-impl TryCreateMessage for Delivery {
-    fn try_create_message(&self) -> Result<Message, ProtocolError> {
+impl TryDeserializeMessage for Delivery {
+    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
         let headers = self
             .properties
             .headers()
@@ -560,7 +560,7 @@ mod tests {
             data: vec![],
         };
 
-        let message2 = delivery.try_create_message();
+        let message2 = delivery.try_deserialize_message();
         assert!(message2.is_ok());
 
         let message2 = message2.unwrap();

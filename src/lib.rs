@@ -77,7 +77,12 @@
 )]
 
 mod app;
+mod routing;
 pub use app::{Celery, CeleryBuilder};
+mod beat;
+pub use beat::{
+    Beat, BeatBuilder, DummyBackend, RegularSchedule, Schedule, ScheduledTask, SchedulerBackend,
+};
 pub mod broker;
 pub mod error;
 pub use error::TaskResultExt;

@@ -8,16 +8,14 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::stream::StreamMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::RwLock;
-use tokio::time::{self, Duration};
 
-mod routing;
 mod trace;
 
-use crate::broker::{Broker, BrokerBuilder};
+use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TraceError};
-use crate::protocol::{Message, TryCreateMessage};
+use crate::protocol::{Message, TryDeserializeMessage};
+use crate::routing::Rule;
 use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
-use routing::Rule;
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -181,57 +179,26 @@ where
     /// Construct a `Celery` app with the current configuration.
     pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
         // Declare default queue to broker.
-        let mut broker_builder = self
+        let broker_builder = self
             .config
             .broker_builder
             .declare_queue(&self.config.default_queue);
 
-        let mut task_routes: Vec<Rule> = Vec::with_capacity(self.config.task_routes.len());
-        for (pattern, queue) in &self.config.task_routes {
-            let rule = Rule::new(&pattern, &queue)?;
-            task_routes.push(rule);
-            // Ensure all other queues mentioned in task_routes are declared to the broker.
-            broker_builder = broker_builder.declare_queue(&queue);
-        }
+        let (broker_builder, task_routes) =
+            configure_task_routes(broker_builder, &self.config.task_routes)?;
 
-        // Try building / connecting to broker.
-        let mut broker: Option<Bb::Broker> = None;
-        let max_retries = if self.config.broker_connection_retry {
-            self.config.broker_connection_max_retries
-        } else {
-            0
-        };
-        for i in 0..=max_retries {
-            match time::timeout(
-                Duration::from_secs(self.config.broker_connection_timeout as u64),
-                broker_builder.build(),
-            )
-            .await
-            .map_err(|e| BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e)))
-            .and_then(|res| res)
-            {
-                Err(err) => match err {
-                    BrokerError::IoError(_) | BrokerError::NotConnected => {
-                        let retry_delay = 2_u64.pow(i);
-                        if i < max_retries {
-                            error!("Failed to establish connection with broker, trying again in {}s...", retry_delay)
-                        }
-                        time::delay_for(Duration::from_secs(retry_delay)).await;
-                        continue;
-                    }
-                    _ => return Err(err.into()),
-                },
-                Ok(b) => {
-                    broker = Some(b);
-                    break;
-                }
-            };
-        }
+        let broker = build_and_connect(
+            broker_builder,
+            self.config.broker_connection_timeout,
+            self.config.broker_connection_retry,
+            self.config.broker_connection_max_retries,
+        )
+        .await?;
 
         Ok(Celery {
             name: self.config.name,
             hostname: self.config.hostname,
-            broker: broker.ok_or_else(|| BrokerError::NotConnected)?,
+            broker,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
             task_routes,
@@ -282,7 +249,7 @@ where
     ) -> Result<String, CeleryError> {
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
-            routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
+            crate::routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
         });
         let message = Message::try_from(task_sig)?;
         info!(
@@ -331,7 +298,7 @@ where
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<(), Box<dyn Fail>> {
         // Coerce the delivery into a protocol message.
-        let message = match delivery.try_create_message() {
+        let message = match delivery.try_deserialize_message() {
             Ok(message) => message,
             Err(e) => {
                 // This is a naughty message that we can't handle, so we'll ack it with

@@ -193,16 +193,27 @@ where
     }
 }
 
-/// A trait for attempting to create a `Message` from `self`. This is required to be implemented
-/// on a broker's `Delivery` type.
+/// A trait for attempting to create a `Message` from `self`. This will be implemented
+/// by types that can act like message "factories", like for instance the `Signature` type.
 pub trait TryCreateMessage {
     fn try_create_message(&self) -> Result<Message, ProtocolError>;
 }
 
-impl TryCreateMessage for Message {
+impl<T> TryCreateMessage for Signature<T>
+where
+    T: Task + Clone,
+{
+    /// Creating a message from a signature without consuming the signature requires cloning it.
+    /// For one-shot conversions, directly use `Message::try_from` instead.
     fn try_create_message(&self) -> Result<Message, ProtocolError> {
-        Ok(self.clone())
+        Message::try_from(self.clone())
     }
+}
+
+/// A trait for attempting to deserialize a `Message` from `self`. This is required to be implemented
+/// on a broker's `Delivery` type.
+pub trait TryDeserializeMessage {
+    fn try_deserialize_message(&self) -> Result<Message, ProtocolError>;
 }
 
 /// Message meta data pertaining to the broker.

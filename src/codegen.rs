@@ -35,6 +35,31 @@ macro_rules! __app_internal {
     }};
 }
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __beat_internal {
+    (
+        $broker_type:ty { $broker_url:expr },
+        [ $( $pattern:expr => $queue:expr ),* ],
+        $scheduler_backend:expr,
+        $( $x:ident = $y:expr, )*
+    ) => {{
+        let broker_url = $broker_url;
+
+        let mut builder = $crate::Beat::<$broker_type, _>::custom_builder("beat", &broker_url, $scheduler_backend);
+
+        $(
+            builder = builder.$x($y);
+        )*
+
+        $(
+            builder = builder.task_route($pattern, $queue);
+        )*
+
+        $crate::export::block_on(builder.build()).unwrap()
+    }};
+}
+
 /// A macro for creating a [`Celery`](struct.Celery.html) app.
 ///
 /// At a minimum the `app!` macro requires these 3 arguments (in order):
@@ -62,6 +87,8 @@ macro_rules! __app_internal {
 /// - `acks_late`: Set an app-level [`TaskOptions::acks_late`](task/struct.TaskOptions.html#structfield.acks_late).
 /// - `broker_connection_timeout`: Set the
 /// [`CeleryBuilder::broker_connection_timeout`](struct.CeleryBuilder.html#method.broker_connection_timeout).
+/// - `broker_connection_retry`: Set the
+/// [`CeleryBuilder::broker_connection_retry`](struct.CeleryBuilder.html#method.broker_connection_retry).
 /// - `broker_connection_max_retries`: Set the
 /// [`CeleryBuilder::broker_connection_max_retries`](struct.CeleryBuilder.html#method.broker_connection_max_retries).
 ///
@@ -121,6 +148,145 @@ macro_rules! app {
             $crate::broker::AMQPBroker { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
+            $( $x = $y, )*
+        );
+    };
+}
+
+// TODO add support for scheduling tasks here.
+/// A macro for creating a [`Beat`](struct.Beat.html) app.
+///
+/// At a minimum the `beat!` macro requires these 2 arguments (in order):
+/// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
+/// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
+///
+/// These arguments can be given with or without their keywords.
+///
+/// # Custom scheduler backend
+///
+/// A custom scheduler backend can be given as third argument (with or without using the keyword `scheduler_backend`).
+/// If not given, the default [`DummyBackend`](struct.DummyBackend.html) will be used.
+///
+/// # Optional parameters
+///
+/// A number of other optional parameters can be passed as last arguments and in arbitrary order
+/// (all of which correspond to a method on the [`BeatBuilder`](struct.BeatBuilder.html) struct):
+///
+/// - `default_queue`: Set the
+/// [`BeatBuilder::default_queue`](struct.BeatBuilder.html#method.default_queue).
+/// - `heartbeat`: Set the [`BeatBuilder::heartbeat`](struct.BeatBuilder.html#method.heartbeat).
+/// - `broker_connection_timeout`: Set the
+/// [`BeatBuilder::broker_connection_timeout`](struct.BeatBuilder.html#method.broker_connection_timeout).
+/// - `broker_connection_retry`: Set the
+/// [`BeatBuilder::broker_connection_retry`](struct.BeatBuilder.html#method.broker_connection_retry).
+/// - `broker_connection_max_retries`: Set the
+/// [`BeatBuilder::broker_connection_max_retries`](struct.BeatBuilder.html#method.broker_connection_max_retries).
+///
+/// # Examples
+///
+/// Create a `beat` which will send all messages to the `celery` queue:
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+/// # fn main() {
+/// let beat = celery::beat!(
+///     AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     [ "*" => "celery" ],
+/// );
+/// # }
+/// ```
+///
+/// Create a `beat` with optional parameters:
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+/// # fn main() {
+/// let beat = celery::beat!(
+///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     task_routes = [],
+///     default_queue = "beat_queue"
+/// );
+/// # }
+/// ```
+///
+/// Create a `beat` with a custom scheduler backend:
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+/// use celery::{ScheduledTask, SchedulerBackend, error::BeatError};
+/// use std::collections::BinaryHeap;
+///
+/// struct CustomSchedulerBackend {}
+///
+/// impl SchedulerBackend for CustomSchedulerBackend {
+///     fn should_sync(&self) -> bool {
+///         unimplemented!()
+///     }
+///
+///     fn sync(&mut self, scheduled_tasks: &mut BinaryHeap<ScheduledTask>) -> Result<(), BeatError> {
+///         unimplemented!()
+///     }
+/// }
+///
+/// # fn main() {
+/// let beat = celery::beat!(
+///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     task_routes = [
+///         "*" => "beat_queue",
+///     ],
+///     scheduler_backend = { CustomSchedulerBackend {} }
+/// );
+/// # }
+/// ```
+#[macro_export]
+macro_rules! beat {
+    // Just required fields without trailing comma.
+    (
+        $(broker =)? AMQP { $broker_url:expr },
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+    ) => {
+        $crate::__beat_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
+            [ $( $pattern => $queue ),* ],
+            $crate::DummyBackend::new(),
+        );
+    };
+    // Just required fields and a custom scheduler backend without trailing comma.
+    (
+        $(broker =)? AMQP { $broker_url:expr },
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
+        $(scheduler_backend =)? { $scheduler_backend:expr }
+    ) => {
+        $crate::__beat_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
+            [ $( $pattern => $queue ),* ],
+            $scheduler_backend,
+        );
+    };
+    // Required fields and a custom scheduler with trailing comma and possibly additional options.
+    (
+        $(broker =)? AMQP { $broker_url:expr },
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
+        $(scheduler_backend =)? { $scheduler_backend:expr },
+        $( $x:ident = $y:expr ),* $(,)?
+    ) => {
+        $crate::__beat_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
+            [ $( $pattern => $queue ),* ],
+            $scheduler_backend,
+            $( $x = $y, )*
+        );
+    };
+    // Required fields with trailing comma and possibly additional options.
+    (
+        $(broker =)? AMQP { $broker_url:expr },
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
+        $( $x:ident = $y:expr ),* $(,)?
+    ) => {
+        $crate::__beat_internal!(
+            $crate::broker::AMQPBroker { $broker_url },
+            [ $( $pattern => $queue ),* ],
+            $crate::DummyBackend::new(),
             $( $x = $y, )*
         );
     };

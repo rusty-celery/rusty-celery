@@ -4,9 +4,14 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use log::error;
+use tokio::time::{self, Duration};
 
-use crate::error::BrokerError;
-use crate::protocol::{Message, TryCreateMessage};
+use crate::error::{BrokerError, CeleryError};
+use crate::{
+    protocol::{Message, TryDeserializeMessage},
+    routing::Rule,
+};
 
 mod amqp;
 pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
@@ -18,7 +23,7 @@ pub trait Broker: Send + Sync + Sized {
     type Builder: BrokerBuilder<Broker = Self>;
 
     /// The type representing a successful delivery.
-    type Delivery: TryCreateMessage + Send + Sync + Clone + std::fmt::Debug;
+    type Delivery: TryDeserializeMessage + Send + Sync + Clone + std::fmt::Debug;
 
     /// The error type of an unsuccessful delivery.
     type DeliveryError: std::fmt::Display + Send + Sync;
@@ -88,4 +93,72 @@ pub trait BrokerBuilder {
 
     /// Construct the `Broker` with the given configuration.
     async fn build(&self) -> Result<Self::Broker, BrokerError>;
+}
+
+// TODO: this function consumes the broker_builder, which results in a not so ergonomic API.
+// Can it be improved?
+/// A utility function to configure the task routes on a broker builder.
+pub(crate) fn configure_task_routes<Bb: BrokerBuilder>(
+    mut broker_builder: Bb,
+    task_routes: &[(String, String)],
+) -> Result<(Bb, Vec<Rule>), CeleryError> {
+    let mut rules: Vec<Rule> = Vec::with_capacity(task_routes.len());
+    for (pattern, queue) in task_routes {
+        let rule = Rule::new(&pattern, &queue)?;
+        rules.push(rule);
+        // Ensure all other queues mentioned in task_routes are declared to the broker.
+        broker_builder = broker_builder.declare_queue(&queue);
+    }
+
+    Ok((broker_builder, rules))
+}
+
+/// A utility function that can be used to build a broker
+/// and initialize the connection.
+pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
+    broker_builder: Bb,
+    connection_timeout: u32,
+    connection_retry: bool,
+    connection_max_retries: u32,
+) -> Result<Bb::Broker, BrokerError> {
+    let mut broker: Option<Bb::Broker> = None;
+
+    let max_retries = if connection_retry {
+        connection_max_retries
+    } else {
+        0
+    };
+
+    for i in 0..max_retries {
+        match time::timeout(
+            Duration::from_secs(connection_timeout as u64),
+            broker_builder.build(),
+        )
+        .await
+        .map_err(|e| BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e)))
+        .and_then(|res| res)
+        {
+            Err(err) => match err {
+                BrokerError::IoError(_) | BrokerError::NotConnected => {
+                    let retry_delay = 2_u64.pow(i);
+                    error!(
+                        "Failed to establish connection with broker, trying again in {}s...",
+                        retry_delay
+                    );
+                    time::delay_for(Duration::from_secs(retry_delay)).await;
+                    continue;
+                }
+                _ => return Err(err),
+            },
+            Ok(b) => {
+                broker = Some(b);
+                break;
+            }
+        };
+    }
+
+    Ok(broker.ok_or_else(|| {
+        error!("Failed to establish connection with broker");
+        BrokerError::NotConnected
+    })?)
 }
