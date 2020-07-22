@@ -238,7 +238,7 @@ jobs:
 
     - name: Publish celery
       run: |
-        # Wait a few seconds to publish the main crate since it depends on the
+        # Wait a minute to publish the main crate since it depends on the
         # new versions of the other workspace crates.
-        sleep 10
+        sleep 60
         cargo publish
