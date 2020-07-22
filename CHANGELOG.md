@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.3.1 - 2020-07-22
+
 ### Added
 
 - `beat` module with basic support for scheduling tasks.

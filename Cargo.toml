@@ -3,7 +3,7 @@ members = ["./", "celery-codegen"]
 
 [package]
 name = "celery"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["epwalsh <epwalsh10@gmail.com>"]
 edition = "2018"
 keywords = ["celery", "amqp", "rabbitmq", "background-jobs"]
@@ -36,7 +36,7 @@ log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
 uuid = { version = "0.8", features = ["v4"]}
 rand = "0.7"
-celery-codegen = { version = "0.3.0", path = "./celery-codegen", optional = true }
+celery-codegen = { version = "0.3.1", path = "./celery-codegen", optional = true }
 once_cell = { version = "1.3.1", optional = true }
 globset = "0.4"
 # This is only used by amqp-protocol. We need to pin to this version to avoid a compilation error
