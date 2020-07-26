@@ -1,9 +1,19 @@
+//! Redis broker.
+use std::clone::Clone;
+use futures::Stream;
 use std::collections::HashSet;
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use crate::protocol::{Message, TryCreateMessage};
+use crate::error::{BrokerError, ProtocolError};
+use log::warn;
+use tokio::sync::Mutex;
+
 use super::{Broker, BrokerBuilder};
+use redis::aio::{MultiplexedConnection};
+use redis::RedisError;
 use redis::Client;
 
-use log::{debug, warning};
-use tokio::sync::Mutex;
 
 struct Config {
     broker_url: String,
@@ -18,19 +28,19 @@ pub struct RedisBrokerBuilder{
 
 #[async_trait]
 impl BrokerBuilder for RedisBrokerBuilder {
-    type Broker: RedisBroker;
+    type Broker = RedisBroker;
 
     /// Create a new `BrokerBuilder`.
     fn new(broker_url: &str) -> Self{
         RedisBrokerBuilder{
             config: Config{
-                broker_url: broker_url,
+                broker_url: broker_url.into(),
                 prefetch_count: 10,
                 queues: HashSet::new(),
                 heartbeat: Some(60),
             }
         }
-    };
+    }
 
     /// Set the prefetch count.
     fn prefetch_count(mut self, prefetch_count: u16) -> Self{
@@ -46,20 +56,24 @@ impl BrokerBuilder for RedisBrokerBuilder {
 
     /// Set the heartbeat.
     fn heartbeat(mut self, heartbeat: Option<u16>) -> Self{
-        log::warning("Setting heartbeat on redis broker has no effect on anything");
+        warn!("Setting heartbeat on redis broker has no effect on anything");
         self.config.heartbeat = heartbeat;
         self
     }
 
     /// Construct the `Broker` with the given configuration.
     async fn build(&self) -> Result<Self::Broker, BrokerError>{
-        let mut queues = HashSet::new();
+        let mut queues: HashSet<String> = HashSet::new();
         for queue_name in &self.config.queues{
             queues.insert(queue_name.into());
         }
-        Some(RedisBroker{
-            client: Client::open(&self.config.broker_url[..])?,
-            queues: self.config.queues,
+
+        let client = Client::open(&self.config.broker_url[..])
+            .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
+
+        Ok(RedisBroker{
+            client: client.get_multiplexed_async_std_connection().await.map_err(|err| BrokerError::RedisError(err))?,
+            queues: queues,
             prefetch_count: Mutex::new(self.config.prefetch_count),
         })
     }
@@ -67,7 +81,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
 
 pub struct RedisBroker{
     /// Broker connection.
-    client: Client,
+    client: MultiplexedConnection,
 
     /// Mapping of queue name to Queue struct.
     queues: HashSet<String>,
@@ -77,4 +91,102 @@ pub struct RedisBroker{
     prefetch_count: Mutex<u16>,
 }
 
+#[derive(Debug)]
+pub struct Channel{}
 
+#[derive(Debug)]
+pub struct Delivery{}
+
+#[derive(Debug)]
+pub struct DeliveryStream{}
+
+pub struct Consumer{}
+
+impl TryCreateMessage for (Channel, Delivery){
+    fn try_create_message(&self) -> Result<Message, ProtocolError> {
+        todo!()
+    }
+}
+
+impl Clone for Channel{
+    fn clone(&self) -> Channel{
+        todo!()
+    }
+}
+
+impl Clone for Delivery{
+    fn clone(&self) -> Delivery{
+        todo!()
+    }
+}
+
+impl Stream for Consumer{
+    type Item = Result<(Channel, Delivery), RedisError>;
+    fn poll_next(self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<std::option::Option<<Self as futures::Stream>::Item>> { todo!() }
+}
+
+
+#[async_trait]
+impl Broker for RedisBroker {
+    /// The builder type used to create the broker with a custom configuration.
+    type Builder = RedisBrokerBuilder;
+    type Delivery = (Channel, Delivery);
+    type DeliveryError = RedisError;
+    type DeliveryStream = Consumer;
+
+    /// Returns a builder for creating a broker with a custom configuration.
+    fn builder(broker_url: &str) -> Self::Builder {
+        Self::Builder::new(broker_url)
+    }
+
+    /// Consume messages from a queue.
+    ///
+    /// If the connection is successful, this should return a future stream of `Result`s where an `Ok`
+    /// value is a [`Self::Delivery`](trait.Broker.html#associatedtype.Delivery)
+    /// type that can be coerced into a [`Message`](protocol/struct.Message.html)
+    /// and an `Err` value is a
+    /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError) type.
+    async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
+        &self,
+        queue: &str,
+        handler: Box<E>,
+    ) -> Result<Self::DeliveryStream, BrokerError> { 
+        todo!()
+    }
+
+    /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
+    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> { 
+        todo!()
+    }
+
+    /// Retry a delivery.
+    async fn retry(
+        &self,
+        delivery: &Self::Delivery,
+        eta: Option<DateTime<Utc>>,
+    ) -> Result<(), BrokerError> {
+        todo!()
+    }
+
+    /// Send a [`Message`](protocol/struct.Message.html) into a queue.
+    async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
+        todo!()
+    }
+
+    /// Increase the `prefetch_count`. This has to be done when a task with a future
+    /// ETA is consumed.
+    async fn increase_prefetch_count(&self) -> Result<(), BrokerError>{
+        todo!()
+    }
+
+    /// Decrease the `prefetch_count`. This has to be done after a task with a future
+    /// ETA is executed.
+    async fn decrease_prefetch_count(&self) -> Result<(), BrokerError>{
+        todo!()
+    }
+
+    /// Clone all channels and connection.
+    async fn close(&self) -> Result<(), BrokerError>{
+        todo!()
+    }
+}

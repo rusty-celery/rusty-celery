@@ -121,6 +121,10 @@ pub enum BrokerError {
     /// Any other AMQP error that could happen.
     #[fail(display = "BrokerError: AMQP error ({})", _0)]
     AMQPError(#[fail(cause)] lapin::Error),
+
+    /// Any other Redis error that could happen.
+    #[fail(display = "BrokerError: Redis error ({})", _0)]
+    RedisError(#[fail(cause)] redis::RedisError),
 }
 
 /// Errors that can occur due to messages not conforming to the protocol.
