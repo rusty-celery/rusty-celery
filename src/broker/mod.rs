@@ -9,7 +9,9 @@ use crate::error::BrokerError;
 use crate::protocol::{Message, TryCreateMessage};
 
 mod amqp;
+mod redis;
 pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
+pub use self::redis::{RedisBroker, RedisBrokerBuilder};
 
 /// A message `Broker` is used as the transport for producing or consuming tasks.
 #[async_trait]
