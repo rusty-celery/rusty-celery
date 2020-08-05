@@ -1,4 +1,6 @@
 //! Redis broker.
+#![allow(dead_code)]
+use std::fmt;
 use std::clone::Clone;
 use futures::Stream;
 use std::collections::HashSet;
@@ -8,6 +10,7 @@ use crate::protocol::{Message, TryCreateMessage};
 use crate::error::{BrokerError, ProtocolError};
 use log::warn;
 use tokio::sync::Mutex;
+use lapin::message::Delivery;
 
 use super::{Broker, BrokerBuilder};
 use redis::aio::{MultiplexedConnection};
@@ -91,38 +94,48 @@ pub struct RedisBroker{
     prefetch_count: Mutex<u16>,
 }
 
-#[derive(Debug)]
-pub struct Channel{}
+pub struct Channel{
+    client: MultiplexedConnection,
+}
 
-#[derive(Debug)]
-pub struct Delivery{}
+impl fmt::Debug for Channel{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result{
+        write!(f, "Channel {{ client: MultiplexedConnection }}")
+    }
+}
 
-#[derive(Debug)]
-pub struct DeliveryStream{}
+// #[derive(Debug)]
+// pub struct Delivery{}
 
 pub struct Consumer{}
 
 impl TryCreateMessage for (Channel, Delivery){
     fn try_create_message(&self) -> Result<Message, ProtocolError> {
-        todo!()
+        self.1.try_create_message()
     }
 }
 
 impl Clone for Channel{
     fn clone(&self) -> Channel{
-        todo!()
+        Channel{client: self.client.clone()}
     }
 }
 
-impl Clone for Delivery{
-    fn clone(&self) -> Delivery{
-        todo!()
-    }
-}
+// impl Clone for Delivery{
+//     fn clone(&self) -> Delivery{
+//         todo!()
+//     }
+// }
 
 impl Stream for Consumer{
     type Item = Result<(Channel, Delivery), RedisError>;
-    fn poll_next(self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<std::option::Option<<Self as futures::Stream>::Item>> { todo!() }
+    fn poll_next(self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<std::option::Option<<Self as futures::Stream>::Item>> { 
+        // execute pipeline
+        // - get from queue
+        // - add delivery tag in processing unacked_index_key sortedlist
+        // - add delivery tag, msg in processing hashset unacked_key
+        todo!()
+    }
 }
 
 
@@ -148,28 +161,28 @@ impl Broker for RedisBroker {
     /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError) type.
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
-        queue: &str,
-        handler: Box<E>,
+        _queue: &str,
+        _handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError> { 
         todo!()
     }
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
-    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> { 
+    async fn ack(&self, _delivery: &Self::Delivery) -> Result<(), BrokerError> { 
         todo!()
     }
 
     /// Retry a delivery.
     async fn retry(
         &self,
-        delivery: &Self::Delivery,
-        eta: Option<DateTime<Utc>>,
+        _delivery: &Self::Delivery,
+        _eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError> {
         todo!()
     }
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
-    async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
+    async fn send(&self, _message: &Message, _queue: &str) -> Result<(), BrokerError> {
         todo!()
     }
 
