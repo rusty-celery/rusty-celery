@@ -182,8 +182,14 @@ impl Broker for RedisBroker {
     }
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
-    async fn send(&self, _message: &Message, _queue: &str) -> Result<(), BrokerError> {
-        todo!()
+    async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
+        let result = redis::cmd("LPUSH")
+            .arg(String::from(queue))
+            .arg(message.raw_body.clone())
+            .query_async(&mut self.client)
+            .await.map_err(|err| BrokerError::RedisError(err))?;
+        return Ok(());
+
     }
 
     /// Increase the `prefetch_count`. This has to be done when a task with a future
