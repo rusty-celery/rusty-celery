@@ -16,6 +16,7 @@ use super::{Broker, BrokerBuilder};
 use redis::aio::{MultiplexedConnection};
 use redis::RedisError;
 use redis::Client;
+use std::cell::RefCell;
 
 
 struct Config {
@@ -75,7 +76,14 @@ impl BrokerBuilder for RedisBrokerBuilder {
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
 
         Ok(RedisBroker{
-            client: client.get_multiplexed_async_std_connection().await.map_err(|err| BrokerError::RedisError(err))?,
+            client: Mutex::new(
+                RefCell::new(
+                    client
+                        .get_multiplexed_async_std_connection()
+                        .await
+                        .map_err(|err| BrokerError::RedisError(err))?
+                )
+            ),
             queues: queues,
             prefetch_count: Mutex::new(self.config.prefetch_count),
         })
@@ -84,7 +92,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
 
 pub struct RedisBroker{
     /// Broker connection.
-    client: MultiplexedConnection,
+    client: Mutex<RefCell<MultiplexedConnection>>,
 
     /// Mapping of queue name to Queue struct.
     queues: HashSet<String>,
@@ -186,7 +194,7 @@ impl Broker for RedisBroker {
         let result = redis::cmd("LPUSH")
             .arg(String::from(queue))
             .arg(message.raw_body.clone())
-            .query_async(&mut self.client)
+            .query_async(&mut *self.client.lock().await.borrow_mut())
             .await.map_err(|err| BrokerError::RedisError(err))?;
         return Ok(());
 
