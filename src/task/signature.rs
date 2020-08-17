@@ -31,8 +31,18 @@ where
     /// A queue to send the task to.
     pub queue: Option<String>,
 
-    /// Timeout for the task execution. Overrides any app or task-level default timeouts.
-    pub timeout: Option<u32>,
+    /// Time limit, in seconds, for the task execution. Overrides any app or task-level default time limits.
+    pub time_limit: Option<u32>,
+
+    /// The `time_limit` option is equivalent to the ["soft time
+    /// limit"](https://docs.celeryproject.org/en/stable/userguide/workers.html#time-limits)
+    /// option when sending tasks to a Python consumer.
+    /// If you desire to set a "hard time limit", use this option.
+    ///
+    /// *Note that this is really only for compatability with Python workers*.
+    /// `time_limit` and `hard_time_limit` are treated the same by Rust workers, and if both
+    /// are set, the minimum of the two will be used.
+    pub hard_time_limit: Option<u32>,
 
     /// The number of seconds to wait before executing the task. This is equivalent to setting
     /// [`eta`](struct.Signature.html#structfield.eta)
@@ -61,7 +71,8 @@ where
         Self {
             params,
             queue: None,
-            timeout: None,
+            time_limit: None,
+            hard_time_limit: None,
             countdown: None,
             eta: None,
             expires_in: None,
@@ -80,9 +91,19 @@ where
         self
     }
 
-    /// Set the timeout.
-    pub fn with_timeout(mut self, timeout: u32) -> Self {
-        self.timeout = Some(timeout);
+    /// Set a time limit (in seconds) for the task.
+    pub fn with_time_limit(mut self, time_limit: u32) -> Self {
+        self.time_limit = Some(time_limit);
+        self
+    }
+
+    /// Set a hard time limit (in seconds) for the task.
+    ///
+    /// *Note that this is really only for compatability with Python workers*.
+    /// `time_limit` and `hard_time_limit` are treated the same by Rust workers, and if both
+    /// are set, the minimum of the two will be used.
+    pub fn with_hard_time_limit(mut self, time_limit: u32) -> Self {
+        self.hard_time_limit = Some(time_limit);
         self
     }
 
