@@ -28,6 +28,7 @@ fn test_auto_name() {
 
 #[celery::task(
     time_limit = 2,
+    hard_time_limit = 3,
     max_retries = 3,
     min_retry_delay = 0,
     max_retry_delay = 60,
@@ -41,6 +42,7 @@ fn task_with_options() -> TaskResult<String> {
 #[test]
 fn test_task_options() {
     assert_eq!(task_with_options::DEFAULTS.time_limit, Some(2));
+    assert_eq!(task_with_options::DEFAULTS.hard_time_limit, Some(3));
     assert_eq!(task_with_options::DEFAULTS.max_retries, Some(3));
     assert_eq!(task_with_options::DEFAULTS.min_retry_delay, Some(0));
     assert_eq!(task_with_options::DEFAULTS.max_retry_delay, Some(60));

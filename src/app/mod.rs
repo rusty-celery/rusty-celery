@@ -65,6 +65,7 @@ where
                 default_queue: "celery".into(),
                 task_options: TaskOptions {
                     time_limit: None,
+                    hard_time_limit: None,
                     max_retries: None,
                     min_retry_delay: None,
                     max_retry_delay: None,
@@ -113,6 +114,17 @@ where
     /// [`TaskOption::time_limit`](task/struct.TaskOptions.html#structfield.time_limit)).
     pub fn task_time_limit(mut self, task_time_limit: u32) -> Self {
         self.config.task_options.time_limit = Some(task_time_limit);
+        self
+    }
+
+    /// Set an app-level hard time limit for tasks (see
+    /// [`TaskOption::hard_time_limit`](task/struct.TaskOptions.html#structfield.hard_time_limit)).
+    ///
+    /// *Note that this is really only for compatability with Python workers*.
+    /// `time_limit` and `hard_time_limit` are treated the same by Rust workers, and if both
+    /// are set, the minimum of the two will be used.
+    pub fn task_hard_time_limit(mut self, task_hard_time_limit: u32) -> Self {
+        self.config.task_options.hard_time_limit = Some(task_hard_time_limit);
         self
     }
 

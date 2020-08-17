@@ -61,7 +61,12 @@ where
     }
 
     pub fn time_limit(mut self, time_limit: u32) -> Self {
-        self.message.headers.timelimit = (None, Some(time_limit));
+        self.message.headers.timelimit.1 = Some(time_limit);
+        self
+    }
+
+    pub fn hard_time_limit(mut self, time_limit: u32) -> Self {
+        self.message.headers.timelimit.0 = Some(time_limit);
         self
     }
 
@@ -175,6 +180,10 @@ where
 
         if let Some(time_limit) = task_sig.time_limit.take() {
             builder = builder.time_limit(time_limit);
+        }
+
+        if let Some(time_limit) = task_sig.hard_time_limit.take() {
+            builder = builder.hard_time_limit(time_limit);
         }
 
         if let Some(countdown) = task_sig.countdown.take() {

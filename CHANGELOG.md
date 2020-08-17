@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Added a `hard_time_limit` task option for compatability with Python.
+
 ### Changed
 
 - The `timeout` task option was renamed to `time_limit` to be more consistent with the Python API.
