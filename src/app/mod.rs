@@ -4,7 +4,10 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use tokio::select;
-use tokio::signal::unix::{signal, SignalKind};
+
+#[cfg(unix)]
+use tokio::signal::unix::{signal, Signal, SignalKind};
+
 use tokio::stream::StreamMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::RwLock;
@@ -451,8 +454,7 @@ where
         }
 
         // Stream of OS signals.
-        let mut sigint = signal(SignalKind::interrupt())?;
-        let mut sigterm = signal(SignalKind::terminate())?;
+        let mut ender = Ender::new()?;
 
         // A sender and receiver for task related events.
         // NOTE: we can use an unbounded channel since we already have backpressure
@@ -482,12 +484,10 @@ where
                         }
                     }
                 },
-                _ = sigint.next() => {
-                    warn!("Ope! Hitting Ctrl+C again will terminate all running tasks!");
-                    info!("Warm shutdown...");
-                    break;
-                },
-                _ = sigterm.next() => {
+                ending = ender.wait() => {
+                    if let Ok(true) = ending {
+                        warn!("Ope! Hitting Ctrl+C again will terminate all running tasks!");
+                    }
                     info!("Warm shutdown...");
                     break;
                 },
@@ -516,9 +516,11 @@ where
             info!("Waiting on {} pending tasks...", pending_tasks);
             loop {
                 select! {
-                    _ = sigint.next() => {
-                        warn!("Okay fine, shutting down now. See ya!");
-                        return Err(CeleryError::ForcedShutdown);
+                    ending = ender.wait() => {
+                        if let Ok(true) = ending {
+                            warn!("Okay fine, shutting down now. See ya!");
+                            return Err(CeleryError::ForcedShutdown);
+                        }
                     },
                     maybe_event = task_event_rx.next() => {
                         if let Some(event) = maybe_event {
@@ -539,5 +541,52 @@ where
         info!("No more pending tasks. See ya!");
 
         Ok(())
+    }
+}
+
+#[cfg(unix)]
+struct Ender {
+    sigint: Signal,
+    sigterm: Signal,
+}
+
+#[cfg(unix)]
+impl Ender {
+    fn new() -> Result<Self, std::io::Error> {
+        let sigint = signal(SignalKind::interrupt())?;
+        let sigterm = signal(SignalKind::terminate())?;
+
+        Ok(Ender { sigint, sigterm })
+    }
+    /// Waits for either an interrupt or terminate.  If interrupt is returned this equals `true`
+    async fn wait(&mut self) -> Result<bool, std::io::Error> {
+        let outcome;
+
+        select! {
+            _ = self.sigint.next() => {
+                outcome = true
+            },
+            _ = self.sigterm.next() => {
+                outcome = false
+            }
+        }
+
+        Ok(outcome)
+    }
+}
+
+#[cfg(windows)]
+struct Ender;
+
+#[cfg(windows)]
+impl Ender {
+    fn new() -> Result<Self, std::io::Error> {
+        Ok(Ender)
+    }
+
+    async fn wait(&mut self) -> Result<bool, std::io::Error> {
+        tokio::signal::ctrl_c().await?;
+
+        Ok(true)
     }
 }
