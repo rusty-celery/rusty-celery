@@ -48,7 +48,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
 
     /// Default task options.
     const DEFAULTS: TaskOptions = TaskOptions {
-        timeout: None,
+        time_limit: None,
         max_retries: None,
         min_retry_delay: None,
         max_retry_delay: None,
@@ -122,10 +122,10 @@ pub trait Task: Send + Sync + std::marker::Sized {
             .unwrap_or(true)
     }
 
-    fn timeout(&self) -> Option<u32> {
+    fn time_limit(&self) -> Option<u32> {
         self.request()
-            .timeout
-            .or_else(|| Self::DEFAULTS.timeout.or(self.options().timeout))
+            .time_limit
+            .or_else(|| Self::DEFAULTS.time_limit.or(self.options().time_limit))
     }
 
     fn max_retries(&self) -> Option<u32> {

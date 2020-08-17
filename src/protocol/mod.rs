@@ -60,8 +60,8 @@ where
         }
     }
 
-    pub fn timeout(mut self, timeout: u32) -> Self {
-        self.message.headers.timelimit = (None, Some(timeout));
+    pub fn time_limit(mut self, time_limit: u32) -> Self {
+        self.message.headers.timelimit = (None, Some(time_limit));
         self
     }
 
@@ -173,8 +173,8 @@ where
 
         let mut builder = MessageBuilder::<T>::new(id);
 
-        if let Some(timeout) = task_sig.timeout.take() {
-            builder = builder.timeout(timeout);
+        if let Some(time_limit) = task_sig.time_limit.take() {
+            builder = builder.time_limit(time_limit);
         }
 
         if let Some(countdown) = task_sig.countdown.take() {

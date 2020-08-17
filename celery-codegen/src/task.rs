@@ -38,7 +38,7 @@ struct Task {
     name: Option<String>,
     wrapper: Option<syn::Ident>,
     params_type: Option<syn::Ident>,
-    timeout: Option<syn::LitInt>,
+    time_limit: Option<syn::LitInt>,
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
@@ -85,7 +85,7 @@ impl TaskAttrs {
             .next()
     }
 
-    fn timeout(&self) -> Option<syn::LitInt> {
+    fn time_limit(&self) -> Option<syn::LitInt> {
         self.attrs
             .iter()
             .filter_map(|a| match a {
@@ -189,7 +189,7 @@ mod kw {
     syn::custom_keyword!(name);
     syn::custom_keyword!(wrapper);
     syn::custom_keyword!(params_type);
-    syn::custom_keyword!(timeout);
+    syn::custom_keyword!(time_limit);
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
     syn::custom_keyword!(max_retry_delay);
@@ -215,8 +215,8 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::params_type>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::ParamsType(input.parse()?))
-        } else if lookahead.peek(kw::timeout) {
-            input.parse::<kw::timeout>()?;
+        } else if lookahead.peek(kw::time_limit) {
+            input.parse::<kw::time_limit>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::Timeout(input.parse()?))
         } else if lookahead.peek(kw::max_retries) {
@@ -265,7 +265,7 @@ impl Task {
             name: attrs.name(),
             wrapper: attrs.wrapper(),
             params_type: attrs.params_type(),
-            timeout: attrs.timeout(),
+            time_limit: attrs.time_limit(),
             max_retries: attrs.max_retries(),
             min_retry_delay: attrs.min_retry_delay(),
             max_retry_delay: attrs.max_retry_delay(),
@@ -457,8 +457,8 @@ impl ToTokens for Task {
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
         let params_type = self.params_type.as_ref().unwrap();
-        let timeout = self
-            .timeout
+        let time_limit = self
+            .time_limit
             .as_ref()
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { None });
@@ -608,7 +608,7 @@ impl ToTokens for Task {
                     const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
                     const DEFAULTS: #krate::task::TaskOptions = #krate::task::TaskOptions {
-                        timeout: #timeout,
+                        time_limit: #time_limit,
                         max_retries: #max_retries,
                         min_retry_delay: #min_retry_delay,
                         max_retry_delay: #max_retry_delay,

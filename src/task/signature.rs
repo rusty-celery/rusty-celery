@@ -31,8 +31,8 @@ where
     /// A queue to send the task to.
     pub queue: Option<String>,
 
-    /// Timeout for the task execution. Overrides any app or task-level default timeouts.
-    pub timeout: Option<u32>,
+    /// Timeout for the task execution. Overrides any app or task-level default time limits.
+    pub time_limit: Option<u32>,
 
     /// The number of seconds to wait before executing the task. This is equivalent to setting
     /// [`eta`](struct.Signature.html#structfield.eta)
@@ -61,7 +61,7 @@ where
         Self {
             params,
             queue: None,
-            timeout: None,
+            time_limit: None,
             countdown: None,
             eta: None,
             expires_in: None,
@@ -80,9 +80,9 @@ where
         self
     }
 
-    /// Set the timeout.
-    pub fn with_timeout(mut self, timeout: u32) -> Self {
-        self.timeout = Some(timeout);
+    /// Set a time limit (in seconds) for the task.
+    pub fn with_time_limit(mut self, time_limit: u32) -> Self {
+        self.time_limit = Some(time_limit);
         self
     }
 
