@@ -8,11 +8,11 @@
 /// That is, options set at the request level have the highest precendence,
 /// followed by options set at the task level, and lastly the app level.
 ///
-/// For example, if `timeout: Some(10)` is set at the app level through the
-/// [`task_timeout` option](../struct.CeleryBuilder.html#method.task_timeout),
-/// then every task will use a timeout of 10 seconds unless some other timeout is specified in the
+/// For example, if `time_limit: Some(10)` is set at the app level through the
+/// [`task_time_limit` option](../struct.CeleryBuilder.html#method.task_time_limit),
+/// then every task will use a time limit of 10 seconds unless some other time limit is specified in the
 /// [task definition](attr.task.html#parameters) or in a
-/// [task signature](../task/struct.Signature.html#structfield.timeout) for that task.
+/// [task signature](../task/struct.Signature.html#structfield.time_limit) for that task.
 #[derive(Copy, Clone, Default)]
 pub struct TaskOptions {
     /// Timeout for a task.
@@ -22,15 +22,15 @@ pub struct TaskOptions {
     /// if it runs longer than `n` seconds.
     ///
     /// This can be set with
-    /// - [`task_timeout`](../struct.CeleryBuilder.html#method.task_timeout) at the app level,
-    /// - [`timeout`](../attr.task.html#parameters) at the task level, and
-    /// - [`with_timeout`](../task/struct.Signature.html#method.with_timeout) at the request / signature level.
+    /// - [`task_time_limit`](../struct.CeleryBuilder.html#method.task_time_limit) at the app level,
+    /// - [`time_limit`](../attr.task.html#parameters) at the task level, and
+    /// - [`with_time_limit`](../task/struct.Signature.html#method.with_time_limit) at the request / signature level.
     ///
-    /// If this option is left unspecified, the default behavior will be to enforce no timeout.
+    /// If this option is left unspecified, the default behavior will be to enforce no time limit.
     ///
     /// *Note, however, that only non-blocking tasks can be interrupted, so it's important
     /// to use async functions within task implementations whenever they are available.*
-    pub timeout: Option<u32>,
+    pub time_limit: Option<u32>,
 
     /// Maximum number of retries for this task.
     ///

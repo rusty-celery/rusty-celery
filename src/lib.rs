@@ -102,7 +102,7 @@ mod codegen;
 ///
 /// - `name`: The name to use when registering the task. Should be unique. If not given the name
 /// will be set to the name of the function being decorated.
-/// - `timeout`: Set a task-level [`TaskOptions::timeout`](task/struct.TaskOptions.html#structfield.timeout).
+/// - `time_limit`: Set a task-level [`TaskOptions::time_limit`](task/struct.TaskOptions.html#structfield.time_limit).
 /// - `max_retries`: Set a task-level [`TaskOptions::max_retries`](task/struct.TaskOptions.html#structfield.max_retries).
 /// - `min_retry_delay`: Set a task-level [`TaskOptions::min_retry_delay`](task/struct.TaskOptions.html#structfield.min_retry_delay).
 /// - `max_retry_delay`: Set a task-level [`TaskOptions::max_retry_delay`](task/struct.TaskOptions.html#structfield.max_retry_delay).
@@ -147,7 +147,7 @@ mod codegen;
 /// ```rust
 /// # use celery::TaskResult;
 /// #[celery::task(
-///     timeout = 3,
+///     time_limit = 3,
 ///     max_retries = 100,
 ///     min_retry_delay = 1,
 ///     max_retry_delay = 60,

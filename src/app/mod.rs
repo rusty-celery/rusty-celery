@@ -64,7 +64,7 @@ where
                 broker_connection_max_retries: 4,
                 default_queue: "celery".into(),
                 task_options: TaskOptions {
-                    timeout: None,
+                    time_limit: None,
                     max_retries: None,
                     min_retry_delay: None,
                     max_retry_delay: None,
@@ -109,10 +109,10 @@ where
         self
     }
 
-    /// Set an app-level timeout for tasks (see
-    /// [`TaskOption::timeout`](task/struct.TaskOptions.html#structfield.timeout)).
-    pub fn task_timeout(mut self, task_timeout: u32) -> Self {
-        self.config.task_options.timeout = Some(task_timeout);
+    /// Set an app-level time limit for tasks (see
+    /// [`TaskOption::time_limit`](task/struct.TaskOptions.html#structfield.time_limit)).
+    pub fn task_time_limit(mut self, task_time_limit: u32) -> Self {
+        self.config.task_options.time_limit = Some(task_time_limit);
         self
     }
 
