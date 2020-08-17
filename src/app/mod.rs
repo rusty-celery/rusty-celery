@@ -485,7 +485,7 @@ where
                     }
                 },
                 ending = ender.wait() => {
-                    if let Ok(true) = ending {
+                    if let Ok(SigType::Interrupt) = ending {
                         warn!("Ope! Hitting Ctrl+C again will terminate all running tasks!");
                     }
                     info!("Warm shutdown...");
@@ -517,7 +517,7 @@ where
             loop {
                 select! {
                     ending = ender.wait() => {
-                        if let Ok(true) = ending {
+                        if let Ok(SigType::Interrupt) = ending {
                             warn!("Okay fine, shutting down now. See ya!");
                             return Err(CeleryError::ForcedShutdown);
                         }
@@ -544,6 +544,12 @@ where
     }
 }
 
+#[allow(unused)]
+enum SigType {
+    Interrupt,
+    Terminate,
+}
+
 #[cfg(unix)]
 struct Ender {
     sigint: Signal,
@@ -558,20 +564,20 @@ impl Ender {
 
         Ok(Ender { sigint, sigterm })
     }
-    /// Waits for either an interrupt or terminate.  If interrupt is returned this equals `true`
-    async fn wait(&mut self) -> Result<bool, std::io::Error> {
-        let outcome;
+    /// Waits for either an interrupt or terminate.
+    async fn wait(&mut self) -> Result<SigType, std::io::Error> {
+        let sigtype;
 
         select! {
             _ = self.sigint.next() => {
-                outcome = true
+                sigtype = SigType::Interrupt
             },
             _ = self.sigterm.next() => {
-                outcome = false
+                sigtype = SigType::Terminate
             }
         }
 
-        Ok(outcome)
+        Ok(sigtype)
     }
 }
 
@@ -584,9 +590,9 @@ impl Ender {
         Ok(Ender)
     }
 
-    async fn wait(&mut self) -> Result<bool, std::io::Error> {
+    async fn wait(&mut self) -> Result<SigType, std::io::Error> {
         tokio::signal::ctrl_c().await?;
 
-        Ok(true)
+        Ok(SigType::Interrupt)
     }
 }
