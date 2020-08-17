@@ -89,7 +89,7 @@ async fn main() -> Result<(), ExitFailure> {
 
             // Send the long running task that will fail with a timeout error.
             my_app
-                .send_task(long_running_task::new(Some(3)).with_timeout(2))
+                .send_task(long_running_task::new(Some(3)).with_time_limit(2))
                 .await?;
         }
     };

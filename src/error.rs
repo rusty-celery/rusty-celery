@@ -83,13 +83,13 @@ pub enum TaskError {
     UnexpectedError(String),
 
     /// Raised when a task runs over its time limit specified by the
-    /// [`TaskOptions::timeout`](../task/struct.TaskOptions.html#structfield.timeout) setting.
+    /// [`TaskOptions::time_limit`](../task/struct.TaskOptions.html#structfield.time_limit) setting.
     ///
     /// These errors are logged at the `ERROR` level but are otherwise treated like
     /// `ExpectedError`s in that they will trigger a retry when `max_retries` is anything but 0.
     ///
     /// Typically a task implementation doesn't need to return these errors directly
-    /// because they will be raised automatically when the task runs over it's `timeout`,
+    /// because they will be raised automatically when the task runs over it's `time_limit`,
     /// provided the task yields control at some point (like with non-blocking IO).
     #[fail(display = "TaskError: task timed out")]
     TimeoutError,

@@ -66,9 +66,9 @@ where
             });
 
         let start = Instant::now();
-        let result = match self.task.timeout() {
+        let result = match self.task.time_limit() {
             Some(secs) => {
-                debug!("Executing task with {} second timeout", secs);
+                debug!("Executing task with {} second time limit", secs);
                 let duration = Duration::from_secs(secs as u64);
                 time::timeout(duration, self.task.run(self.task.request().params.clone()))
                     .await
