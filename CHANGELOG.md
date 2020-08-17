@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `beat` module with basic support for scheduling tasks.
 - `beat` macro to create a `Beat` app.
 
+### Fixed
+
+- Compiles on Windows
+
 ## v0.3.0 - 2020-05-28
 
 ### Changed
