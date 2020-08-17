@@ -15,7 +15,7 @@
 /// [task signature](../task/struct.Signature.html#structfield.time_limit) for that task.
 #[derive(Copy, Clone, Default)]
 pub struct TaskOptions {
-    /// Timeout for a task.
+    /// Time limit for a task.
     ///
     /// If set to `Some(n)`, the task will be interrupted and fail with a
     /// [`TimeoutError`](error/enum.TaskError.html#variant.TimeoutError)
@@ -31,6 +31,16 @@ pub struct TaskOptions {
     /// *Note, however, that only non-blocking tasks can be interrupted, so it's important
     /// to use async functions within task implementations whenever they are available.*
     pub time_limit: Option<u32>,
+
+    /// The `time_limit` option is equivalent to the ["soft time
+    /// limit"](https://docs.celeryproject.org/en/stable/userguide/workers.html#time-limits)
+    /// option when sending tasks to a Python consumer.
+    /// If you desire to set a "hard time limit", use this option.
+    ///
+    /// *Note that this is really only for compatability with Python workers*.
+    /// `time_limit` and `hard_time_limit` are treated the same by Rust workers, and if both
+    /// are set, the minimum of the two will be used.
+    pub hard_time_limit: Option<u32>,
 
     /// Maximum number of retries for this task.
     ///

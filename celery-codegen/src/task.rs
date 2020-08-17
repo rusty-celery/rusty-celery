@@ -20,7 +20,8 @@ enum TaskAttr {
     Name(syn::LitStr),
     Wrapper(syn::Ident),
     ParamsType(syn::Ident),
-    Timeout(syn::LitInt),
+    TimeLimit(syn::LitInt),
+    HardTimeLimit(syn::LitInt),
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
     MaxRetryDelay(syn::LitInt),
@@ -39,6 +40,7 @@ struct Task {
     wrapper: Option<syn::Ident>,
     params_type: Option<syn::Ident>,
     time_limit: Option<syn::LitInt>,
+    hard_time_limit: Option<syn::LitInt>,
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
@@ -89,7 +91,17 @@ impl TaskAttrs {
         self.attrs
             .iter()
             .filter_map(|a| match a {
-                TaskAttr::Timeout(r) => Some(r.clone()),
+                TaskAttr::TimeLimit(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
+    fn hard_time_limit(&self) -> Option<syn::LitInt> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::HardTimeLimit(r) => Some(r.clone()),
                 _ => None,
             })
             .next()
@@ -190,6 +202,7 @@ mod kw {
     syn::custom_keyword!(wrapper);
     syn::custom_keyword!(params_type);
     syn::custom_keyword!(time_limit);
+    syn::custom_keyword!(hard_time_limit);
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
     syn::custom_keyword!(max_retry_delay);
@@ -218,7 +231,11 @@ impl parse::Parse for TaskAttr {
         } else if lookahead.peek(kw::time_limit) {
             input.parse::<kw::time_limit>()?;
             input.parse::<Token![=]>()?;
-            Ok(TaskAttr::Timeout(input.parse()?))
+            Ok(TaskAttr::TimeLimit(input.parse()?))
+        } else if lookahead.peek(kw::hard_time_limit) {
+            input.parse::<kw::hard_time_limit>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::HardTimeLimit(input.parse()?))
         } else if lookahead.peek(kw::max_retries) {
             input.parse::<kw::max_retries>()?;
             input.parse::<Token![=]>()?;
@@ -266,6 +283,7 @@ impl Task {
             wrapper: attrs.wrapper(),
             params_type: attrs.params_type(),
             time_limit: attrs.time_limit(),
+            hard_time_limit: attrs.hard_time_limit(),
             max_retries: attrs.max_retries(),
             min_retry_delay: attrs.min_retry_delay(),
             max_retry_delay: attrs.max_retry_delay(),
@@ -462,6 +480,11 @@ impl ToTokens for Task {
             .as_ref()
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { None });
+        let hard_time_limit = self
+            .hard_time_limit
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { None });
         let max_retries = self
             .max_retries
             .as_ref()
@@ -609,6 +632,7 @@ impl ToTokens for Task {
                     const ARGS: &'static [&'static str] = &[#arg_names];
                     const DEFAULTS: #krate::task::TaskOptions = #krate::task::TaskOptions {
                         time_limit: #time_limit,
+                        hard_time_limit: #hard_time_limit,
                         max_retries: #max_retries,
                         min_retry_delay: #min_retry_delay,
                         max_retry_delay: #max_retry_delay,
