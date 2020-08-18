@@ -116,6 +116,48 @@ jobs:
         command: test
         args: --no-run --test codegen app_codegen
 
+  windows_compilation_test:
+    name: Test Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Install Rust Stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
+
+      - name: Run unit tests
+        if: always()
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --lib
+
+      - name: Run doc tests
+        if: always()
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --doc
+
+      - name: Run task codegen tests
+        if: always()
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --test codegen task_codegen
+
+      - name: Compile app codegen tests
+        if: always()
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-run --test codegen app_codegen
+
+
   broker_amqp_test:
     name: Check Broker (AMQP)
     runs-on: ubuntu-latest
