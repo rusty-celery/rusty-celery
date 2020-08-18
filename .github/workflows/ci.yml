@@ -49,12 +49,12 @@ jobs:
         components: rustfmt, clippy
         override: true
 
-    - name: Fix ~/.cargo directory permissions
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
-        # See https://github.com/actions/cache/issues/133.
-        sudo chown -R $(whoami):$(id -ng) ~/.cargo/
+    # - name: Fix ~/.cargo directory permissions
+    #   if: matrix.os == 'ubuntu-latest'
+    #   run: |
+    #     # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
+    #     # See https://github.com/actions/cache/issues/133.
+    #     sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
     - name: Set build variables
       if: matrix.os == 'ubuntu-latest'
@@ -65,7 +65,7 @@ jobs:
 
     - name: Cache cargo registry
       if: matrix.os == 'ubuntu-latest'
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: ~/.cargo/registry
         key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
@@ -74,7 +74,7 @@ jobs:
 
     - name: Cache cargo build
       if: matrix.os == 'ubuntu-latest'
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: target
         key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
@@ -143,11 +143,11 @@ jobs:
         components: rustfmt, clippy
         override: true
 
-    - name: Fix ~/.cargo directory permissions
-      run: |
-        # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
-        # See https://github.com/actions/cache/issues/133.
-        sudo chown -R $(whoami):$(id -ng) ~/.cargo/
+    # - name: Fix ~/.cargo directory permissions
+    #   run: |
+    #     # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
+    #     # See https://github.com/actions/cache/issues/133.
+    #     sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
     - name: Set build variables
       run: |
@@ -155,7 +155,7 @@ jobs:
         echo "::set-env name=CARGO_VERSION::$(cargo --version)"
 
     - name: Cache cargo registry
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: ~/.cargo/registry
         key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
@@ -163,7 +163,7 @@ jobs:
           cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
 
     - name: Cache cargo build
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: target
         key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
@@ -192,7 +192,7 @@ jobs:
         python-version: 3.7
 
     - name: Cache pip
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: ~/.cache/pip # This path is specific to Ubuntu
         key: pip ${{ runner.os }} ${{ env.pythonLocation }} ${{ hashFiles('requirements.txt') }} ${{ hashFiles('dev-requirements.txt') }}
