@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.4.0 - 2020-08-18
+
 ### Added
 
 - Added a `hard_time_limit` task option for compatability with Python.
@@ -15,16 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `timeout` task option was renamed to `time_limit` to be more consistent with the Python API.
 
+### Fixed
+
+- Compiles on Windows
+
 ## v0.3.1 - 2020-07-22
 
 ### Added
 
 - `beat` module with basic support for scheduling tasks.
 - `beat` macro to create a `Beat` app.
-
-### Fixed
-
-- Compiles on Windows
 
 ## v0.3.0 - 2020-05-28
 
