@@ -50,14 +50,12 @@ jobs:
         override: true
 
     - name: Set build variables
-      # if: matrix.os == 'ubuntu-latest'
       run: |
         # We use these variables as part of the cache keys.
         echo "::set-env name=RUST_VERSION::$(rustc --version)"
         echo "::set-env name=CARGO_VERSION::$(cargo --version)"
 
     - name: Cache cargo registry
-      # if: matrix.os == 'ubuntu-latest'
       uses: actions/cache@v2
       with:
         path: ~/.cargo/registry
@@ -66,7 +64,6 @@ jobs:
           cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
 
     - name: Cache cargo build
-      # if: matrix.os == 'ubuntu-latest'
       uses: actions/cache@v2
       with:
         path: target
@@ -75,14 +72,13 @@ jobs:
           cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
 
     - name: Lint with rustfmt
-      if: matrix.os == 'ubuntu-latest'
       uses: actions-rs/cargo@v1
       with:
         command: fmt
         args: -- --check
 
     - name: Lint with clippy
-      if: always() && matrix.os == 'ubuntu-latest'
+      if: always()
       uses: actions-rs/cargo@v1
       with:
         command: clippy
