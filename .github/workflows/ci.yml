@@ -49,13 +49,6 @@ jobs:
         components: rustfmt, clippy
         override: true
 
-    # - name: Fix ~/.cargo directory permissions
-    #   if: matrix.os == 'ubuntu-latest'
-    #   run: |
-    #     # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
-    #     # See https://github.com/actions/cache/issues/133.
-    #     sudo chown -R $(whoami):$(id -ng) ~/.cargo/
-
     - name: Set build variables
       if: matrix.os == 'ubuntu-latest'
       run: |
@@ -142,12 +135,6 @@ jobs:
         toolchain: stable
         components: rustfmt, clippy
         override: true
-
-    # - name: Fix ~/.cargo directory permissions
-    #   run: |
-    #     # Need to chown ~/.cargo or else the "Cache cargo registry" step will fail.
-    #     # See https://github.com/actions/cache/issues/133.
-    #     sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
     - name: Set build variables
       run: |
