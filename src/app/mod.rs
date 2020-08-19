@@ -11,6 +11,7 @@ use tokio::signal::unix::{signal, Signal, SignalKind};
 use tokio::stream::StreamMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::RwLock;
+use tokio::time::{self, Duration};
 
 mod trace;
 
@@ -205,8 +206,11 @@ where
         let broker = build_and_connect(
             broker_builder,
             self.config.broker_connection_timeout,
-            self.config.broker_connection_retry,
-            self.config.broker_connection_max_retries,
+            if self.config.broker_connection_retry {
+                self.config.broker_connection_max_retries
+            } else {
+                0
+            },
         )
         .await?;
 
@@ -218,6 +222,9 @@ where
             task_options: self.config.task_options,
             task_routes,
             task_trace_builders: RwLock::new(HashMap::new()),
+            broker_connection_timeout: self.config.broker_connection_timeout,
+            broker_connection_retry: self.config.broker_connection_retry,
+            broker_connection_max_retries: self.config.broker_connection_max_retries,
         })
     }
 }
@@ -229,16 +236,16 @@ pub struct Celery<B: Broker> {
     pub name: String,
 
     /// Node name of the app.
-    hostname: String,
+    pub hostname: String,
 
     /// The app's broker.
-    broker: B,
+    pub broker: B,
 
     /// The default queue to send and receive from.
-    default_queue: String,
+    pub default_queue: String,
 
     /// Default task options.
-    task_options: TaskOptions,
+    pub task_options: TaskOptions,
 
     /// A vector of routing rules in the order of their importance.
     task_routes: Vec<Rule>,
@@ -246,6 +253,10 @@ pub struct Celery<B: Broker> {
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
     task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
+
+    broker_connection_timeout: u32,
+    broker_connection_retry: bool,
+    broker_connection_max_retries: u32,
 }
 
 impl<B> Celery<B>
@@ -422,6 +433,8 @@ where
     }
 }
 
+// These methods require the app to have a static lifetime since they involve spawning
+// tasks that keep references to `self`.
 impl<B> Celery<B>
 where
     B: Broker + 'static,
@@ -432,8 +445,65 @@ where
     }
 
     /// Consume tasks from a queue.
-    #[allow(clippy::cognitive_complexity)]
     pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+        loop {
+            let result = self._consume_from(queues).await;
+            if !self.broker_connection_retry {
+                return result;
+            }
+
+            if let Err(err) = result {
+                match err {
+                    CeleryError::BrokerError(broker_err) => {
+                        if broker_err.is_connection_error() {
+                            error!("Broker connection failed");
+                        } else {
+                            return Err(CeleryError::BrokerError(broker_err));
+                        }
+                    }
+                    _ => return Err(err),
+                };
+            } else {
+                return result;
+            }
+
+            let mut reconnect_successful: bool = false;
+            for _ in 0..self.broker_connection_max_retries {
+                info!("Trying to re-establish connection with broker");
+                time::delay_for(Duration::from_secs(10)).await;
+
+                match time::timeout(
+                    Duration::from_secs(self.broker_connection_timeout as u64),
+                    self.broker.reconnect(),
+                )
+                .await
+                .map_err(|e| {
+                    BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e))
+                })
+                .and_then(|res| res)
+                {
+                    Err(err) => {
+                        if err.is_connection_error() {
+                            continue;
+                        }
+                        return Err(CeleryError::BrokerError(err));
+                    }
+                    Ok(_) => {
+                        info!("Successfully reconnected with broker");
+                        reconnect_successful = true;
+                        break;
+                    }
+                };
+            }
+
+            if !reconnect_successful {
+                return Err(CeleryError::BrokerError(BrokerError::NotConnected));
+            }
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    async fn _consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
         if queues.is_empty() {
             return Err(CeleryError::NoQueueToConsume);
         }
@@ -558,10 +628,13 @@ where
 
 #[allow(unused)]
 enum SigType {
+    /// Equivalent to SIGINT on unix systems.
     Interrupt,
+    /// Equivalent to SIGTERM on unix systems.
     Terminate,
 }
 
+/// The ender listens for signals.
 #[cfg(unix)]
 struct Ender {
     sigint: Signal,
@@ -576,6 +649,7 @@ impl Ender {
 
         Ok(Ender { sigint, sigterm })
     }
+
     /// Waits for either an interrupt or terminate.
     async fn wait(&mut self) -> Result<SigType, std::io::Error> {
         let sigtype;

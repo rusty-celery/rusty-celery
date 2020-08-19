@@ -249,6 +249,10 @@ impl Broker for DummyBroker {
     async fn close(&self) -> Result<(), BrokerError> {
         Ok(())
     }
+
+    async fn reconnect(&self) -> Result<(), BrokerError> {
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]

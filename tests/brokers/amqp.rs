@@ -1,6 +1,7 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
+use celery::broker::Broker;
 use celery::error::TaskError;
 use celery::task::{Request, Signature, Task, TaskOptions};
 use once_cell::sync::Lazy;
@@ -77,7 +78,7 @@ async fn test_amqp_broker() {
     // Send task to queue.
     let send_result = my_app.send_task(add::new(1, 2)).await;
     assert!(send_result.is_ok());
-    let correlation_id = send_result.unwrap();
+    let task_id_1 = send_result.unwrap();
 
     // Consume task from queue. We wrap this in `time::timeout(...)` because otherwise
     // `consume` will keep waiting for more tasks indefinitely.
@@ -87,10 +88,25 @@ async fn test_amqp_broker() {
     // there must have been an error there.
     assert!(result.is_err());
 
+    // Try closing connection and then reconnecting.
+    my_app.broker.close().await.unwrap();
+    my_app.broker.reconnect().await.unwrap();
+
+    // Send another task to the queue.
+    let send_result = my_app.send_task(add::new(2, 2)).await;
+    assert!(send_result.is_ok());
+    let task_id_2 = send_result.unwrap();
+
+    // Consume again.
+    let result = time::timeout(Duration::from_secs(1), my_app.consume()).await;
+    assert!(result.is_err());
+
     let successes = SUCCESSES.lock().unwrap();
 
-    // Check that the "add" task succeeded.
+    // Check that each "add" task succeeded.
     assert!(!successes.is_empty());
-    assert!(successes[&correlation_id].is_ok());
-    assert_eq!(successes[&correlation_id].as_ref().unwrap(), &3);
+    assert!(successes[&task_id_1].is_ok());
+    assert_eq!(successes[&task_id_1].as_ref().unwrap(), &3);
+    assert!(successes[&task_id_2].is_ok());
+    assert_eq!(successes[&task_id_2].as_ref().unwrap(), &4);
 }

@@ -165,8 +165,11 @@ where
         let broker = build_and_connect(
             broker_builder,
             self.config.broker_connection_timeout,
-            self.config.broker_connection_retry,
-            self.config.broker_connection_max_retries,
+            if self.config.broker_connection_retry {
+                self.config.broker_connection_max_retries
+            } else {
+                0
+            },
         )
         .await?;
 

@@ -46,7 +46,7 @@ pub trait Broker: Send + Sync + Sized {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
-        handler: Box<E>,
+        error_handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError>;
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
@@ -72,6 +72,9 @@ pub trait Broker: Send + Sync + Sized {
 
     /// Clone all channels and connection.
     async fn close(&self) -> Result<(), BrokerError>;
+
+    /// Try reconnecting in the event of some sort of connection error.
+    async fn reconnect(&self) -> Result<(), BrokerError>;
 }
 
 /// A `BrokerBuilder` is used to create a type of broker with a custom configuration.
@@ -118,18 +121,11 @@ pub(crate) fn configure_task_routes<Bb: BrokerBuilder>(
 pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
     broker_builder: Bb,
     connection_timeout: u32,
-    connection_retry: bool,
     connection_max_retries: u32,
 ) -> Result<Bb::Broker, BrokerError> {
     let mut broker: Option<Bb::Broker> = None;
 
-    let max_retries = if connection_retry {
-        connection_max_retries
-    } else {
-        0
-    };
-
-    for i in 0..max_retries {
+    for i in 0..connection_max_retries {
         match time::timeout(
             Duration::from_secs(connection_timeout as u64),
             broker_builder.build(),
@@ -138,8 +134,8 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
         .map_err(|e| BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e)))
         .and_then(|res| res)
         {
-            Err(err) => match err {
-                BrokerError::IoError(_) | BrokerError::NotConnected => {
+            Err(err) => {
+                if err.is_connection_error() {
                     let retry_delay = 2_u64.pow(i);
                     error!(
                         "Failed to establish connection with broker, trying again in {}s...",
@@ -148,8 +144,8 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
                     time::delay_for(Duration::from_secs(retry_delay)).await;
                     continue;
                 }
-                _ => return Err(err),
-            },
+                return Err(err);
+            }
             Ok(b) => {
                 broker = Some(b);
                 break;
