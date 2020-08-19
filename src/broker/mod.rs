@@ -74,7 +74,7 @@ pub trait Broker: Send + Sync + Sized {
     async fn close(&self) -> Result<(), BrokerError>;
 
     /// Try reconnecting in the event of some sort of connection error.
-    async fn reconnect(&self) -> Result<(), BrokerError>;
+    async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError>;
 }
 
 /// A `BrokerBuilder` is used to create a type of broker with a custom configuration.
@@ -95,7 +95,7 @@ pub trait BrokerBuilder {
     fn heartbeat(self, heartbeat: Option<u16>) -> Self;
 
     /// Construct the `Broker` with the given configuration.
-    async fn build(&self) -> Result<Self::Broker, BrokerError>;
+    async fn build(&self, connection_timeout: u32) -> Result<Self::Broker, BrokerError>;
 }
 
 // TODO: this function consumes the broker_builder, which results in a not so ergonomic API.
@@ -122,26 +122,19 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
     broker_builder: Bb,
     connection_timeout: u32,
     connection_max_retries: u32,
+    connection_retry_delay: u32,
 ) -> Result<Bb::Broker, BrokerError> {
     let mut broker: Option<Bb::Broker> = None;
 
-    for i in 0..connection_max_retries {
-        match time::timeout(
-            Duration::from_secs(connection_timeout as u64),
-            broker_builder.build(),
-        )
-        .await
-        .map_err(|e| BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e)))
-        .and_then(|res| res)
-        {
+    for _ in 0..connection_max_retries {
+        match broker_builder.build(connection_timeout).await {
             Err(err) => {
                 if err.is_connection_error() {
-                    let retry_delay = 2_u64.pow(i);
                     error!(
                         "Failed to establish connection with broker, trying again in {}s...",
-                        retry_delay
+                        connection_retry_delay
                     );
-                    time::delay_for(Duration::from_secs(retry_delay)).await;
+                    time::delay_for(Duration::from_secs(connection_retry_delay as u64)).await;
                     continue;
                 }
                 return Err(err);

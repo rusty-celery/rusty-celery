@@ -24,12 +24,12 @@
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::routing::{self, Rule};
 use crate::{
-    error::{BeatError, CeleryError},
+    error::{BeatError, BrokerError, CeleryError},
     task::{Signature, Task},
 };
-use log::{debug, info};
+use log::{debug, error, info};
 use std::time::SystemTime;
-use tokio::time;
+use tokio::time::{self, Duration};
 
 mod scheduler;
 use scheduler::Scheduler;
@@ -52,6 +52,7 @@ where
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
+    broker_connection_retry_delay: u32,
     default_queue: String,
     task_routes: Vec<(String, String)>,
 }
@@ -79,7 +80,8 @@ where
                 broker_builder: Bb::new(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
-                broker_connection_max_retries: 100,
+                broker_connection_max_retries: 5,
+                broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
                 task_routes: vec![],
             },
@@ -106,7 +108,8 @@ where
                 broker_builder: Bb::new(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
-                broker_connection_max_retries: 100,
+                broker_connection_max_retries: 5,
+                broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
                 task_routes: vec![],
             },
@@ -151,6 +154,12 @@ where
         self
     }
 
+    /// Set the number of seconds to wait before re-trying the connection with the broker.
+    pub fn broker_connection_retry_delay(mut self, retry_delay: u32) -> Self {
+        self.config.broker_connection_retry_delay = retry_delay;
+        self
+    }
+
     /// Construct a `Beat` app with the current configuration.
     pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, CeleryError> {
         // Declare default queue to broker.
@@ -170,6 +179,7 @@ where
             } else {
                 0
             },
+            self.config.broker_connection_retry_delay,
         )
         .await?;
 
@@ -181,6 +191,10 @@ where
             scheduler_backend: self.scheduler_backend,
             task_routes,
             default_queue: self.config.default_queue,
+            broker_connection_timeout: self.config.broker_connection_timeout,
+            broker_connection_retry: self.config.broker_connection_retry,
+            broker_connection_max_retries: self.config.broker_connection_max_retries,
+            broker_connection_retry_delay: self.config.broker_connection_retry_delay,
         })
     }
 }
@@ -198,6 +212,11 @@ pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     scheduler_backend: Sb,
     task_routes: Vec<Rule>,
     default_queue: String,
+
+    broker_connection_timeout: u32,
+    broker_connection_retry: bool,
+    broker_connection_max_retries: u32,
+    broker_connection_retry_delay: u32,
 }
 
 impl<Br> Beat<Br, DummyBackend>
@@ -252,10 +271,71 @@ where
         );
     }
 
-    /// Start the *beat*. For each error that occurs pause the execution
-    /// and return the error.
+    /// Start the *beat*.
     pub async fn start(&mut self) -> Result<(), BeatError> {
         info!("Starting beat service");
+        loop {
+            let result = self.beat_loop().await;
+            if !self.broker_connection_retry {
+                return result;
+            }
+
+            if let Err(err) = result {
+                match err {
+                    BeatError::BrokerError(description, broker_err) => {
+                        if broker_err.is_connection_error() {
+                            error!("Broker connection failed");
+                        } else {
+                            return Err(BeatError::BrokerError(description, broker_err));
+                        }
+                    }
+                    _ => return Err(err),
+                };
+            } else {
+                return result;
+            }
+
+            let mut reconnect_successful: bool = false;
+            for _ in 0..self.broker_connection_max_retries {
+                info!("Trying to re-establish connection with broker");
+                time::delay_for(Duration::from_secs(
+                    self.broker_connection_retry_delay as u64,
+                ))
+                .await;
+
+                match self
+                    .scheduler
+                    .broker
+                    .reconnect(self.broker_connection_timeout)
+                    .await
+                {
+                    Err(err) => {
+                        if err.is_connection_error() {
+                            continue;
+                        }
+                        return Err(BeatError::BrokerError(
+                            "broker reconnect failed".into(),
+                            err,
+                        ));
+                    }
+                    Ok(_) => {
+                        info!("Successfully reconnected with broker");
+                        reconnect_successful = true;
+                        break;
+                    }
+                };
+            }
+
+            if !reconnect_successful {
+                return Err(BeatError::BrokerError(
+                    "broker reconnect failed".into(),
+                    BrokerError::NotConnected,
+                ));
+            }
+        }
+    }
+
+    async fn beat_loop(&mut self) -> Result<(), BeatError> {
         loop {
             let next_tick_at = self.scheduler.tick().await?;
 

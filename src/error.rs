@@ -142,6 +142,8 @@ impl BrokerError {
             BrokerError::IoError(_) | BrokerError::NotConnected => true,
             BrokerError::AMQPError(err) => match err {
                 lapin::Error::ProtocolError(_) => true,
+                lapin::Error::InvalidConnectionState(_) => true,
+                lapin::Error::InvalidChannelState(_) => true,
                 _ => false,
             },
             _ => false,
@@ -206,7 +208,14 @@ impl From<lapin::Error> for BrokerError {
                 (*e).kind(),
                 format!("{} from AMQP broker", *e),
             )),
-            lapin::Error::InvalidConnectionState(_) => BrokerError::NotConnected,
+            lapin::Error::InvalidConnectionState(lapin::ConnectionState::Closing)
+            | lapin::Error::InvalidConnectionState(lapin::ConnectionState::Closed)
+            | lapin::Error::InvalidConnectionState(lapin::ConnectionState::Error)
+            | lapin::Error::InvalidChannelState(lapin::ChannelState::Closing)
+            | lapin::Error::InvalidChannelState(lapin::ChannelState::Closed)
+            | lapin::Error::InvalidChannelState(lapin::ChannelState::Error) => {
+                BrokerError::NotConnected
+            }
             _ => BrokerError::AMQPError(err),
         }
     }

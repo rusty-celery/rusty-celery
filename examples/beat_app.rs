@@ -31,10 +31,10 @@ async fn main() -> Result<(), ExitFailure> {
     );
 
     // Add scheduled tasks to the default `Beat` and start it.
-    let add_schedule = RegularSchedule::new(Duration::from_secs(1));
+    let add_schedule = RegularSchedule::new(Duration::from_secs(5));
     beat.schedule_task(add::new(1, 2), add_schedule);
 
-    let long_running_schedule = RegularSchedule::new(Duration::from_millis(700));
+    let long_running_schedule = RegularSchedule::new(Duration::from_secs(10));
     beat.schedule_task(long_running_task::new(Some(1)), long_running_schedule);
 
     beat.start().await?;
