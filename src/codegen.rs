@@ -110,6 +110,17 @@ macro_rules! app {
             [ $( $pattern => $queue ),* ],
         );
     };
+    (
+        $(broker =)? REDIS { $broker_url:expr },
+        $(tasks =)? [ $( $t:ty ),* $(,)? ],
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+    ) => {
+        $crate::__app_internal!(
+            $crate::broker::RedisBroker { $broker_url },
+            [ $( $t ),* ],
+            [ $( $pattern => $queue ),* ],
+        );
+    };
     // Required fields with trailing comma and possibly additional options.
     (
         $(broker =)? AMQP { $broker_url:expr },
@@ -119,6 +130,19 @@ macro_rules! app {
     ) => {
         $crate::__app_internal!(
             $crate::broker::AMQPBroker { $broker_url },
+            [ $( $t ),* ],
+            [ $( $pattern => $queue ),* ],
+            $( $x = $y, )*
+        );
+    };
+    (
+        $(broker =)? REDIS { $broker_url:expr },
+        $(tasks =)? [ $( $t:ty ),* $(,)? ],
+        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
+        $( $x:ident = $y:expr ),* $(,)?
+    ) => {
+        $crate::__app_internal!(
+            $crate::broker::RedisBroker { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
