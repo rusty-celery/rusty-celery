@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.4.0-rc2 - 2020-08-27
+
 ### Added
 
 - Added a `reconnect` method on the `Broker`.
@@ -15,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Celery` and `Beat` apps will automatically try to reconnect the broker when the connection fails.
 
-## v0.4.0 - 2020-08-18
+## v0.4.0-rc1 - 2020-08-18
 
 ### Added
 
