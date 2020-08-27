@@ -47,7 +47,10 @@ fn bound_task(task: &Self) {
 )]
 enum CeleryOpt {
     Consume,
-    Produce,
+    Produce {
+        #[structopt(possible_values = &["add", "buggy_task", "bound_task", "long_running_task"])]
+        tasks: Vec<String>,
+    },
 }
 
 #[tokio::main]
@@ -76,21 +79,35 @@ async fn main() -> Result<(), ExitFailure> {
         CeleryOpt::Consume => {
             my_app.consume_from(&["celery", "buggy-queue"]).await?;
         }
-        CeleryOpt::Produce => {
-            // Basic task sending.
-            my_app.send_task(add::new(1, 2)).await?;
-            my_app.send_task(bound_task::new()).await?;
+        CeleryOpt::Produce { tasks } => {
+            if tasks.is_empty() {
+                // Basic task sending.
+                my_app.send_task(add::new(1, 2)).await?;
+                my_app.send_task(bound_task::new()).await?;
 
-            // Sending a task with additional options like `countdown`.
-            my_app.send_task(add::new(1, 3).with_countdown(3)).await?;
+                // Sending a task with additional options like `countdown`.
+                my_app.send_task(add::new(1, 3).with_countdown(3)).await?;
 
-            // Send the buggy task that will fail and be retried a few times.
-            my_app.send_task(buggy_task::new()).await?;
+                // Send the buggy task that will fail and be retried a few times.
+                my_app.send_task(buggy_task::new()).await?;
 
-            // Send the long running task that will fail with a timeout error.
-            my_app
-                .send_task(long_running_task::new(Some(3)).with_time_limit(2))
-                .await?;
+                // Send the long running task that will fail with a timeout error.
+                my_app
+                    .send_task(long_running_task::new(Some(3)).with_time_limit(2))
+                    .await?;
+            } else {
+                for task in tasks {
+                    match task.as_str() {
+                        "add" => my_app.send_task(add::new(1, 2)).await?,
+                        "bound_task" => my_app.send_task(bound_task::new()).await?,
+                        "buggy_task" => my_app.send_task(buggy_task::new()).await?,
+                        "long_running_task" => {
+                            my_app.send_task(long_running_task::new(Some(3))).await?
+                        }
+                        _ => panic!("unknown task"),
+                    };
+                }
+            }
         }
     };
 

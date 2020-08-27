@@ -32,6 +32,7 @@ where
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
+    broker_connection_retry_delay: u32,
     default_queue: String,
     task_options: TaskOptions,
     task_routes: Vec<(String, String)>,
@@ -65,7 +66,8 @@ where
                 broker_builder: Bb::new(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
-                broker_connection_max_retries: 4,
+                broker_connection_max_retries: 5,
+                broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
                 task_options: TaskOptions {
                     time_limit: None,
@@ -192,6 +194,12 @@ where
         self
     }
 
+    /// Set the number of seconds to wait before re-trying the connection with the broker.
+    pub fn broker_connection_retry_delay(mut self, retry_delay: u32) -> Self {
+        self.config.broker_connection_retry_delay = retry_delay;
+        self
+    }
+
     /// Construct a `Celery` app with the current configuration.
     pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
         // Declare default queue to broker.
@@ -211,6 +219,7 @@ where
             } else {
                 0
             },
+            self.config.broker_connection_retry_delay,
         )
         .await?;
 
@@ -225,6 +234,7 @@ where
             broker_connection_timeout: self.config.broker_connection_timeout,
             broker_connection_retry: self.config.broker_connection_retry,
             broker_connection_max_retries: self.config.broker_connection_max_retries,
+            broker_connection_retry_delay: self.config.broker_connection_retry_delay,
         })
     }
 }
@@ -257,6 +267,7 @@ pub struct Celery<B: Broker> {
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
+    broker_connection_retry_delay: u32,
 }
 
 impl<B> Celery<B>
@@ -444,7 +455,7 @@ where
         Ok(self.consume_from(&[&self.default_queue]).await?)
     }
 
-    /// Consume tasks from a queue.
+    /// Consume tasks from any number of queues.
     pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
         loop {
             let result = self._consume_from(queues).await;
@@ -470,18 +481,12 @@ where
             let mut reconnect_successful: bool = false;
             for _ in 0..self.broker_connection_max_retries {
                 info!("Trying to re-establish connection with broker");
-                time::delay_for(Duration::from_secs(10)).await;
+                time::delay_for(Duration::from_secs(
+                    self.broker_connection_retry_delay as u64,
+                ))
+                .await;
 
-                match time::timeout(
-                    Duration::from_secs(self.broker_connection_timeout as u64),
-                    self.broker.reconnect(),
-                )
-                .await
-                .map_err(|e| {
-                    BrokerError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, e))
-                })
-                .and_then(|res| res)
-                {
+                match self.broker.reconnect(self.broker_connection_timeout).await {
                     Err(err) => {
                         if err.is_connection_error() {
                             continue;
