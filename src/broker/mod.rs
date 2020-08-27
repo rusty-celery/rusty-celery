@@ -130,6 +130,7 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
         match broker_builder.build(connection_timeout).await {
             Err(err) => {
                 if err.is_connection_error() {
+                    error!("{}", err);
                     error!(
                         "Failed to establish connection with broker, trying again in {}s...",
                         connection_retry_delay

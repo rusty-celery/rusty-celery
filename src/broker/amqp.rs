@@ -82,7 +82,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         let mut uri = AMQPUri::from_str(&self.config.broker_url)
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
-        uri.query.connection_timeout = Some(connection_timeout as u64);
+        uri.query.connection_timeout = Some((connection_timeout as u64) * 1000);
 
         let conn = Connection::connect_uri(uri.clone(), ConnectionProperties::default()).await?;
         let consume_channel = conn.create_channel().await?;
