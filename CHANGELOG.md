@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Added support for YAML, MsgPack, and Pickle formats, behind the `extra_formats` feature flag
+
 ## v0.4.0 - 2020-08-18
 
 ### Added
