@@ -217,6 +217,10 @@ impl Broker for DummyBroker {
     type DeliveryError = DummyDeliveryError;
     type DeliveryStream = DummyDeliveryStream;
 
+    fn safe_url(&self) -> String {
+        "dummy://user:***@dummy-broker/".into()
+    }
+
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         _queue: &str,

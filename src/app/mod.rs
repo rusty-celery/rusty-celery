@@ -307,12 +307,16 @@ where
         );
         println!("{}", banner.green());
 
+        // Broker.
+        println!("{}", "[broker]".bold());
+        println!(" {}", self.broker.safe_url());
+        println!();
+
         // Registered tasks.
         println!("{}", "[tasks]".bold());
         for task in self.task_trace_builders.read().await.keys() {
             println!(" . {}", task);
         }
-
         println!();
     }
 
