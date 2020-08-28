@@ -84,7 +84,6 @@ where
     #[cfg(not(any(test, feature = "extra_formats")))]
     pub fn serializer(self, _format: MessageFormat) -> Self {
         self
-        
     }
 
     pub fn time_limit(mut self, time_limit: u32) -> Self {
@@ -544,15 +543,13 @@ mod tests {
         }
     }
 
-    const JSON: &str = "[[],{\"a\":4},{\"callbacks\":null,\"errbacks\":null,\"chain\":null,\"chord\":null}]";
+    const JSON: &str =
+        "[[],{\"a\":4},{\"callbacks\":null,\"errbacks\":null,\"chain\":null,\"chord\":null}]";
     #[test]
     fn test_serialize_body() {
         let body = MessageBody::<TestTask>::new(TestTaskParams { a: 4 });
         let serialized = serde_json::to_string(&body).unwrap();
-        assert_eq!(
-            serialized,
-            JSON
-        );
+        assert_eq!(serialized, JSON);
     }
 
     #[test]
