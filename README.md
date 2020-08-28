@@ -33,6 +33,8 @@ We welcome contributions from everyone regardless of your experience level with 
 
 If you already know the basics of Rust but are new to Celery, check out the [Rusty Celery Book](https://rusty-celery.github.io/) or the original Python [Celery Project](http://www.celeryproject.org/).
 
+![](./img/demo.gif)
+
 ## Quick start
 
 Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
