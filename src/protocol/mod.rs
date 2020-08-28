@@ -69,18 +69,20 @@ where
     /// set which serialization method is used in the body
     /// if feature "extra_formats" is not enabled, this function
     /// does not do anything and json is used.
+    #[cfg(any(test, feature = "extra_formats"))]
     pub fn serializer(mut self, format: MessageFormat) -> Self {
-        #[cfg(any(test, feature = "extra_formats"))] 
-        {
-            use MessageFormat::*;
-            let format_name = match format {
-                Json => "application/json",
-                Yaml => "application/x-yaml",
-                Pickle => "application/x-python-serialize",
-                MsgPack => "application/x-msgpack",
-            };
-            self.message.properties.content_type = format_name.into();
-        }
+        use MessageFormat::*;
+        let format_name = match format {
+            Json => "application/json",
+            Yaml => "application/x-yaml",
+            Pickle => "application/x-python-serialize",
+            MsgPack => "application/x-msgpack",
+        };
+        self.message.properties.content_type = format_name.into();
+        self
+    }
+    #[cfg(not(any(test, feature = "extra_formats")))]
+    pub fn serializer(self, _format: MessageFormat) -> Self {
         self
         
     }
