@@ -33,8 +33,6 @@ We welcome contributions from everyone regardless of your experience level with 
 
 If you already know the basics of Rust but are new to Celery, check out the [Rusty Celery Book](https://rusty-celery.github.io/) or the original Python [Celery Project](http://www.celeryproject.org/).
 
-![](./img/demo.gif)
-
 ## Quick start
 
 Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
@@ -94,6 +92,8 @@ Otherwise simply run the helper script:
 This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) image (RabbitMQ is a popular AMQP broker).
 
 ### Run the examples
+
+![](./img/demo.gif)
 
 #### Run Rust Celery app
 
