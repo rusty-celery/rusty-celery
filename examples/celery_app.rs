@@ -77,6 +77,7 @@ async fn main() -> Result<(), ExitFailure> {
 
     match opt {
         CeleryOpt::Consume => {
+            my_app.display_pretty().await;
             my_app.consume_from(&["celery", "buggy-queue"]).await?;
         }
         CeleryOpt::Produce { tasks } => {
