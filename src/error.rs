@@ -18,7 +18,8 @@ pub enum CeleryError {
     #[fail(display = "CeleryError: forced shutdown")]
     ForcedShutdown,
 
-    /// Any other broker-level error that could happen when initializing.
+    /// Any other broker-level error that could happen when initializing or with an open
+    /// connection.
     #[fail(display = "CeleryError: broker error ({})", _0)]
     BrokerError(#[fail(cause)] BrokerError),
 
@@ -133,6 +134,21 @@ pub enum BrokerError {
     /// Any other AMQP error that could happen.
     #[fail(display = "BrokerError: AMQP error ({})", _0)]
     AMQPError(#[fail(cause)] lapin::Error),
+}
+
+impl BrokerError {
+    pub fn is_connection_error(&self) -> bool {
+        match self {
+            BrokerError::IoError(_) | BrokerError::NotConnected => true,
+            BrokerError::AMQPError(err) => match err {
+                lapin::Error::ProtocolError(_) => true,
+                lapin::Error::InvalidConnectionState(_) => true,
+                lapin::Error::InvalidChannelState(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
 }
 
 /// Errors that can occur due to messages not conforming to the protocol.
@@ -254,6 +270,14 @@ impl From<lapin::Error> for BrokerError {
                 (*e).kind(),
                 format!("{} from AMQP broker", *e),
             )),
+            lapin::Error::InvalidConnectionState(lapin::ConnectionState::Closing)
+            | lapin::Error::InvalidConnectionState(lapin::ConnectionState::Closed)
+            | lapin::Error::InvalidConnectionState(lapin::ConnectionState::Error)
+            | lapin::Error::InvalidChannelState(lapin::ChannelState::Closing)
+            | lapin::Error::InvalidChannelState(lapin::ChannelState::Closed)
+            | lapin::Error::InvalidChannelState(lapin::ChannelState::Error) => {
+                BrokerError::NotConnected
+            }
             _ => BrokerError::AMQPError(err),
         }
     }

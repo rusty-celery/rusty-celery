@@ -40,6 +40,10 @@ async fn test_task_with_regular_schedule() {
         scheduler_backend: DummyBackend::new(),
         task_routes,
         default_queue: "celery".to_string(),
+        broker_connection_timeout: 5,
+        broker_connection_retry: true,
+        broker_connection_max_retries: 5,
+        broker_connection_retry_delay: 5,
     };
 
     beat.schedule_task(
@@ -90,6 +94,10 @@ async fn test_scheduling_two_tasks() {
         scheduler_backend: DummyBackend::new(),
         task_routes,
         default_queue: "celery".to_string(),
+        broker_connection_timeout: 5,
+        broker_connection_retry: true,
+        broker_connection_max_retries: 5,
+        broker_connection_retry_delay: 5,
     };
 
     beat.schedule_task(
@@ -249,6 +257,10 @@ impl Broker for DummyBroker {
     async fn close(&self) -> Result<(), BrokerError> {
         Ok(())
     }
+
+    async fn reconnect(&self, _connection_timeout: u32) -> Result<(), BrokerError> {
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -305,7 +317,7 @@ impl BrokerBuilder for DummyBrokerBuilder {
         unimplemented!()
     }
 
-    async fn build(&self) -> Result<Self::Broker, BrokerError> {
+    async fn build(&self, _connection_timeout: u32) -> Result<Self::Broker, BrokerError> {
         unimplemented!()
     }
 }

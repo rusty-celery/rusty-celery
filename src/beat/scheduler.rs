@@ -15,7 +15,7 @@ use std::time::{Duration, SystemTime};
 pub struct Scheduler<B: Broker> {
     heap: BinaryHeap<ScheduledTask>,
     default_sleep_interval: Duration,
-    broker: B,
+    pub broker: B,
 }
 
 impl<B> Scheduler<B>
