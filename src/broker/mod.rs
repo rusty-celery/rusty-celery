@@ -36,6 +36,10 @@ pub trait Broker: Send + Sync + Sized {
         Self::Builder::new(broker_url)
     }
 
+    /// Return a string representation of the broker URL with any sensitive information
+    /// redacted.
+    fn safe_url(&self) -> String;
+
     /// Consume messages from a queue.
     ///
     /// If the connection is successful, this should return a future stream of `Result`s where an `Ok`

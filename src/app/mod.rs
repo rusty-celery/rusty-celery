@@ -1,3 +1,4 @@
+use colored::Colorize;
 use failure::Fail;
 use futures::stream::StreamExt;
 use log::{debug, error, info, warn};
@@ -279,6 +280,46 @@ where
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
 
+    /// Print a pretty ASCII art logo and configuration settings.
+    ///
+    /// This is useful and fun to print from a worker application right after
+    /// the Celery app is initialized.
+    pub async fn display_pretty(&self) {
+        // Cool ASCII logo with hostname.
+        let banner = format!(
+            r#"
+       ___     ___
+     .i .-'   `-. i.      ,------.                 ,--.
+   .'   `/     \'  _`.    |  .--. ',--.,--. ,---.,-'  '-.,--. ,--.
+   |,-../ o   o \.' `|    |  '--'.'|  ||  |(  .-''-.  .-' \  '  /
+(| |   /  _\ /_  \   | |) |  |\  \ '  ''  '.-'  `) |  |    \   '
+ \\\  (_.'.'"`.`._)  ///  `,-----.' `----,--.---'  `--'  .-'  /
+  \\`._(..:   :..)_.'//   '  .--./ ,---. |  | ,---. ,--.--.,--. ,--.
+   \`.__\ .:-:. /__.'/    |  |    | .-. :|  || .-. :|  .--' \  '  /
+    `-i-->.___.<--i-'     '  '--'\\   --.|  |\   --.|  |     \   '
+    .'.-'/.=^=.\`-.`.      `-----' `----'`--' `----'`--'   .-'  /
+   /.'  //     \\  `.\                                     `---'
+   ||  ||       ||  ||     {}
+   \)  ||       ||  (/
+       \)       (/
+"#,
+            self.hostname
+        );
+        println!("{}", banner.green());
+
+        // Broker.
+        println!("{}", "[broker]".bold());
+        println!(" {}", self.broker.safe_url());
+        println!();
+
+        // Registered tasks.
+        println!("{}", "[tasks]".bold());
+        for task in self.task_trace_builders.read().await.keys() {
+            println!(" . {}", task);
+        }
+        println!();
+    }
+
     /// Send a task to a remote worker. Returns the task ID of the task if successful.
     pub async fn send_task<T: Task>(
         &self,
@@ -306,7 +347,7 @@ where
             Err(CeleryError::TaskRegistrationError(T::NAME.into()))
         } else {
             task_trace_builders.insert(T::NAME.into(), Box::new(build_tracer::<T>));
-            info!("Registered task {}", T::NAME);
+            debug!("Registered task {}", T::NAME);
             Ok(())
         }
     }

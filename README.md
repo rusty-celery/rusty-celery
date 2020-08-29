@@ -93,6 +93,8 @@ This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) im
 
 ### Run the examples
 
+![](./img/demo.gif)
+
 #### Run Rust Celery app
 
 You can consume tasks with:

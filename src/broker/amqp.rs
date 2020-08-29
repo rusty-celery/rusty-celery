@@ -2,7 +2,7 @@
 
 use amq_protocol::{
     types::{AMQPValue, FieldArray},
-    uri::AMQPUri,
+    uri::{self, AMQPUri},
 };
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -171,6 +171,20 @@ impl Broker for AMQPBroker {
     type Delivery = (Channel, Delivery);
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
+
+    fn safe_url(&self) -> String {
+        format!(
+            "{}://{}:***@{}:{}/{}",
+            match self.uri.scheme {
+                uri::AMQPScheme::AMQP => "amqp",
+                _ => "amqps",
+            },
+            self.uri.authority.userinfo.username,
+            self.uri.authority.host,
+            self.uri.authority.port,
+            self.uri.vhost,
+        )
+    }
 
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
