@@ -81,10 +81,6 @@ where
         self.message.properties.content_type = format_name.into();
         self
     }
-    #[cfg(not(any(test, feature = "extra_formats")))]
-    pub fn serializer(self, _format: MessageFormat) -> Self {
-        self
-    }
 
     pub fn time_limit(mut self, time_limit: u32) -> Self {
         self.message.headers.timelimit.1 = Some(time_limit);
