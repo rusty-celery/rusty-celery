@@ -187,9 +187,11 @@ pub enum FormatError {
     #[cfg(any(test, feature = "extra_formats"))]
     #[fail(display = "{}", _0)]
     MsgPackDecode(rmp_serde::decode::Error),
+    
     #[cfg(any(test, feature = "extra_formats"))]
     #[fail(display = "{}", _0)]
     MsgPackEncode(rmp_serde::encode::Error),
+    
     #[cfg(any(test, feature = "extra_formats"))]
     #[fail(display = "{}", _0)]
     MsgPackValue(rmpv::ext::Error),
