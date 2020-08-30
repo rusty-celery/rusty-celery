@@ -1,5 +1,7 @@
 //! Redis broker.
 #![allow(dead_code)]
+use crate::protocol::MessageHeaders;
+use crate::protocol::MessageProperties;
 use std::fmt;
 use std::clone::Clone;
 use futures::Stream;
@@ -10,7 +12,6 @@ use crate::protocol::{Message, TryCreateMessage};
 use crate::error::{BrokerError, ProtocolError};
 use log::warn;
 use tokio::sync::Mutex;
-use lapin::message::Delivery;
 
 use super::{Broker, BrokerBuilder};
 use redis::aio::{MultiplexedConnection};
@@ -112,8 +113,67 @@ impl fmt::Debug for Channel{
     }
 }
 
-// #[derive(Debug)]
-// pub struct Delivery{}
+#[derive(Debug)]
+pub struct Delivery{
+    pub delivery_tag: u64,
+    pub exchange: String,
+    pub routing_key: String,
+    pub redelivered: bool,
+    pub properties: MessageProperties,
+    pub headers: MessageHeaders,
+    pub data: Vec<u8>
+}
+
+impl Clone for Delivery{
+    fn clone(&self) -> Delivery{
+        Delivery{
+            headers: self.headers.clone(),
+            delivery_tag: self.delivery_tag.clone(),
+            exchange: self.exchange.clone(),
+            routing_key: self.routing_key.clone(),
+            redelivered: self.redelivered.clone(),
+            properties: self.properties.clone(),
+            data: self.data.clone()
+        }
+    }
+}
+
+impl Delivery{
+    fn try_create_message(&self) -> Result<Message, ProtocolError>{
+        Ok(Message {
+            properties: MessageProperties {
+                correlation_id: self
+                    .properties
+                    .correlation_id.clone(),
+                content_type: self
+                    .properties
+                    .content_type.clone(),
+                content_encoding: self
+                    .properties
+                    .content_encoding.clone(),
+                reply_to: self.properties.reply_to.clone(),
+            },
+            headers: MessageHeaders {
+                id: self.headers.id.clone(),
+                task: self.headers.task.clone(),
+                lang: self.headers.lang.clone(),
+                root_id: self.headers.root_id.clone(),
+                parent_id: self.headers.parent_id.clone(),
+                group: self.headers.group.clone(),
+                meth: self.headers.meth.clone(),
+                shadow: self.headers.shadow.clone(),
+                eta: self.headers.eta.clone(),
+                expires: self.headers.expires.clone(),
+                retries: self.headers.retries.clone(),
+                timelimit: self.headers.timelimit.clone(),
+                argsrepr: self.headers.argsrepr.clone(),
+                kwargsrepr: self.headers.kwargsrepr.clone(),
+                origin: self.headers.origin.clone(),
+            },
+            raw_body: self.data.clone(),
+        })
+    }
+}
 
 pub struct Consumer{}
 
