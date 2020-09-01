@@ -19,6 +19,7 @@ use tokio::sync::{Mutex, RwLock};
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
+use crate::app::{CeleryQueue};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
 
 struct Config {
@@ -56,10 +57,10 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         self
     }
 
-    /// Declare a queue.
-    fn declare_queue(mut self, name: &str) -> Self {
+    /// Declare a queue, and instantiate any exchanges.
+    fn declare_queue(mut self, queue: CeleryQueue) -> Self {
         self.config.queues.insert(
-            name.into(),
+            queue.name,
             QueueDeclareOptions {
                 passive: false,
                 durable: true,

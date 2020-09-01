@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use log::error;
 use tokio::time::{self, Duration};
-
+use crate::app::{CeleryQueue};
 use crate::error::{BrokerError, CeleryError};
 use crate::{
     protocol::{Message, TryDeserializeMessage},
@@ -93,7 +93,7 @@ pub trait BrokerBuilder {
     fn prefetch_count(self, prefetch_count: u16) -> Self;
 
     /// Declare a queue.
-    fn declare_queue(self, name: &str) -> Self;
+    fn declare_queue(self, queue: CeleryQueue) -> Self;
 
     /// Set the heartbeat.
     fn heartbeat(self, heartbeat: Option<u16>) -> Self;
@@ -107,16 +107,15 @@ pub trait BrokerBuilder {
 /// A utility function to configure the task routes on a broker builder.
 pub(crate) fn configure_task_routes<Bb: BrokerBuilder>(
     mut broker_builder: Bb,
-    task_routes: &[(String, String)],
+    task_routes: &[(String, CeleryQueue)],
 ) -> Result<(Bb, Vec<Rule>), CeleryError> {
     let mut rules: Vec<Rule> = Vec::with_capacity(task_routes.len());
     for (pattern, queue) in task_routes {
-        let rule = Rule::new(&pattern, &queue)?;
+        let rule = Rule::new(&pattern, &queue.name)?;
         rules.push(rule);
         // Ensure all other queues mentioned in task_routes are declared to the broker.
-        broker_builder = broker_builder.declare_queue(&queue);
+        broker_builder = broker_builder.declare_queue(queue.clone());
     }
-
     Ok((broker_builder, rules))
 }
 

@@ -36,7 +36,7 @@ where
     broker_connection_retry_delay: u32,
     default_queue: String,
     task_options: TaskOptions,
-    task_routes: Vec<(String, String)>,
+    task_routes: Vec<(String, CeleryQueue)>,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
@@ -207,7 +207,10 @@ where
         let broker_builder = self
             .config
             .broker_builder
-            .declare_queue(&self.config.default_queue);
+            .declare_queue(CeleryQueue::new((*self.config.default_queue).to_string()));
+        // TODO: Evalutate `declare_queue`. If we introduce `CeleryQueue`, all we're doing is
+        // taking a Broker Builder, and adding an item onto it's queue list. Is there
+        // a better way of accomplishing this?
 
         let (broker_builder, task_routes) =
             configure_task_routes(broker_builder, &self.config.task_routes)?;
@@ -240,6 +243,76 @@ where
     }
 }
 
+/// Exchange Settings for a Celery Queue
+#[derive(Clone)]
+pub struct ExchangeOptions {
+    /// Name of the exchange.
+    exchange: String,
+
+    /// Key used for message routing.
+    routing_key: String,
+    
+    /// If true, the server will not create the queue and instead the client can assert
+    /// whether the queue exists. 
+    passive: bool,
+
+    /// Durable exchanges remain active following server restart.
+    durable: bool,
+    
+    /// Exclusive queues may only be consumed by the current connection. Additionally, has side
+    /// effect that implies auto delete is turned on.
+    exclusive: bool,
+
+    /// When set, the queue is deleted once all consumers have finished consuming it.
+    auto_delete: bool, 
+
+    /// If true, queue's do not wait for a reply.
+    nowait: bool
+}
+
+/// A 'CeleryQueue' is used to declare a queue that can be used in conjunction with a Celery app
+/// for task routing. 
+#[derive(Clone)]
+pub struct CeleryQueue { 
+    /// Human-readable name for the queue. 
+    pub name: String,
+    pub options: Option<ExchangeOptions>
+}
+
+impl CeleryQueue { 
+    
+    /// Creates a new CeleryQueue alongside an exchange with defaults.
+    pub fn new(name: String) -> Self { 
+        let options = Some(ExchangeOptions {
+            exchange: "".into(),
+            routing_key: name.clone(),
+            passive: false,
+            durable: true,
+            exclusive: false,
+            auto_delete: false,
+            nowait: false
+        });
+        Self { 
+            name,
+            options 
+        }
+    }
+
+    /// Set's exchange settings for a given CeleryQueue.
+    pub fn options(mut self, opts: ExchangeOptions) -> Self { 
+        self.options = Some(opts);
+        self
+    }
+}
+
+impl From<&str> for CeleryQueue { 
+    fn from (input: &str) -> Self { 
+        Self { 
+            name: String::from(input),
+            options: None
+        }
+    }
+}
 /// A `Celery` app is used to produce or consume tasks asynchronously. This is the struct that is
 /// created with the [`app`](macro.app.html) macro.
 pub struct Celery<B: Broker> {

@@ -22,6 +22,7 @@
 /// Here instead we have only one scheduler struct, and the different backends
 /// correspond to the different scheduler implementations in Python.
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
+use crate::app::{CeleryQueue};
 use crate::routing::{self, Rule};
 use crate::{
     error::{BeatError, BrokerError, CeleryError},
@@ -54,7 +55,7 @@ where
     broker_connection_max_retries: u32,
     broker_connection_retry_delay: u32,
     default_queue: String,
-    task_routes: Vec<(String, String)>,
+    task_routes: Vec<(String, CeleryQueue)>,
 }
 
 /// Used to create a `Beat` app with a custom configuration.
@@ -166,7 +167,7 @@ where
         let broker_builder = self
             .config
             .broker_builder
-            .declare_queue(&self.config.default_queue);
+            .declare_queue(CeleryQueue::new((*self.config.default_queue).to_string()));
 
         let (broker_builder, task_routes) =
             configure_task_routes(broker_builder, &self.config.task_routes)?;
