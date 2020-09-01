@@ -208,10 +208,7 @@ where
             .config
             .broker_builder
             .declare_queue(CeleryQueue::new((*self.config.default_queue).to_string()));
-        // TODO: Evalutate `declare_queue`. If we introduce `CeleryQueue`, all we're doing is
-        // taking a Broker Builder, and adding an item onto it's queue list. Is there
-        // a better way of accomplishing this?
-
+        
         let (broker_builder, task_routes) =
             configure_task_routes(broker_builder, &self.config.task_routes)?;
 
