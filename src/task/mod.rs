@@ -90,6 +90,28 @@ pub trait Task: Send + Sync + std::marker::Sized {
         Self::NAME
     }
 
+    /// Trigger a retry in `countdown` seconds.
+    fn retry_with_countdown(&self, countdown: u32) -> TaskResult<Self::Returns> {
+        let eta = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(now) => {
+                let now_secs = now.as_secs() as u32;
+                let now_millis = now.subsec_millis();
+                let eta_secs = now_secs + countdown;
+                Some(DateTime::<Utc>::from_utc(
+                    NaiveDateTime::from_timestamp(eta_secs as i64, now_millis * 1000),
+                    Utc,
+                ))
+            }
+            Err(_) => None,
+        };
+        Err(TaskError::Retry(eta))
+    }
+
+    /// Trigger a retry at the specified `eta`.
+    fn retry_with_eta(&self, eta: DateTime<Utc>) -> TaskResult<Self::Returns> {
+        Err(TaskError::Retry(Some(eta)))
+    }
+
     /// Get a future ETA at which time the task should be retried. By default this
     /// uses a capped exponential backoff strategy.
     fn retry_eta(&self) -> Option<DateTime<Utc>> {

@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `.display_pretty()` method on the `Celery` struct that prints out a cool ASCII logo
   with some useful information about the app.
 - Added an `AsyncResult` struct that acts as a handler for task results.
+- Added `Task::retry_with_countdown` and `Task::retry_with_eta` trait methods so that tasks can
+  manually trigger a retry.
 
 ### Changed
 
