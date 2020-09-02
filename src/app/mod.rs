@@ -321,7 +321,7 @@ where
     }
 
     /// Send a task to a remote worker. Returns an `AsyncResult` with the task ID of the task
-    /// if it was successful sent.
+    /// if it was successfully sent.
     pub async fn send_task<T: Task>(
         &self,
         mut task_sig: Signature<T>,
