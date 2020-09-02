@@ -8,10 +8,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::TaskError;
 
+mod async_result;
 mod options;
 mod request;
 mod signature;
 
+pub use async_result::AsyncResult;
 pub use options::TaskOptions;
 pub use request::Request;
 pub use signature::Signature;

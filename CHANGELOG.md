@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a `.display_pretty()` method on the `Celery` struct that prints out a cool ASCII logo
   with some useful information about the app.
+- Added an `AsyncResult` struct that acts as a handler for task results.
+
+### Changed
+
+- `Celery::send_task` now returns an `AsyncResult` instead of a `String` for the `Ok` variant.
 
 ## v0.4.0-rc2 - 2020-08-27
 

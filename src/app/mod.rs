@@ -20,7 +20,7 @@ use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuil
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, TryDeserializeMessage};
 use crate::routing::Rule;
-use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -320,11 +320,12 @@ where
         println!();
     }
 
-    /// Send a task to a remote worker. Returns the task ID of the task if successful.
+    /// Send a task to a remote worker. Returns an `AsyncResult` with the task ID of the task
+    /// if it was successfully sent.
     pub async fn send_task<T: Task>(
         &self,
         mut task_sig: Signature<T>,
-    ) -> Result<String, CeleryError> {
+    ) -> Result<AsyncResult, CeleryError> {
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
             crate::routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
@@ -337,7 +338,7 @@ where
             queue,
         );
         self.broker.send(&message, queue).await?;
-        Ok(message.task_id().into())
+        Ok(AsyncResult::new(message.task_id()))
     }
 
     /// Register a task.
