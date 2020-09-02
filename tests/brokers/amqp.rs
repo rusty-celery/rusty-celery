@@ -78,7 +78,7 @@ async fn test_amqp_broker() {
     // Send task to queue.
     let send_result = my_app.send_task(add::new(1, 2)).await;
     assert!(send_result.is_ok());
-    let task_id_1 = send_result.unwrap();
+    let task_id_1 = send_result.unwrap().task_id;
 
     // Consume task from queue. We wrap this in `time::timeout(...)` because otherwise
     // `consume` will keep waiting for more tasks indefinitely.
@@ -95,7 +95,7 @@ async fn test_amqp_broker() {
     // Send another task to the queue.
     let send_result = my_app.send_task(add::new(2, 2)).await;
     assert!(send_result.is_ok());
-    let task_id_2 = send_result.unwrap();
+    let task_id_2 = send_result.unwrap().task_id;
 
     // Consume again.
     let result = time::timeout(Duration::from_secs(1), my_app.consume()).await;
