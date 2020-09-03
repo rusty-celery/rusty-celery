@@ -35,7 +35,7 @@ where
 
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///
-/// The recommended way to create tasks is through the [`task`](attr.task.html) attribute macro, not by directly implementing
+/// The recommended way to create tasks is through the [`task`](../attr.task.html) attribute macro, not by directly implementing
 /// this trait. For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
 /// in the Rusty Celery Book.
 #[async_trait]
@@ -90,7 +90,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
         Self::NAME
     }
 
-    /// Trigger a retry in `countdown` seconds.
+    /// This can be called from within a task function to trigger a retry in `countdown` seconds.
     fn retry_with_countdown(&self, countdown: u32) -> TaskResult<Self::Returns> {
         let eta = match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(now) => {
@@ -107,7 +107,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
         Err(TaskError::Retry(eta))
     }
 
-    /// Trigger a retry at the specified `eta`.
+    /// This can be called from within a task function to trigger a retry at the specified `eta`.
     fn retry_with_eta(&self, eta: DateTime<Utc>) -> TaskResult<Self::Returns> {
         Err(TaskError::Retry(Some(eta)))
     }
