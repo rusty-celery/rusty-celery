@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
+use celery::beat::RegularSchedule;
 use celery::task::TaskResult;
-use celery::RegularSchedule;
 use env_logger::Env;
 use exitfailure::ExitFailure;
 use tokio::time::Duration;
