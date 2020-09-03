@@ -14,6 +14,7 @@ use crate::{
     task::{Request, TaskOptions},
     TaskResult,
 };
+use crate::app::{CeleryQueue};
 use std::fmt::{self, Display};
 use std::{
     pin::Pin,
@@ -313,7 +314,7 @@ impl BrokerBuilder for DummyBrokerBuilder {
         unimplemented!()
     }
 
-    fn declare_queue(self, _name: &str) -> Self {
+    fn declare_queue(self, _queue: CeleryQueue) -> Self {
         unimplemented!()
     }
 
