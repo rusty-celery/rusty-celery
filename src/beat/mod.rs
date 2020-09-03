@@ -1,3 +1,4 @@
+use crate::app::CeleryQueue;
 /// This module contains the implementation of the Celery **beat**, which is a component
 /// that can be used to automatically execute tasks at scheduled times.
 ///
@@ -22,7 +23,6 @@
 /// Here instead we have only one scheduler struct, and the different backends
 /// correspond to the different scheduler implementations in Python.
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
-use crate::app::{CeleryQueue};
 use crate::routing::{self, Rule};
 use crate::{
     error::{BeatError, BrokerError, CeleryError},

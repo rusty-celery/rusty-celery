@@ -1,17 +1,17 @@
 //! The broker is an integral part of a `Celery` app. It provides the transport for messages that
 //! encode tasks.
 
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use futures::Stream;
-use log::error;
-use tokio::time::{self, Duration};
-use crate::app::{CeleryQueue};
+use crate::app::CeleryQueue;
 use crate::error::{BrokerError, CeleryError};
 use crate::{
     protocol::{Message, TryDeserializeMessage},
     routing::Rule,
 };
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use futures::Stream;
+use log::error;
+use tokio::time::{self, Duration};
 
 mod amqp;
 pub use amqp::{AMQPBroker, AMQPBrokerBuilder};

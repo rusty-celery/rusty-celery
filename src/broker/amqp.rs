@@ -18,8 +18,8 @@ use std::str::FromStr;
 use tokio::sync::{Mutex, RwLock};
 
 use super::{Broker, BrokerBuilder};
+use crate::app::CeleryQueue;
 use crate::error::{BrokerError, ProtocolError};
-use crate::app::{CeleryQueue};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
 
 struct Config {

@@ -8,13 +8,13 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
 
+use crate::app::CeleryQueue;
 use crate::error::{BrokerError, ProtocolError};
 use crate::{
     protocol::{Message, TryDeserializeMessage},
     task::{Request, TaskOptions},
     TaskResult,
 };
-use crate::app::{CeleryQueue};
 use std::fmt::{self, Display};
 use std::{
     pin::Pin,
