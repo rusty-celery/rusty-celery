@@ -35,7 +35,7 @@ where
 
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///
-/// The recommended way to create tasks is through the [`task`](attr.task.html) attribute macro, not by directly implementing
+/// The recommended way to create tasks is through the [`task`](../attr.task.html) attribute macro, not by directly implementing
 /// this trait. For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
 /// in the Rusty Celery Book.
 #[async_trait]
@@ -88,6 +88,28 @@ pub trait Task: Send + Sync + std::marker::Sized {
     /// Returns the registered name of the task.
     fn name(&self) -> &'static str {
         Self::NAME
+    }
+
+    /// This can be called from within a task function to trigger a retry in `countdown` seconds.
+    fn retry_with_countdown(&self, countdown: u32) -> TaskResult<Self::Returns> {
+        let eta = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(now) => {
+                let now_secs = now.as_secs() as u32;
+                let now_millis = now.subsec_millis();
+                let eta_secs = now_secs + countdown;
+                Some(DateTime::<Utc>::from_utc(
+                    NaiveDateTime::from_timestamp(eta_secs as i64, now_millis * 1000),
+                    Utc,
+                ))
+            }
+            Err(_) => None,
+        };
+        Err(TaskError::Retry(eta))
+    }
+
+    /// This can be called from within a task function to trigger a retry at the specified `eta`.
+    fn retry_with_eta(&self, eta: DateTime<Utc>) -> TaskResult<Self::Returns> {
+        Err(TaskError::Retry(Some(eta)))
     }
 
     /// Get a future ETA at which time the task should be retried. By default this

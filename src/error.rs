@@ -94,6 +94,14 @@ pub enum TaskError {
     /// provided the task yields control at some point (like with non-blocking IO).
     #[fail(display = "TaskError: task timed out")]
     TimeoutError,
+
+    /// A task can return this error variant to manually trigger a retry.
+    ///
+    /// This error variant should generally not be used directly. Instead, you should
+    /// call the `Task::retry_with_countdown` or `Task::retry_with_eta` trait methods
+    /// to manually trigger a retry from within a task.
+    #[fail(display = "TaskError: retry triggered")]
+    Retry(Option<DateTime<Utc>>),
 }
 
 /// Errors that can occur while tracing a task.
