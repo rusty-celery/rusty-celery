@@ -1,26 +1,27 @@
-/// This module contains the implementation of the Celery **beat**, which is a component
-/// that can be used to automatically execute tasks at scheduled times.
-///
-/// ### Terminology
-///
-/// This is the terminology used in this module (with references to the corresponding names
-/// in the Python implementation):
-/// - schedule: the strategy used to decide when a task must be executed (each scheduled
-///   task has its own schedule);
-/// - scheduled task: a task together with its schedule (it more or less corresponds to
-///   a *schedule entry* in Python);
-/// - scheduler: the component in charge of keeping track of tasks to execute;
-/// - backend: the component that updates the internal state of the scheduler according to
-///   to an external source of truth (e.g., a database); there is no equivalent in Python,
-///   due to the fact that another pattern is used (see below);
-/// - beat: the service that drives the execution, calling the appropriate
-///   methods of the scheduler in an infinite loop (called just *service* in Python).
-///
-/// The main difference with the architecture used in Python is that in Python
-/// there is a base scheduler class which contains the scheduling logic, then different
-/// implementations use different strategies to synchronize the scheduler.
-/// Here instead we have only one scheduler struct, and the different backends
-/// correspond to the different scheduler implementations in Python.
+//! This module contains the implementation of the Celery beat, which is a component
+//! that can be used to automatically produce tasks at scheduled times.
+//!
+//! ### Terminology
+//!
+//! This is the terminology used in this module (with references to the corresponding names
+//! in the Python implementation):
+//! - schedule: the strategy used to decide when a task must be executed (each scheduled
+//!   task has its own schedule);
+//! - scheduled task: a task together with its schedule (it more or less corresponds to
+//!   a *schedule entry* in Python);
+//! - scheduler: the component in charge of keeping track of tasks to execute;
+//! - scheduler backend: the component that updates the internal state of the scheduler according to
+//!   to an external source of truth (e.g., a database); there is no equivalent in Python,
+//!   due to the fact that another pattern is used (see below);
+//! - beat: the service that drives the execution, calling the appropriate
+//!   methods of the scheduler in an infinite loop (called just *service* in Python).
+//!
+//! The main difference with the architecture used in Python is that in Python
+//! there is a base scheduler class which contains the scheduling logic, then different
+//! implementations use different strategies to synchronize the scheduler.
+//! Here instead we have only one scheduler struct, and the different backends
+//! correspond to the different scheduler implementations in Python.
+
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::routing::{self, Rule};
 use crate::{
@@ -32,10 +33,10 @@ use std::time::SystemTime;
 use tokio::time::{self, Duration};
 
 mod scheduler;
-use scheduler::Scheduler;
+pub use scheduler::Scheduler;
 
 mod backend;
-pub use backend::{DummyBackend, SchedulerBackend};
+pub use backend::{LocalSchedulerBackend, SchedulerBackend};
 
 mod schedule;
 pub use schedule::{RegularSchedule, Schedule};
@@ -67,7 +68,7 @@ where
     scheduler_backend: Sb,
 }
 
-impl<Bb> BeatBuilder<Bb, DummyBackend>
+impl<Bb> BeatBuilder<Bb, LocalSchedulerBackend>
 where
     Bb: BrokerBuilder,
 {
@@ -85,7 +86,7 @@ where
                 default_queue: "celery".into(),
                 task_routes: vec![],
             },
-            scheduler_backend: DummyBackend::new(),
+            scheduler_backend: LocalSchedulerBackend::new(),
         }
     }
 }
@@ -199,12 +200,10 @@ where
     }
 }
 
-/// A `Beat` app is used to execute scheduled tasks. This is the struct that is
-/// created with the [`beat`](macro.beat.html) macro.
+/// A `Beat` app is used to send out scheduled tasks. This is the struct that is
+/// created with the [`beat`](../macro.beat.html) macro.
 ///
-/// The *beat* is in charge of executing scheduled tasks when
-/// they are due and to add or remove tasks as required. It drives execution by
-/// making the internal scheduler "tick", and updates the list of scheduled
+/// It drives execution by making the internal scheduler "tick", and updates the list of scheduled
 /// tasks through a customizable scheduler backend.
 pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     pub name: String,
@@ -219,14 +218,19 @@ pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     broker_connection_retry_delay: u32,
 }
 
-impl<Br> Beat<Br, DummyBackend>
+impl<Br> Beat<Br, LocalSchedulerBackend>
 where
     Br: Broker,
 {
     /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and a
     /// default scheduler backend.
-    pub fn default_builder(name: &str, broker_url: &str) -> BeatBuilder<Br::Builder, DummyBackend> {
-        BeatBuilder::<Br::Builder, DummyBackend>::with_default_scheduler_backend(name, broker_url)
+    pub fn default_builder(
+        name: &str,
+        broker_url: &str,
+    ) -> BeatBuilder<Br::Builder, LocalSchedulerBackend> {
+        BeatBuilder::<Br::Builder, LocalSchedulerBackend>::with_default_scheduler_backend(
+            name, broker_url,
+        )
     }
 }
 

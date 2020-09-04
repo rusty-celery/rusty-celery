@@ -1,4 +1,4 @@
-//! Error types.
+//! All error types used through the library.
 
 use chrono::{DateTime, Utc};
 use failure::{Context, Fail};

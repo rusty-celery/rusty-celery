@@ -46,7 +46,7 @@ macro_rules! __beat_internal {
     ) => {{
         let broker_url = $broker_url;
 
-        let mut builder = $crate::Beat::<$broker_type, _>::custom_builder("beat", &broker_url, $scheduler_backend);
+        let mut builder = $crate::beat::Beat::<$broker_type, _>::custom_builder("beat", &broker_url, $scheduler_backend);
 
         $(
             builder = builder.$x($y);
@@ -155,7 +155,7 @@ macro_rules! app {
 }
 
 // TODO add support for scheduling tasks here.
-/// A macro for creating a [`Beat`](struct.Beat.html) app.
+/// A macro for creating a [`Beat`](beat/struct.Beat.html) app.
 ///
 /// At a minimum the `beat!` macro requires these 2 arguments (in order):
 /// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
@@ -166,22 +166,22 @@ macro_rules! app {
 /// # Custom scheduler backend
 ///
 /// A custom scheduler backend can be given as third argument (with or without using the keyword `scheduler_backend`).
-/// If not given, the default [`DummyBackend`](struct.DummyBackend.html) will be used.
+/// If not given, the default [`LocalSchedulerBackend`](struct.LocalSchedulerBackend.html) will be used.
 ///
 /// # Optional parameters
 ///
 /// A number of other optional parameters can be passed as last arguments and in arbitrary order
-/// (all of which correspond to a method on the [`BeatBuilder`](struct.BeatBuilder.html) struct):
+/// (all of which correspond to a method on the [`BeatBuilder`](beat/struct.BeatBuilder.html) struct):
 ///
 /// - `default_queue`: Set the
-/// [`BeatBuilder::default_queue`](struct.BeatBuilder.html#method.default_queue).
-/// - `heartbeat`: Set the [`BeatBuilder::heartbeat`](struct.BeatBuilder.html#method.heartbeat).
+/// [`BeatBuilder::default_queue`](beat/struct.BeatBuilder.html#method.default_queue).
+/// - `heartbeat`: Set the [`BeatBuilder::heartbeat`](beat/struct.BeatBuilder.html#method.heartbeat).
 /// - `broker_connection_timeout`: Set the
-/// [`BeatBuilder::broker_connection_timeout`](struct.BeatBuilder.html#method.broker_connection_timeout).
+/// [`BeatBuilder::broker_connection_timeout`](beat/struct.BeatBuilder.html#method.broker_connection_timeout).
 /// - `broker_connection_retry`: Set the
-/// [`BeatBuilder::broker_connection_retry`](struct.BeatBuilder.html#method.broker_connection_retry).
+/// [`BeatBuilder::broker_connection_retry`](beat/struct.BeatBuilder.html#method.broker_connection_retry).
 /// - `broker_connection_max_retries`: Set the
-/// [`BeatBuilder::broker_connection_max_retries`](struct.BeatBuilder.html#method.broker_connection_max_retries).
+/// [`BeatBuilder::broker_connection_max_retries`](beat/struct.BeatBuilder.html#method.broker_connection_max_retries).
 ///
 /// # Examples
 ///
@@ -214,7 +214,7 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// use celery::{ScheduledTask, SchedulerBackend, error::BeatError};
+/// use celery::{beat::ScheduledTask, beat::SchedulerBackend, error::BeatError};
 /// use std::collections::BinaryHeap;
 ///
 /// struct CustomSchedulerBackend {}
@@ -249,7 +249,7 @@ macro_rules! beat {
         $crate::__beat_internal!(
             $crate::broker::AMQPBroker { $broker_url },
             [ $( $pattern => $queue ),* ],
-            $crate::DummyBackend::new(),
+            $crate::beat::LocalSchedulerBackend::new(),
         );
     };
     // Just required fields and a custom scheduler backend without trailing comma.
@@ -287,7 +287,7 @@ macro_rules! beat {
         $crate::__beat_internal!(
             $crate::broker::AMQPBroker { $broker_url },
             [ $( $pattern => $queue ),* ],
-            $crate::DummyBackend::new(),
+            $crate::beat::LocalSchedulerBackend::new(),
             $( $x = $y, )*
         );
     };

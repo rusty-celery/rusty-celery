@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `Celery::send_task` now returns an `AsyncResult` instead of a `String` for the `Ok` variant.
+- Renamed `DummyBackend` to `LocalSchedulerBackend`.
 
 ## v0.4.0-rc2 - 2020-08-27
 
