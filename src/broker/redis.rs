@@ -12,6 +12,7 @@ use crate::protocol::{Message, TryCreateMessage};
 use crate::error::{BrokerError, ProtocolError};
 use log::warn;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use super::{Broker, BrokerBuilder};
 use redis::aio::{MultiplexedConnection};
@@ -298,12 +299,16 @@ impl Message{
             Some(time) => json!(time.to_rfc3339()),
             None => Value::Null
         };
+        let mut buffer = Uuid::encode_buffer();
+        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let delivery_tag = uuid.to_owned();
         let msg_json_value = json!({
             "body": self.raw_body.clone(),
             "content_encoding": self.properties.content_encoding.clone(),
             "content_type": self.properties.content_type.clone(),
             "correlation_id": self.properties.correlation_id.clone(),
             "reply_to": reply_to,
+            "delivery_tag": delivery_tag,
             "headers": {
                 "id": self.headers.id.clone(),
                 "task": self.headers.task.clone(),
@@ -379,6 +384,7 @@ mod tests{
         assert_eq!(ser_msg_json["content_type"], String::from("application/json"));
         assert_eq!(ser_msg_json["correlation_id"], String::from("aaa"));
         assert_eq!(ser_msg_json["reply_to"], String::from("bbb"));
+        assert_ne!(ser_msg_json["delivery_tag"], "");
         assert_eq!(ser_msg_json["headers"]["id"], String::from("aaa"));
         assert_eq!(ser_msg_json["headers"]["task"], String::from("add"));
         assert_eq!(ser_msg_json["headers"]["lang"], String::from("rust"));
