@@ -32,7 +32,6 @@ rmp-serde = { version = "0.14", optional = true }
 rmpv = { version = "0.4.5", optional = true, features = ["with-serde"] }
 serde_yaml = { version = "0.8", optional = true }
 serde-pickle = { version = "0.6", optional = true }
-failure = "0.1.7"
 thiserror = "1.0"
 async-trait = "0.1"
 lapin = { version = "=1.2.3" }

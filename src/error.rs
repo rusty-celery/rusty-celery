@@ -168,61 +168,37 @@ pub enum ProtocolError {
     MissingRequiredHeader(String),
 
     /// Raised when serializing or de-serializing a message body fails.
-    #[fail(display = "ProtocolError: serialization error ({})", _0)]
-    BodySerializationError(#[fail(cause)] FormatError),
+    #[error("ProtocolError: serialization error '{0}'")]
+    BodySerializationError(FormatError),
 }
 
-#[derive(Debug, Fail)]
+#[derive(Error, Debug)]
 pub enum FormatError {
-    #[fail(display = "{}", _0)]
+    #[error("'{0}'")]
     Json(serde_json::Error),
 
     #[cfg(any(test, feature = "extra_formats"))]
-    #[fail(display = "{}", _0)]
+    #[error("'{0}'")]
     Yaml(serde_yaml::Error),
 
     #[cfg(any(test, feature = "extra_formats"))]
-    #[fail(display = "{}", _0)]
+    #[error("'{0}'")]
     Pickle(serde_pickle::error::Error),
 
     #[cfg(any(test, feature = "extra_formats"))]
-    #[fail(display = "{}", _0)]
+    #[error("'{0}'")]
     MsgPackDecode(rmp_serde::decode::Error),
     
     #[cfg(any(test, feature = "extra_formats"))]
-    #[fail(display = "{}", _0)]
+    #[error("'{0}'")]
     MsgPackEncode(rmp_serde::encode::Error),
     
     #[cfg(any(test, feature = "extra_formats"))]
-    #[fail(display = "{}", _0)]
+    #[error("'{0}'")]
     MsgPackValue(rmpv::ext::Error),
 
-    #[fail(display = "Unknown format err")]
+    #[error("Unknown format error")]
     Unknown,
-}
-
-impl From<BrokerError> for CeleryError {
-    fn from(err: BrokerError) -> Self {
-        Self::BrokerError(err)
-    }
-}
-
-impl From<ProtocolError> for CeleryError {
-    fn from(err: ProtocolError) -> Self {
-        Self::ProtocolError(err)
-    }
-}
-
-impl From<std::io::Error> for CeleryError {
-    fn from(err: std::io::Error) -> Self {
-        Self::IoError(err)
-    }
-}
-
-impl From<globset::Error> for CeleryError {
-    fn from(err: globset::Error) -> Self {
-        Self::BadRoutingPattern(err)
-    }
 }
 
 impl From<serde_json::Error> for ProtocolError {
@@ -264,33 +240,6 @@ impl From<rmpv::ext::Error> for ProtocolError {
     fn from(err: rmpv::ext::Error) -> Self {
         Self::BodySerializationError(FormatError::MsgPackValue(err))
     }
-}
-
-impl From<lapin::Error> for BrokerError {
-    fn from(err: lapin::Error) -> Self {
-        match err {
-            lapin::Error::IOError(e) => BrokerError::IoError(std::io::Error::new(
-                (*e).kind(),
-                format!("{} from AMQP broker", *e),
-            )),
-            lapin::Error::InvalidConnectionState(lapin::ConnectionState::Closing)
-            | lapin::Error::InvalidConnectionState(lapin::ConnectionState::Closed)
-            | lapin::Error::InvalidConnectionState(lapin::ConnectionState::Error)
-            | lapin::Error::InvalidChannelState(lapin::ChannelState::Closing)
-            | lapin::Error::InvalidChannelState(lapin::ChannelState::Closed)
-            | lapin::Error::InvalidChannelState(lapin::ChannelState::Error) => {
-                BrokerError::NotConnected
-            }
-            _ => BrokerError::AMQPError(err),
-        }
-    }
-}
-
-impl From<Context<&str>> for TaskError {
-    fn from(ctx: Context<&str>) -> Self {
-        Self::UnexpectedError((*ctx.get_context()).into())
-    }
-
 }
 
 /// Extension methods for `Result` types within a task body.
