@@ -70,15 +70,7 @@ where
                 broker_connection_max_retries: 5,
                 broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
-                task_options: TaskOptions {
-                    time_limit: None,
-                    hard_time_limit: None,
-                    max_retries: None,
-                    min_retry_delay: None,
-                    max_retry_delay: None,
-                    retry_for_unexpected: None,
-                    acks_late: Some(false),
-                },
+                task_options: TaskOptions::default(),
                 task_routes: vec![],
             },
         }
