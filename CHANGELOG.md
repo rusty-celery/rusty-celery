@@ -11,8 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a `.display_pretty()` method on the `Celery` struct that prints out a cool ASCII logo
   with some useful information about the app.
-  
 - Added support for YAML, MsgPack, and Pickle formats, behind the `extra_formats` feature flag
+- Added an `AsyncResult` struct that acts as a handler for task results.
+- Added `Task::retry_with_countdown` and `Task::retry_with_eta` trait methods so that tasks can
+  manually trigger a retry.
+
+### Changed
+
+- `Celery::send_task` now returns an `AsyncResult` instead of a `String` for the `Ok` variant.
+- Renamed `DummyBackend` to `LocalSchedulerBackend`.
+- Switched to [`thiserror`](https://github.com/dtolnay/thiserror) for the error module instead of the deprecated `failure` crate.
+
 
 ## v0.4.0-rc2 - 2020-08-27
 

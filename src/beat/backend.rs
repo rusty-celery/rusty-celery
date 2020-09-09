@@ -3,7 +3,12 @@ use super::scheduled_task::ScheduledTask;
 use crate::error::BeatError;
 use std::collections::BinaryHeap;
 
-/// This trait is implemented by all `Scheduler` backends.
+/// A `SchedulerBackend` is in charge of keeping track of the internal state of the scheduler
+/// according to some source of truth, such as a database.
+///
+/// The default scheduler backend, [`LocalSchedulerBackend`](struct.LocalSchedulerBackend.html),
+/// doesn't do any external syncronization, so the source of truth is just the locally defined
+/// schedules.
 pub trait SchedulerBackend {
     /// Check whether the internal state of the scheduler should be synchronized.
     /// If this method returns `true`, then `sync` will be called as soon as possible.
@@ -24,17 +29,17 @@ pub trait SchedulerBackend {
     // and the backend has access to that.
 }
 
-/// The only scheduler backend implementation for now. It does basically nothing.
-pub struct DummyBackend {}
+/// The default [`SchedulerBackend`](trait.SchedulerBackend.html).
+pub struct LocalSchedulerBackend {}
 
 #[allow(clippy::new_without_default)]
-impl DummyBackend {
+impl LocalSchedulerBackend {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl SchedulerBackend for DummyBackend {
+impl SchedulerBackend for LocalSchedulerBackend {
     fn should_sync(&self) -> bool {
         false
     }

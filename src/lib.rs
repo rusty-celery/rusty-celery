@@ -38,7 +38,7 @@
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
-//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
+//! # async fn main() -> anyhow::Result<()> {
 //! # let my_app = celery::app!(
 //! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
@@ -58,7 +58,7 @@
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
-//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
+//! # async fn main() -> anyhow::Result<()> {
 //! # let my_app = celery::app!(
 //! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
@@ -79,10 +79,7 @@
 mod app;
 mod routing;
 pub use app::{Celery, CeleryBuilder};
-mod beat;
-pub use beat::{
-    Beat, BeatBuilder, DummyBackend, RegularSchedule, Schedule, ScheduledTask, SchedulerBackend,
-};
+pub mod beat;
 pub mod broker;
 pub mod error;
 pub use error::TaskResultExt;
