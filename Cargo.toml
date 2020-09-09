@@ -62,4 +62,4 @@ structopt = "0.3"
 [features]
 default = ["codegen"]
 codegen = ["celery-codegen", "once_cell"]
-extra_formats = ["rmp-serde", "rmpv", "serde_yaml", "serde-pickle"]
+extra_content_types = ["rmp-serde", "rmpv", "serde_yaml", "serde-pickle"]

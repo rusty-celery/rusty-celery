@@ -14,7 +14,7 @@ use std::process;
 use std::time::SystemTime;
 use uuid::Uuid;
 
-use crate::error::{FormatError, ProtocolError};
+use crate::error::{ContentTypeError, ProtocolError};
 use crate::task::{Signature, Task};
 
 static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
@@ -26,19 +26,18 @@ static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
 
 /// Serialization formats supported for message body
 #[derive(Copy, Clone)]
-pub enum MessageFormat {
+pub enum MessageContentType {
     Json,
     Yaml,
     Pickle,
     MsgPack,
 }
 
-impl Default for MessageFormat {
+impl Default for MessageContentType {
     fn default() -> Self {
-        MessageFormat::Json
+        MessageContentType::Json
     }
 }
-
 
 /// Create a message with a custom configuration.
 pub struct MessageBuilder<T>
@@ -75,18 +74,18 @@ where
         }
     }
     /// set which serialization method is used in the body
-    /// if feature "extra_formats" is not enabled, this function
-    /// does not do anything and json is used.
-    #[cfg(any(test, feature = "extra_formats"))]
-    pub fn serializer(mut self, format: MessageFormat) -> Self {
-        use MessageFormat::*;
-        let format_name = match format {
+    /// if feature "extra_content_types" is not enabled, json
+    /// will be used.
+    #[cfg(any(test, feature = "extra_content_types"))]
+    pub fn serializer(mut self, content_type: MessageContentType) -> Self {
+        use MessageContentType::*;
+        let content_type_name = match content_type {
             Json => "application/json",
             Yaml => "application/x-yaml",
             Pickle => "application/x-python-serialize",
             MsgPack => "application/x-msgpack",
         };
-        self.message.properties.content_type = format_name.into();
+        self.message.properties.content_type = content_type_name.into();
         self
     }
 
@@ -134,14 +133,16 @@ where
 
             let raw_body = match self.message.properties.content_type.as_str() {
                 "application/json" => serde_json::to_vec(&body)?,
-                #[cfg(any(test, feature = "extra_formats"))]
+                #[cfg(any(test, feature = "extra_content_types"))]
                 "application/x-yaml" => serde_yaml::to_vec(&body)?,
-                #[cfg(any(test, feature = "extra_formats"))]
+                #[cfg(any(test, feature = "extra_content_types"))]
                 "application/x-python-serialize" => serde_pickle::to_vec(&body, false)?,
-                #[cfg(any(test, feature = "extra_formats"))]
+                #[cfg(any(test, feature = "extra_content_types"))]
                 "application/x-msgpack" => rmp_serde::to_vec(&body)?,
                 _ => {
-                    return Err(ProtocolError::BodySerializationError(FormatError::Unknown));
+                    return Err(ProtocolError::BodySerializationError(
+                        ContentTypeError::Unknown,
+                    ));
                 }
             };
             self.message.raw_body = raw_body;
@@ -202,7 +203,7 @@ impl Message {
                 }
                 Ok(from_value::<MessageBody<T>>(value)?)
             }
-            #[cfg(any(test, feature = "extra_formats"))]
+            #[cfg(any(test, feature = "extra_content_types"))]
             "application/x-yaml" => {
                 use serde_yaml::{from_slice, from_value, Value};
                 let value: Value = from_slice(&self.raw_body)?;
@@ -233,7 +234,7 @@ impl Message {
                 }
                 Ok(from_value(value)?)
             }
-            #[cfg(any(test, feature = "extra_formats"))]
+            #[cfg(any(test, feature = "extra_content_types"))]
             "application/x-python-serialize" => {
                 use serde_pickle::{from_slice, from_value, HashableValue, Value};
                 let value: Value = from_slice(&self.raw_body)?;
@@ -265,7 +266,7 @@ impl Message {
                 }
                 Ok(from_value(value)?)
             }
-            #[cfg(any(test, feature = "extra_formats"))]
+            #[cfg(any(test, feature = "extra_content_types"))]
             "application/x-msgpack" => {
                 use rmp_serde::from_slice;
                 use rmpv::{ext::from_value, Value};
@@ -321,7 +322,9 @@ impl Message {
                 }
                 Ok(from_value(value)?)
             }
-            _ => Err(ProtocolError::BodySerializationError(FormatError::Unknown)),
+            _ => Err(ProtocolError::BodySerializationError(
+                ContentTypeError::Unknown,
+            )),
         }
     }
 

@@ -1,4 +1,4 @@
-use crate::protocol::MessageFormat;
+use crate::protocol::MessageContentType;
 
 /// Configuration options pertaining to a task.
 ///
@@ -100,5 +100,5 @@ pub struct TaskOptions {
     pub acks_late: Option<bool>,
 
     /// What serialization format to use for messages sent on this task
-    pub format: Option<MessageFormat>,
+    pub content_type: Option<MessageContentType>,
 }

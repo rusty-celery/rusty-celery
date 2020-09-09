@@ -18,7 +18,7 @@ mod trace;
 
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TraceError};
-use crate::protocol::{Message, MessageFormat, TryDeserializeMessage};
+use crate::protocol::{Message, MessageContentType, TryDeserializeMessage};
 use crate::routing::Rule;
 use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
@@ -78,7 +78,7 @@ where
                     max_retry_delay: None,
                     retry_for_unexpected: None,
                     acks_late: Some(false),
-                    format: Some(MessageFormat::Json),
+                    content_type: Some(MessageContentType::Json),
                 },
                 task_routes: vec![],
             },
@@ -172,9 +172,9 @@ where
     }
 
     /// Set default serialization format a task will have (see
-    /// [`TaskOption::format`](task/struct.TaskOptions.html#structfield.format)).
-    pub fn serialization(mut self, format: MessageFormat) -> Self {
-        self.config.task_options.format = Some(format);
+    /// [`TaskOption::content_type`](task/struct.TaskOptions.html#structfield.content_type)).
+    pub fn serialization(mut self, content_type: MessageContentType) -> Self {
+        self.config.task_options.content_type = Some(content_type);
         self
     }
 

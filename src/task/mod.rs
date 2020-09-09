@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::TaskError;
-use crate::protocol::MessageFormat;
+use crate::protocol::MessageContentType;
 
 mod async_result;
 mod options;
@@ -58,7 +58,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
         max_retry_delay: None,
         retry_for_unexpected: None,
         acks_late: None,
-        format: Some(MessageFormat::Json),
+        content_type: Some(MessageContentType::Json),
     };
 
     /// The parameters of the task.
