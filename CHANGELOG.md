@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Fields of the `Signature` struct made private to avoid confusion around which fields of `TaskOptions` apply to a `Signature`.
 - `Celery::send_task` now returns an `AsyncResult` instead of a `String` for the `Ok` variant.
 - Renamed `DummyBackend` to `LocalSchedulerBackend`.
 - Switched to [`thiserror`](https://github.com/dtolnay/thiserror) for the error module instead of the deprecated `failure` crate.
