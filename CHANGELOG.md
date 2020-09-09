@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `DummyBackend` to `LocalSchedulerBackend`.
 - Switched to [`thiserror`](https://github.com/dtolnay/thiserror) for the error module instead of the deprecated `failure` crate.
 
+### Fixed
+
+- Fixed bug where `hard_time_limit` was ignored by worker if only specified at the app or task level.
+
 ## v0.4.0-rc2 - 2020-08-27
 
 ### Added

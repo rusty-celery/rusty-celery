@@ -148,9 +148,19 @@ pub trait Task: Send + Sync + std::marker::Sized {
     }
 
     fn time_limit(&self) -> Option<u32> {
-        self.request()
-            .time_limit
-            .or_else(|| Self::DEFAULTS.time_limit.or(self.options().time_limit))
+        self.request().time_limit.or_else(|| {
+            // Take min or `time_limit` and `hard_time_limit`.
+            let time_limit = Self::DEFAULTS.time_limit.or(self.options().time_limit);
+            let hard_time_limit = Self::DEFAULTS
+                .hard_time_limit
+                .or(self.options().hard_time_limit);
+            match (time_limit, hard_time_limit) {
+                (Some(t1), Some(t2)) => Some(std::cmp::min(t1, t2)),
+                (Some(t1), None) => Some(t1),
+                (None, Some(t2)) => Some(t2),
+                _ => None,
+            }
+        })
     }
 
     fn max_retries(&self) -> Option<u32> {
