@@ -107,16 +107,10 @@ where
     ) -> Result<(), BeatError> {
         let queue = &scheduled_task.queue;
 
-        let message = scheduled_task
-            .message_factory
-            .try_create_message()
-            .map_err(|e| BeatError::ProtocolError(e))?;
+        let message = scheduled_task.message_factory.try_create_message()?;
 
         info!("Sending task {} to {} queue", scheduled_task.name, queue);
-        self.broker
-            .send(&message, &queue)
-            .await
-            .map_err(|e| BeatError::BrokerError(e))?;
+        self.broker.send(&message, &queue).await?;
         scheduled_task.last_run_at.replace(SystemTime::now());
         scheduled_task.total_run_count += 1;
         Ok(())
