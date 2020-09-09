@@ -77,7 +77,7 @@ where
     /// if feature "extra_content_types" is not enabled, json
     /// will be used.
     #[cfg(any(test, feature = "extra_content_types"))]
-    pub fn serializer(mut self, content_type: MessageContentType) -> Self {
+    pub fn content_type(mut self, content_type: MessageContentType) -> Self {
         use MessageContentType::*;
         let content_type_name = match content_type {
             Json => "application/json",

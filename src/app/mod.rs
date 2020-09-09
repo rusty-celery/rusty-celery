@@ -173,7 +173,7 @@ where
 
     /// Set default serialization format a task will have (see
     /// [`TaskOption::content_type`](task/struct.TaskOptions.html#structfield.content_type)).
-    pub fn serialization(mut self, content_type: MessageContentType) -> Self {
+    pub fn content_type(mut self, content_type: MessageContentType) -> Self {
         self.config.task_options.content_type = Some(content_type);
         self
     }
