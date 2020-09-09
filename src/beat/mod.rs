@@ -286,11 +286,11 @@ where
 
             if let Err(err) = result {
                 match err {
-                    BeatError::BrokerError(description, broker_err) => {
+                    BeatError::BrokerError(broker_err) => {
                         if broker_err.is_connection_error() {
                             error!("Broker connection failed");
                         } else {
-                            return Err(BeatError::BrokerError(description, broker_err));
+                            return Err(BeatError::BrokerError(broker_err));
                         }
                     }
                     _ => return Err(err),
@@ -317,10 +317,7 @@ where
                         if err.is_connection_error() {
                             continue;
                         }
-                        return Err(BeatError::BrokerError(
-                            "broker reconnect failed".into(),
-                            err,
-                        ));
+                        return Err(BeatError::BrokerError(err));
                     }
                     Ok(_) => {
                         info!("Successfully reconnected with broker");
@@ -331,10 +328,7 @@ where
             }
 
             if !reconnect_successful {
-                return Err(BeatError::BrokerError(
-                    "broker reconnect failed".into(),
-                    BrokerError::NotConnected,
-                ));
+                return Err(BeatError::BrokerError(BrokerError::NotConnected));
             }
         }
     }

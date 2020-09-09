@@ -1,10 +1,10 @@
 #![allow(non_upper_case_globals)]
 
+use anyhow::Result;
 use async_trait::async_trait;
 use celery::error::TaskError;
 use celery::task::TaskResult;
 use env_logger::Env;
-use exitfailure::ExitFailure;
 use structopt::StructOpt;
 use tokio::time::{self, Duration};
 
@@ -19,7 +19,7 @@ fn add(x: i32, y: i32) -> TaskResult<i32> {
 #[celery::task(max_retries = 3)]
 fn buggy_task() -> TaskResult<()> {
     Err(TaskError::UnexpectedError(
-        "This error is part of the example: it is used to showcase error handling".into(),
+        "This error is part of the example, it is used to showcase error handling".into(),
     ))
 }
 
@@ -54,7 +54,7 @@ enum CeleryOpt {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), ExitFailure> {
+async fn main() -> Result<()> {
     env_logger::from_env(Env::default().default_filter_or("info")).init();
     let opt = CeleryOpt::from_args();
     let my_app = celery::app!(

@@ -28,7 +28,7 @@ chrono = "0.4"
 tokio = { version = "0.2.13", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-failure = "0.1.7"
+thiserror = "1.0"
 async-trait = "0.1"
 lapin = { version = "=1.2.3" }
 amq-protocol = "=6.0.0-rc12"
@@ -48,7 +48,7 @@ hostname = "0.3.0"
 
 [dev-dependencies]
 env_logger = "0.7"
-exitfailure = "0.5.1"
+anyhow = "1.0"
 structopt = "0.3"
 
 [features]
