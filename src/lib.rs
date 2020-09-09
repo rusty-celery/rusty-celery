@@ -38,7 +38,7 @@
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
-//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
+//! # async fn main() -> anyhow::Result<()> {
 //! # let my_app = celery::app!(
 //! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
@@ -58,7 +58,7 @@
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
-//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
+//! # async fn main() -> anyhow::Result<()> {
 //! # let my_app = celery::app!(
 //! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
