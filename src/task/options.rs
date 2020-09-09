@@ -1,3 +1,5 @@
+use crate::protocol::MessageFormat;
+
 /// Configuration options pertaining to a task.
 ///
 /// These are set at either the app level (pertaining to all registered tasks),
@@ -96,4 +98,7 @@ pub struct TaskOptions {
     ///
     /// If this option is left unspecified, the default behavior will be to ack early.
     pub acks_late: Option<bool>,
+
+    /// What serialization format to use for messages sent on this task
+    pub format: Option<MessageFormat>,
 }

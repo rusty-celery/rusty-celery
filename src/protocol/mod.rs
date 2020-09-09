@@ -25,12 +25,20 @@ static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
 });
 
 /// Serialization formats supported for message body
+#[derive(Copy, Clone)]
 pub enum MessageFormat {
     Json,
     Yaml,
     Pickle,
     MsgPack,
 }
+
+impl Default for MessageFormat {
+    fn default() -> Self {
+        MessageFormat::Json
+    }
+}
+
 
 /// Create a message with a custom configuration.
 pub struct MessageBuilder<T>
