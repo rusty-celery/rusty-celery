@@ -102,3 +102,10 @@ fn task_with_callbacks() {
 fn inferred_return_type() {
     println!("Yeeeup");
 }
+
+#[cfg(any(test, feature = "extra_content_types"))]
+use celery::protocol::MessageContentType::MsgPack;
+#[celery::task(content_type = MsgPack)]
+fn custom_content_type() {
+    println!()
+}
