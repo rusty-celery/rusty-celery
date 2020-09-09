@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.4.0-rc3 - 2020-09-09
+
 ### Added
 
 - Added a `.display_pretty()` method on the `Celery` struct that prints out a cool ASCII logo
