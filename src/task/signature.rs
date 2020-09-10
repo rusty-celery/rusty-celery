@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 /// # Examples
 ///
 /// ```rust
-/// use celery::TaskResult;
+/// use celery::prelude::*;
 ///
 /// #[celery::task]
 /// fn add(x: i32, y: i32) -> TaskResult<i32> {

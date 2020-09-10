@@ -1,4 +1,4 @@
-//! All error types used through the library.
+//! All error types used throughout the library.
 
 use chrono::{DateTime, Utc};
 use thiserror::Error;
@@ -170,30 +170,4 @@ pub enum ProtocolError {
     /// Raised when serializing or de-serializing a message body fails.
     #[error("serialization error")]
     BodySerializationError(#[from] serde_json::Error),
-}
-
-/// Extension methods for `Result` types within a task body.
-///
-/// These methods can be used to convert a `Result<T, E>` to a `Result<T, TaskError>` with the
-/// appropriate `TaskError` variant. The trait has a blanket implementation for any error type that implements
-/// [`std::error::Error`](https://doc.rust-lang.org/std/error/trait.Error.html).
-pub trait TaskResultExt<T, E> {
-    /// Convert the error type to a `TaskError::ExpectedError`.
-    fn with_expected_err(self, context: &str) -> Result<T, TaskError>;
-
-    /// Convert the error type to a `TaskError::UnexpectedError`.
-    fn with_unexpected_err(self, context: &str) -> Result<T, TaskError>;
-}
-
-impl<T, E> TaskResultExt<T, E> for Result<T, E>
-where
-    E: std::error::Error,
-{
-    fn with_expected_err(self, context: &str) -> Result<T, TaskError> {
-        self.map_err(|_failure| TaskError::ExpectedError(context.into()))
-    }
-
-    fn with_unexpected_err(self, context: &str) -> Result<T, TaskError> {
-        self.map_err(|_failure| TaskError::UnexpectedError(context.into()))
-    }
 }

@@ -97,7 +97,7 @@ macro_rules! __beat_internal {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// use celery::TaskResult;
+/// use celery::prelude::*;
 ///
 /// #[celery::task]
 /// fn add(x: i32, y: i32) -> TaskResult<i32> {
