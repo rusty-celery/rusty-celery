@@ -168,78 +168,37 @@ pub enum ProtocolError {
     MissingRequiredHeader(String),
 
     /// Raised when serializing or de-serializing a message body fails.
-    #[error("ProtocolError: serialization error '{0}'")]
-    BodySerializationError(ContentTypeError),
+    #[error("message body serialization error")]
+    BodySerializationError(#[from] ContentTypeError),
 }
 
 #[derive(Error, Debug)]
 pub enum ContentTypeError {
-    #[error("'{0}'")]
-    Json(serde_json::Error),
+    #[error("JSON serialization error")]
+    Json(#[from] serde_json::Error),
 
     #[cfg(any(test, feature = "extra_content_types"))]
-    #[error("'{0}'")]
-    Yaml(serde_yaml::Error),
+    #[error("YAML serialization error")]
+    Yaml(#[from] serde_yaml::Error),
 
     #[cfg(any(test, feature = "extra_content_types"))]
-    #[error("'{0}'")]
-    Pickle(serde_pickle::error::Error),
+    #[error("Pickle serialization error")]
+    Pickle(#[from] serde_pickle::error::Error),
 
     #[cfg(any(test, feature = "extra_content_types"))]
-    #[error("'{0}'")]
-    MsgPackDecode(rmp_serde::decode::Error),
+    #[error("MessagePack decoding error")]
+    MsgPackDecode(#[from] rmp_serde::decode::Error),
 
     #[cfg(any(test, feature = "extra_content_types"))]
-    #[error("'{0}'")]
-    MsgPackEncode(rmp_serde::encode::Error),
+    #[error("MessagePack encoding error")]
+    MsgPackEncode(#[from] rmp_serde::encode::Error),
 
     #[cfg(any(test, feature = "extra_content_types"))]
-    #[error("'{0}'")]
-    MsgPackValue(rmpv::ext::Error),
+    #[error("MessagePack value error")]
+    MsgPackValue(#[from] rmpv::ext::Error),
 
     #[error("Unknown content type error")]
     Unknown,
-}
-
-impl From<serde_json::Error> for ProtocolError {
-    fn from(err: serde_json::Error) -> Self {
-        Self::BodySerializationError(ContentTypeError::Json(err))
-    }
-}
-
-#[cfg(any(test, feature = "extra_content_types"))]
-impl From<serde_yaml::Error> for ProtocolError {
-    fn from(err: serde_yaml::Error) -> Self {
-        Self::BodySerializationError(ContentTypeError::Yaml(err))
-    }
-}
-
-#[cfg(any(test, feature = "extra_content_types"))]
-impl From<serde_pickle::error::Error> for ProtocolError {
-    fn from(err: serde_pickle::error::Error) -> Self {
-        Self::BodySerializationError(ContentTypeError::Pickle(err))
-    }
-}
-
-#[cfg(any(test, feature = "extra_content_types"))]
-impl From<rmp_serde::decode::Error> for ProtocolError {
-    fn from(err: rmp_serde::decode::Error) -> Self {
-        Self::BodySerializationError(ContentTypeError::MsgPackDecode(err))
-    }
-}
-
-#[cfg(any(test, feature = "extra_content_types"))]
-impl From<rmp_serde::encode::Error> for ProtocolError {
-    fn from(err: rmp_serde::encode::Error) -> Self {
-        Self::BodySerializationError(ContentTypeError::MsgPackEncode(err))
-    }
-}
-
-#[cfg(any(test, feature = "extra_content_types"))]
-impl From<rmpv::ext::Error> for ProtocolError {
-    fn from(err: rmpv::ext::Error) -> Self {
-        Self::BodySerializationError(ContentTypeError::MsgPackValue(err))
-    }
 }
 
 /// Extension methods for `Result` types within a task body.
