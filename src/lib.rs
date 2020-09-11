@@ -6,7 +6,7 @@
 //! Define tasks by decorating functions with the [`task`](attr.task.html) attribute:
 //!
 //! ```rust
-//! use celery::TaskResult;
+//! use celery::prelude::*;
 //!
 //! #[celery::task]
 //! fn add(x: i32, y: i32) -> TaskResult<i32> {
@@ -19,7 +19,7 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
+//! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
 //! let my_app = celery::app!(
@@ -34,7 +34,7 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
+//! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
@@ -54,7 +54,7 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
+//! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
@@ -82,10 +82,9 @@ pub use app::{Celery, CeleryBuilder};
 pub mod beat;
 pub mod broker;
 pub mod error;
-pub use error::TaskResultExt;
+pub mod prelude;
 pub mod protocol;
 pub mod task;
-pub use task::TaskResult;
 
 #[cfg(feature = "codegen")]
 mod codegen;
@@ -122,7 +121,7 @@ mod codegen;
 /// Create a task named `add` with all of the default options:
 ///
 /// ```rust
-/// use celery::TaskResult;
+/// use celery::prelude::*;
 ///
 /// #[celery::task]
 /// fn add(x: i32, y: i32) -> TaskResult<i32> {
@@ -133,7 +132,7 @@ mod codegen;
 /// Use a name different from the function name:
 ///
 /// ```rust
-/// # use celery::TaskResult;
+/// # use celery::prelude::*;
 /// #[celery::task(name = "sum")]
 /// fn add(x: i32, y: i32) -> TaskResult<i32> {
 ///     Ok(x + y)
@@ -143,7 +142,7 @@ mod codegen;
 /// Customize the default retry behavior:
 ///
 /// ```rust
-/// # use celery::TaskResult;
+/// # use celery::prelude::*;
 /// #[celery::task(
 ///     time_limit = 3,
 ///     max_retries = 100,
@@ -159,7 +158,7 @@ mod codegen;
 /// Bind the function to the task instance so it runs like an instance method:
 ///
 /// ```rust
-/// # use celery::task::{Task, TaskResult};
+/// # use celery::prelude::*;
 /// #[celery::task(bind = true)]
 /// fn bound_task(task: &Self) {
 ///     println!("Hello, World! From {}", task.name());

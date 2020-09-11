@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Added a `prelude` module.
+
+### Changed
+
+- Improved `TaskResultExt`. Now takes a `FnOnce() -> Context` instead of `&str`.
+
 ## v0.4.0-rc3 - 2020-09-09
 
 ### Added

@@ -199,3 +199,46 @@ pub(crate) enum TaskStatus {
     Pending,
     Finished,
 }
+
+/// Extension methods for `Result` types within a task body.
+///
+/// These methods can be used to convert a `Result<T, E>` to a `Result<T, TaskError>` with the
+/// appropriate `TaskError` variant. The trait has a blanket implementation for any error type that implements
+/// [`std::error::Error`](https://doc.rust-lang.org/std/error/trait.Error.html).
+///
+/// # Examples
+///
+/// ```rust
+/// # use celery::prelude::*;
+/// fn do_some_io() -> Result<(), std::io::Error> {
+///     unimplemented!()
+/// }
+///
+/// #[celery::task]
+/// fn fallible_io_task() -> TaskResult<()> {
+///     do_some_io().with_expected_err(|| "IO error")?;
+///     Ok(())
+/// }
+/// ```
+pub trait TaskResultExt<T, E, F, C> {
+    /// Convert the error type to a `TaskError::ExpectedError`.
+    fn with_expected_err(self, f: F) -> Result<T, TaskError>;
+
+    /// Convert the error type to a `TaskError::UnexpectedError`.
+    fn with_unexpected_err(self, f: F) -> Result<T, TaskError>;
+}
+
+impl<T, E, F, C> TaskResultExt<T, E, F, C> for Result<T, E>
+where
+    E: std::error::Error,
+    F: FnOnce() -> C,
+    C: std::fmt::Display + Send + Sync + 'static,
+{
+    fn with_expected_err(self, f: F) -> Result<T, TaskError> {
+        self.map_err(|e| TaskError::ExpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
+    }
+
+    fn with_unexpected_err(self, f: F) -> Result<T, TaskError> {
+        self.map_err(|e| TaskError::UnexpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
+    }
+}
