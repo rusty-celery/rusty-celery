@@ -59,16 +59,26 @@ impl BrokerBuilder for AMQPBrokerBuilder {
 
     /// Declare a queue, and instantiate any exchanges.
     fn declare_queue(mut self, queue: CeleryQueue) -> Self {
-        self.config.queues.insert(
-            queue.name,
-            QueueDeclareOptions {
-                passive: false,
-                durable: true,
-                exclusive: false,
-                auto_delete: false,
-                nowait: false,
+        match queue.options { 
+            Some(config) => { 
+                self.config.queues.insert(
+                   queue.name,
+                   config 
+                );
             },
-        );
+            None => { 
+                self.config.queues.insert(
+                    queue.name,
+                    QueueDeclareOptions {
+                        passive: false,
+                        durable: true,
+                        exclusive: false,
+                        auto_delete: false,
+                        nowait: false,
+                    },
+                );
+            }
+        };
         self
     }
 
