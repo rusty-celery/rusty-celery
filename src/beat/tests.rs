@@ -11,8 +11,7 @@ use futures::Stream;
 use crate::error::{BrokerError, ProtocolError};
 use crate::{
     protocol::{Message, TryDeserializeMessage},
-    task::{Request, TaskOptions},
-    TaskResult,
+    task::{Request, TaskOptions, TaskResult},
 };
 use std::fmt::{self, Display};
 use std::{

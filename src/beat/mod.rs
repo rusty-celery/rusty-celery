@@ -1,5 +1,4 @@
-//! This module contains the implementation of the Celery beat, which is a component
-//! that can be used to automatically produce tasks at scheduled times.
+//! Celery beat is an app that can automatically produce tasks at scheduled times.
 //!
 //! ### Terminology
 //!

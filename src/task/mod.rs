@@ -150,9 +150,19 @@ pub trait Task: Send + Sync + std::marker::Sized {
     }
 
     fn time_limit(&self) -> Option<u32> {
-        self.request()
-            .time_limit
-            .or_else(|| Self::DEFAULTS.time_limit.or(self.options().time_limit))
+        self.request().time_limit.or_else(|| {
+            // Take min or `time_limit` and `hard_time_limit`.
+            let time_limit = Self::DEFAULTS.time_limit.or(self.options().time_limit);
+            let hard_time_limit = Self::DEFAULTS
+                .hard_time_limit
+                .or(self.options().hard_time_limit);
+            match (time_limit, hard_time_limit) {
+                (Some(t1), Some(t2)) => Some(std::cmp::min(t1, t2)),
+                (Some(t1), None) => Some(t1),
+                (None, Some(t2)) => Some(t2),
+                _ => None,
+            }
+        })
     }
 
     fn max_retries(&self) -> Option<u32> {
@@ -190,4 +200,47 @@ pub(crate) enum TaskEvent {
 pub(crate) enum TaskStatus {
     Pending,
     Finished,
+}
+
+/// Extension methods for `Result` types within a task body.
+///
+/// These methods can be used to convert a `Result<T, E>` to a `Result<T, TaskError>` with the
+/// appropriate `TaskError` variant. The trait has a blanket implementation for any error type that implements
+/// [`std::error::Error`](https://doc.rust-lang.org/std/error/trait.Error.html).
+///
+/// # Examples
+///
+/// ```rust
+/// # use celery::prelude::*;
+/// fn do_some_io() -> Result<(), std::io::Error> {
+///     unimplemented!()
+/// }
+///
+/// #[celery::task]
+/// fn fallible_io_task() -> TaskResult<()> {
+///     do_some_io().with_expected_err(|| "IO error")?;
+///     Ok(())
+/// }
+/// ```
+pub trait TaskResultExt<T, E, F, C> {
+    /// Convert the error type to a `TaskError::ExpectedError`.
+    fn with_expected_err(self, f: F) -> Result<T, TaskError>;
+
+    /// Convert the error type to a `TaskError::UnexpectedError`.
+    fn with_unexpected_err(self, f: F) -> Result<T, TaskError>;
+}
+
+impl<T, E, F, C> TaskResultExt<T, E, F, C> for Result<T, E>
+where
+    E: std::error::Error,
+    F: FnOnce() -> C,
+    C: std::fmt::Display + Send + Sync + 'static,
+{
+    fn with_expected_err(self, f: F) -> Result<T, TaskError> {
+        self.map_err(|e| TaskError::ExpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
+    }
+
+    fn with_unexpected_err(self, f: F) -> Result<T, TaskError> {
+        self.map_err(|e| TaskError::UnexpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
+    }
 }
