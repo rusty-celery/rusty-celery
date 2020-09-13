@@ -1,5 +1,5 @@
-use crate::protocol::MessageContentType;
 use super::{Task, TaskOptions};
+use crate::protocol::MessageContentType;
 use chrono::{DateTime, Utc};
 
 /// Wraps the parameters and execution options for a single task invocation.
