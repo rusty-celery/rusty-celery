@@ -98,7 +98,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
                 queue.get_options()
             );
             match &queue.exchange { 
-                Some(x) => x.declare(&consume_channel).await?,
+                Some(exchange) => exchange.declare(&consume_channel).await?,
                 None => continue
             }
         }
