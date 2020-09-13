@@ -26,6 +26,7 @@ use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuil
 use crate::routing::{self, Rule};
 use crate::{
     error::{BeatError, BrokerError, CeleryError},
+    protocol::MessageContentType,
     task::{Signature, Task},
 };
 use log::{debug, error, info};
@@ -56,6 +57,7 @@ where
     broker_connection_retry_delay: u32,
     default_queue: String,
     task_routes: Vec<(String, String)>,
+    content_type_override: Option<MessageContentType>,
 }
 
 /// Used to create a `Beat` app with a custom configuration.
@@ -85,6 +87,7 @@ where
                 broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
                 task_routes: vec![],
+                content_type_override: None,
             },
             scheduler_backend: LocalSchedulerBackend::new(),
         }
@@ -113,6 +116,7 @@ where
                 broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
                 task_routes: vec![],
+                content_type_override: None,
             },
             scheduler_backend,
         }
@@ -161,6 +165,13 @@ where
         self
     }
 
+    /// Set the content type of the message body serialization. If set, Beat
+    /// will override the content type set in Signatures.
+    pub fn content_type_override(mut self, content_type: MessageContentType) -> Self {
+        self.config.content_type_override = Some(content_type);
+        self
+    }
+
     /// Construct a `Beat` app with the current configuration.
     pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, CeleryError> {
         // Declare default queue to broker.
@@ -192,6 +203,7 @@ where
             scheduler_backend: self.scheduler_backend,
             task_routes,
             default_queue: self.config.default_queue,
+            content_type_override: self.config.content_type_override,
             broker_connection_timeout: self.config.broker_connection_timeout,
             broker_connection_retry: self.config.broker_connection_retry,
             broker_connection_max_retries: self.config.broker_connection_max_retries,
@@ -211,6 +223,7 @@ pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     scheduler_backend: Sb,
     task_routes: Vec<Rule>,
     default_queue: String,
+    content_type_override: Option<MessageContentType>,
 
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
@@ -264,6 +277,13 @@ where
             None => routing::route(T::NAME, &self.task_routes)
                 .unwrap_or(&self.default_queue)
                 .to_string(),
+        };
+        let signature = if let Some(content_type) = self.content_type_override {
+            let mut signature = signature;
+            signature.content_type = content_type;
+            signature
+        } else {
+            signature
         };
         let message_factory = Box::new(signature);
 
