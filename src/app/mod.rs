@@ -250,6 +250,7 @@ pub struct Exchange {
     routing_key: String, 
     /// Exchange Kind Type.
     kind: ExchangeKind,
+    /// Options for a given exchange.
     options: ExchangeDeclareOptions
 }
 impl Exchange { 
@@ -269,7 +270,9 @@ impl Exchange {
 pub struct CeleryQueue {
     /// Human-readable name for the queue.
     pub name: String,
+    /// A set of custom options for the given queue. 
     pub options: Option<QueueDeclareOptions>,
+    /// A custom exchange for the custom queue. 
     pub exchange: Option<Exchange>
 }
 
@@ -286,6 +289,7 @@ impl CeleryQueue {
         Self { name: name, options: Some(options), exchange: None }
     }
 
+    /// Retrieves the current set of options from the queue.
     pub fn get_options(&self) -> QueueDeclareOptions { 
         match self.options { 
             Some(x) => x,
@@ -314,6 +318,8 @@ impl CeleryQueue {
 }
 
 impl From<&str> for CeleryQueue {
+
+    /// Convert from string into a Celery Queue.
     fn from(input: &str) -> Self {
         Self {
             name: String::from(input),

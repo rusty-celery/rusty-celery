@@ -57,7 +57,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         self
     }
 
-    ///  
+    /// Declare a queue to process during broker build time.  
     fn declare_queue(mut self, queue: CeleryQueue) -> Self {
         self.config.queues.push(queue);
         self
