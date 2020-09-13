@@ -55,6 +55,7 @@ fn test_task_options() {
 
 #[celery::task(bind = true)]
 fn bound_task(t: &Self) -> TaskResult<Option<u32>> {
+    t.retry_with_countdown(2)?;
     Ok(t.time_limit())
 }
 

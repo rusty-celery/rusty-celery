@@ -100,7 +100,7 @@ where
                 Ok(())
             }
             Err(e) => {
-                let should_retry = match e {
+                let (should_retry, retry_eta) = match e {
                     TaskError::ExpectedError(ref reason) => {
                         warn!(
                             "Task {}[{}] failed with expected error: {}",
@@ -108,7 +108,7 @@ where
                             &self.task.request().id,
                             reason
                         );
-                        true
+                        (true, None)
                     }
                     TaskError::UnexpectedError(ref reason) => {
                         error!(
@@ -117,7 +117,7 @@ where
                             &self.task.request().id,
                             reason
                         );
-                        self.task.retry_for_unexpected()
+                        (self.task.retry_for_unexpected(), None)
                     }
                     TaskError::TimeoutError => {
                         error!(
@@ -126,7 +126,15 @@ where
                             &self.task.request().id,
                             duration.as_secs_f32(),
                         );
-                        true
+                        (true, None)
+                    }
+                    TaskError::Retry(eta) => {
+                        error!(
+                            "Task {}[{}] triggered retry",
+                            self.task.name(),
+                            &self.task.request().id,
+                        );
+                        (true, eta)
                     }
                 };
 
@@ -169,7 +177,9 @@ where
                     );
                 }
 
-                Err(TraceError::Retry(self.task.retry_eta()))
+                Err(TraceError::Retry(
+                    retry_eta.or_else(|| self.task.retry_eta()),
+                ))
             }
         }
     }

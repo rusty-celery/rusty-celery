@@ -12,8 +12,7 @@ use crate::app::CeleryQueue;
 use crate::error::{BrokerError, ProtocolError};
 use crate::{
     protocol::{Message, TryDeserializeMessage},
-    task::{Request, TaskOptions},
-    TaskResult,
+    task::{Request, TaskOptions, TaskResult},
 };
 use std::fmt::{self, Display};
 use std::{
@@ -35,10 +34,10 @@ async fn test_task_with_regular_schedule() {
     // Configure a dummy queue for the tasks.
     let task_routes = vec![Rule::new("dummy_*", "dummy_queue").unwrap()];
 
-    let mut beat: Beat<DummyBroker, DummyBackend> = Beat {
+    let mut beat: Beat<DummyBroker, LocalSchedulerBackend> = Beat {
         name: "dummy_beat".to_string(),
         scheduler: Scheduler::new(dummy_broker),
-        scheduler_backend: DummyBackend::new(),
+        scheduler_backend: LocalSchedulerBackend::new(),
         task_routes,
         default_queue: "celery".to_string(),
         broker_connection_timeout: 5,
@@ -89,10 +88,10 @@ async fn test_scheduling_two_tasks() {
         Rule::new("dummy_task2", "dummy_queue2").unwrap(),
         Rule::new("dummy_*", "dummy_queue").unwrap(),
     ];
-    let mut beat: Beat<DummyBroker, DummyBackend> = Beat {
+    let mut beat: Beat<DummyBroker, LocalSchedulerBackend> = Beat {
         name: "dummy_beat".to_string(),
         scheduler: Scheduler::new(dummy_broker),
-        scheduler_backend: DummyBackend::new(),
+        scheduler_backend: LocalSchedulerBackend::new(),
         task_routes,
         default_queue: "celery".to_string(),
         broker_connection_timeout: 5,

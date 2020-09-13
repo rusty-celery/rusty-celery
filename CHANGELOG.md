@@ -9,8 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a `prelude` module.
+
+### Changed
+
+- Improved `TaskResultExt`. Now takes a `FnOnce() -> Context` instead of `&str`.
+
+## v0.4.0-rc3 - 2020-09-09
+
+### Added
+
 - Added a `.display_pretty()` method on the `Celery` struct that prints out a cool ASCII logo
   with some useful information about the app.
+- Added an `AsyncResult` struct that acts as a handler for task results.
+- Added `Task::retry_with_countdown` and `Task::retry_with_eta` trait methods so that tasks can
+  manually trigger a retry.
+
+### Changed
+
+- Fields of the `Signature` struct made private to avoid confusion around which fields of `TaskOptions` apply to a `Signature`.
+- `Celery::send_task` now returns an `AsyncResult` instead of a `String` for the `Ok` variant.
+- Renamed `DummyBackend` to `LocalSchedulerBackend`.
+- Switched to [`thiserror`](https://github.com/dtolnay/thiserror) for the error module instead of the deprecated `failure` crate.
+
+### Fixed
+
+- Fixed bug where `hard_time_limit` was ignored by worker if only specified at the app or task level.
 
 ## v0.4.0-rc2 - 2020-08-27
 
