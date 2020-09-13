@@ -1,4 +1,5 @@
 use super::Task;
+use crate::protocol::MessageContentType;
 use chrono::{DateTime, Utc};
 
 /// Wraps the parameters and execution options for a single task invocation.
@@ -60,6 +61,9 @@ where
 
     /// A future time at which the task will expire.
     pub expires: Option<DateTime<Utc>>,
+
+    /// The desired serialization format for the body content
+    pub content_type: MessageContentType,
 }
 
 impl<T> Signature<T>
@@ -77,6 +81,7 @@ where
             eta: None,
             expires_in: None,
             expires: None,
+            content_type: MessageContentType::Json,
         }
     }
 
