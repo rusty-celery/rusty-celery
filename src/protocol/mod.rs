@@ -362,8 +362,8 @@ where
         }
 
         #[cfg(any(test, feature = "extra_content_types"))]
-        {
-            builder = builder.content_type(task_sig.content_type);
+        if let Some(content_type) = task_sig.options.content_type {
+            builder = builder.content_type(content_type);
         }
 
         if let Some(time_limit) = task_sig.options.time_limit.take() {

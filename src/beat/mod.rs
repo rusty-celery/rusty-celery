@@ -279,7 +279,7 @@ where
         };
         let signature = if let Some(content_type) = self.content_type_override {
             let mut signature = signature;
-            signature.content_type = content_type;
+            signature.options.content_type = Some(content_type);
             signature
         } else {
             signature
