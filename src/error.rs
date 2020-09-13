@@ -172,6 +172,47 @@ pub enum ProtocolError {
     BodySerializationError(#[from] ContentTypeError),
 }
 
+impl From<serde_json::Error> for ProtocolError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<serde_yaml::Error> for ProtocolError {
+    fn from(err: serde_yaml::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<serde_pickle::error::Error> for ProtocolError {
+    fn from(err: serde_pickle::error::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<rmp_serde::decode::Error> for ProtocolError {
+    fn from(err: rmp_serde::decode::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<rmp_serde::encode::Error> for ProtocolError {
+    fn from(err: rmp_serde::encode::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<rmpv::ext::Error> for ProtocolError {
+    fn from(err: rmpv::ext::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum ContentTypeError {
     #[error("JSON serialization error")]
