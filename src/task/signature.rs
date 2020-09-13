@@ -135,4 +135,10 @@ where
         self.expires = Some(expires);
         self
     }
+
+    /// set the conent type serialization format for the message body
+    pub fn with_content_type(mut self, content_type: MessageContentType) -> Self {
+        self.content_type = content_type;
+        self
+    }
 }
