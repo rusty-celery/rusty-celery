@@ -369,6 +369,11 @@ where
             builder = builder.expires(task_sig.expires.take().unwrap());
         }
 
+        #[cfg(any(test, feature = "extra_content_types"))]
+        {
+            builder = builder.content_type(task_sig.content_type);
+        }
+
         builder.params(task_sig.params).build()
     }
 }
