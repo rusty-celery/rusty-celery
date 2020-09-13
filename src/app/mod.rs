@@ -39,6 +39,7 @@ where
     default_queue: String,
     task_options: TaskOptions,
     task_routes: Vec<(String, CeleryQueue)>,
+    queues: Vec<CeleryQueue>,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
@@ -74,6 +75,7 @@ where
                 default_queue: "celery".into(),
                 task_options: TaskOptions::default(),
                 task_routes: vec![],
+                queues: vec![]
             },
         }
     }
@@ -192,6 +194,12 @@ where
     /// Set the number of seconds to wait before re-trying the connection with the broker.
     pub fn broker_connection_retry_delay(mut self, retry_delay: u32) -> Self {
         self.config.broker_connection_retry_delay = retry_delay;
+        self
+    }
+    
+    /// Set a vector of Celery queues to associatde with your celery app. 
+    pub fn queues(mut self, queues: Vec<CeleryQueue>) -> Self { 
+        self.config.queues = queues;
         self
     }
 
