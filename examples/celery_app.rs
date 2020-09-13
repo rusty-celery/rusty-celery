@@ -1,10 +1,9 @@
 #![allow(non_upper_case_globals)]
 
+use anyhow::Result;
 use async_trait::async_trait;
-use celery::error::TaskError;
-use celery::task::TaskResult;
+use celery::prelude::*;
 use env_logger::Env;
-use exitfailure::ExitFailure;
 use structopt::StructOpt;
 use tokio::time::{self, Duration};
 
@@ -17,10 +16,14 @@ fn add(x: i32, y: i32) -> TaskResult<i32> {
 // Demonstrates a task that raises an error, and also how to customize task options.
 // In this case we override the default `max_retries`.
 #[celery::task(max_retries = 3)]
-fn buggy_task() -> TaskResult<()> {
-    Err(TaskError::UnexpectedError(
-        "This error is part of the example: it is used to showcase error handling".into(),
-    ))
+async fn buggy_task() -> TaskResult<()> {
+    let data = tokio::fs::read("this-file-doesn't-exist")
+        .await
+        .with_unexpected_err(|| {
+            "This error is part of the example, it is used to showcase error handling"
+        })?;
+    println!("Read {} bytes", data.len());
+    Ok(())
 }
 
 // Demonstrates a long running IO-bound task. By increasing the prefetch count, an arbitrary
@@ -54,7 +57,7 @@ enum CeleryOpt {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), ExitFailure> {
+async fn main() -> Result<()> {
     env_logger::from_env(Env::default().default_filter_or("info")).init();
     let opt = CeleryOpt::from_args();
     let my_app = celery::app!(

@@ -178,14 +178,6 @@ where
 
         let mut builder = MessageBuilder::<T>::new(id);
 
-        if let Some(time_limit) = task_sig.time_limit.take() {
-            builder = builder.time_limit(time_limit);
-        }
-
-        if let Some(time_limit) = task_sig.hard_time_limit.take() {
-            builder = builder.hard_time_limit(time_limit);
-        }
-
         if let Some(countdown) = task_sig.countdown.take() {
             builder = builder.countdown(countdown);
         } else if task_sig.eta.is_some() {
@@ -196,6 +188,14 @@ where
             builder = builder.expires_in(expires_in);
         } else if task_sig.expires.is_some() {
             builder = builder.expires(task_sig.expires.take().unwrap());
+        }
+
+        if let Some(time_limit) = task_sig.options.time_limit.take() {
+            builder = builder.time_limit(time_limit);
+        }
+
+        if let Some(time_limit) = task_sig.options.hard_time_limit.take() {
+            builder = builder.hard_time_limit(time_limit);
         }
 
         builder.params(task_sig.params).build()

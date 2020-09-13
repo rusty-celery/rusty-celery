@@ -3,7 +3,7 @@ members = ["./", "celery-codegen"]
 
 [package]
 name = "celery"
-version = "0.4.0-rc2"
+version = "0.4.0-rc3"
 authors = ["epwalsh <epwalsh10@gmail.com>"]
 edition = "2018"
 keywords = ["celery", "amqp", "rabbitmq", "background-jobs"]
@@ -28,15 +28,15 @@ chrono = "0.4"
 tokio = { version = "0.2.13", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-failure = "0.1.7"
+thiserror = "1.0"
 async-trait = "0.1"
-lapin = { version = "=1.2.2" }
+lapin = { version = "=1.2.3" }
 amq-protocol = "=6.0.0-rc12"
 log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
 uuid = { version = "0.8", features = ["v4"]}
 rand = "0.7"
-celery-codegen = { version = "0.4.0-rc2", path = "./celery-codegen", optional = true }
+celery-codegen = { version = "0.4.0-rc3", path = "./celery-codegen", optional = true }
 colored = "2"
 once_cell = { version = "1.3.1", optional = true }
 globset = "0.4"
@@ -48,7 +48,7 @@ hostname = "0.3.0"
 
 [dev-dependencies]
 env_logger = "0.7"
-exitfailure = "0.5.1"
+anyhow = "1.0"
 structopt = "0.3"
 
 [features]

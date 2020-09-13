@@ -40,6 +40,11 @@ pub struct TaskOptions {
     /// *Note that this is really only for compatability with Python workers*.
     /// `time_limit` and `hard_time_limit` are treated the same by Rust workers, and if both
     /// are set, the minimum of the two will be used.
+    ///
+    /// This can be set with
+    /// - [`task_hard_time_limit`](../struct.CeleryBuilder.html#method.task_hard_time_limit) at the app level,
+    /// - [`hard_time_limit`](../attr.task.html#parameters) at the task level, and
+    /// - [`with_hard_time_limit`](../task/struct.Signature.html#method.with_hard_time_limit) at the request / signature level.
     pub hard_time_limit: Option<u32>,
 
     /// Maximum number of retries for this task.

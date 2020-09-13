@@ -1,9 +1,9 @@
 use colored::Colorize;
-use failure::Fail;
 use futures::stream::StreamExt;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::error::Error;
 use tokio::select;
 
 #[cfg(unix)]
@@ -20,7 +20,7 @@ use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuil
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, TryDeserializeMessage};
 use crate::routing::Rule;
-use crate::task::{Signature, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Bb>
@@ -70,15 +70,7 @@ where
                 broker_connection_max_retries: 5,
                 broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
-                task_options: TaskOptions {
-                    time_limit: None,
-                    hard_time_limit: None,
-                    max_retries: None,
-                    min_retry_delay: None,
-                    max_retry_delay: None,
-                    retry_for_unexpected: None,
-                    acks_late: Some(false),
-                },
+                task_options: TaskOptions::default(),
                 task_routes: vec![],
             },
         }
@@ -320,11 +312,12 @@ where
         println!();
     }
 
-    /// Send a task to a remote worker. Returns the task ID of the task if successful.
+    /// Send a task to a remote worker. Returns an `AsyncResult` with the task ID of the task
+    /// if it was successfully sent.
     pub async fn send_task<T: Task>(
         &self,
         mut task_sig: Signature<T>,
-    ) -> Result<String, CeleryError> {
+    ) -> Result<AsyncResult, CeleryError> {
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
             crate::routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
@@ -337,7 +330,7 @@ where
             queue,
         );
         self.broker.send(&message, queue).await?;
-        Ok(message.task_id().into())
+        Ok(AsyncResult::new(message.task_id()))
     }
 
     /// Register a task.
@@ -356,15 +349,18 @@ where
         &self,
         message: Message,
         event_tx: UnboundedSender<TaskEvent>,
-    ) -> Result<Box<dyn TracerTrait>, Box<dyn Fail>> {
+    ) -> Result<Box<dyn TracerTrait>, Box<dyn Error + Send + Sync + 'static>> {
         let task_trace_builders = self.task_trace_builders.read().await;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
             Ok(
                 build_tracer(message, self.task_options, event_tx, self.hostname.clone())
-                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?,
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?,
             )
         } else {
-            Err(Box::new(CeleryError::UnregisteredTaskError(message.headers.task)) as Box<dyn Fail>)
+            Err(
+                Box::new(CeleryError::UnregisteredTaskError(message.headers.task))
+                    as Box<dyn Error + Send + Sync + 'static>,
+            )
         }
     }
 
@@ -374,7 +370,7 @@ where
         &self,
         delivery: B::Delivery,
         event_tx: UnboundedSender<TaskEvent>,
-    ) -> Result<(), Box<dyn Fail>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         // Coerce the delivery into a protocol message.
         let message = match delivery.try_deserialize_message() {
             Ok(message) => message,
@@ -384,7 +380,7 @@ where
                 self.broker
                     .ack(&delivery)
                     .await
-                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 return Err(Box::new(e));
             }
         };
@@ -401,8 +397,8 @@ where
                 self.broker
                     .ack(&delivery)
                     .await
-                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
-                return Err(Box::new(e));
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
+                return Err(e);
             }
         };
 
@@ -418,11 +414,11 @@ where
                 self.broker
                     .retry(&delivery, None)
                     .await
-                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 self.broker
                     .ack(&delivery)
                     .await
-                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 return Err(Box::new(e));
             };
 
@@ -435,7 +431,7 @@ where
             self.broker
                 .ack(&delivery)
                 .await
-                .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
 
         // Try tracing the task now.
@@ -448,7 +444,7 @@ where
                 self.broker
                     .retry(&delivery, retry_eta)
                     .await
-                    .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
             }
         }
 
@@ -457,7 +453,7 @@ where
             self.broker
                 .ack(&delivery)
                 .await
-                .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
 
         // If we had increased the prefetch count above due to a future ETA, we have
@@ -466,7 +462,7 @@ where
             self.broker
                 .decrease_prefetch_count()
                 .await
-                .map_err(|e| Box::new(e) as Box<dyn Fail>)?;
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
 
         Ok(())
