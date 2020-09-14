@@ -102,3 +102,23 @@ pub struct TaskOptions {
     /// If this option is left unspecified, the default behavior will be to ack early.
     pub acks_late: Option<bool>,
 }
+
+impl TaskOptions {
+    pub fn update(&mut self, other: &TaskOptions) {
+        self.time_limit = self.time_limit.or_else(|| other.time_limit.clone());
+        self.hard_time_limit = self
+            .hard_time_limit
+            .or_else(|| other.hard_time_limit.clone());
+        self.max_retries = self.max_retries.or_else(|| other.max_retries.clone());
+        self.min_retry_delay = self
+            .min_retry_delay
+            .or_else(|| other.min_retry_delay.clone());
+        self.max_retry_delay = self
+            .max_retry_delay
+            .or_else(|| other.max_retry_delay.clone());
+        self.retry_for_unexpected = self
+            .retry_for_unexpected
+            .or_else(|| other.retry_for_unexpected.clone());
+        self.acks_late = self.acks_late.or_else(|| other.acks_late.clone());
+    }
+}

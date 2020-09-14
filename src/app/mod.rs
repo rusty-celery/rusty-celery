@@ -318,6 +318,7 @@ where
         &self,
         mut task_sig: Signature<T>,
     ) -> Result<AsyncResult, CeleryError> {
+        task_sig.options.update(&self.task_options);
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
             crate::routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
