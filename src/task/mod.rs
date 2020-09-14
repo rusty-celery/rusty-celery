@@ -58,7 +58,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
         max_retry_delay: None,
         retry_for_unexpected: None,
         acks_late: None,
-        content_type: Some(MessageContentType::Json),
+        content_type: None,
     };
 
     /// The parameters of the task.

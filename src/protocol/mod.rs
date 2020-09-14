@@ -24,7 +24,7 @@ static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
         .map(|sys_hostname| format!("gen{}@{}", process::id(), sys_hostname))
 });
 
-/// Serialization formats supported for message body
+/// Serialization formats supported for message body.
 #[derive(Copy, Clone)]
 pub enum MessageContentType {
     Json,
@@ -73,9 +73,9 @@ where
             params: None,
         }
     }
-    /// set which serialization method is used in the body
-    /// if feature "extra_content_types" is not enabled, json
-    /// will be used.
+    /// Set which serialization method is used in the body.
+    ///
+    /// JSON is the default, and is also the only option unless the feature "extra_content_types" is enabled.
     #[cfg(any(test, feature = "extra_content_types"))]
     pub fn content_type(mut self, content_type: MessageContentType) -> Self {
         use MessageContentType::*;

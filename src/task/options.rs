@@ -104,6 +104,6 @@ pub struct TaskOptions {
     /// If this option is left unspecified, the default behavior will be to ack early.
     pub acks_late: Option<bool>,
 
-    /// What serialization format to use for messages sent on this task
+    /// Which serialization format to use for task messages.
     pub content_type: Option<MessageContentType>,
 }

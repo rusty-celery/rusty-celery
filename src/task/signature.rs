@@ -103,7 +103,7 @@ where
         self
     }
 
-    /// set the conent type serialization format for the message body
+    /// Set the content type serialization format for the message body.
     pub fn with_content_type(mut self, content_type: Option<MessageContentType>) -> Self {
         self.options.content_type = content_type;
         self
