@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::TaskError;
-use crate::protocol::MessageContentType;
 
 mod async_result;
 mod options;
