@@ -164,7 +164,7 @@ where
 
     /// Set default serialization format a task will have (see
     /// [`TaskOption::content_type`](task/struct.TaskOptions.html#structfield.content_type)).
-    pub fn content_type(mut self, content_type: MessageContentType) -> Self {
+    pub fn task_content_type(mut self, content_type: MessageContentType) -> Self {
         self.config.task_options.content_type = Some(content_type);
         self
     }
@@ -325,6 +325,7 @@ where
         &self,
         mut task_sig: Signature<T>,
     ) -> Result<AsyncResult, CeleryError> {
+        task_sig.options.update(&self.task_options);
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
             crate::routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)

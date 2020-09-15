@@ -10,10 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added a `prelude` module.
+- Added support for YAML, MsgPack, and Pickle content types, behind the `extra_content_types` feature flag.
 
 ### Changed
 
 - Improved `TaskResultExt`. Now takes a `FnOnce() -> Context` instead of `&str`.
+
+### Fixed
+
+- Ensure a `Signature` inherits default `TaskOptions` from the corresponding `Task` and `Celery` or `Beat` app.
 
 ## v0.4.0-rc3 - 2020-09-09
 
@@ -21,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a `.display_pretty()` method on the `Celery` struct that prints out a cool ASCII logo
   with some useful information about the app.
-- Added support for YAML, MsgPack, and Pickle content types, behind the `extra_content_types` feature flag
 - Added an `AsyncResult` struct that acts as a handler for task results.
 - Added `Task::retry_with_countdown` and `Task::retry_with_eta` trait methods so that tasks can
   manually trigger a retry.
