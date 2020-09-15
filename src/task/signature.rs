@@ -63,7 +63,7 @@ where
             eta: None,
             expires_in: None,
             expires: None,
-            options: T::DEFAULTS.clone(),
+            options: T::DEFAULTS,
         }
     }
 
