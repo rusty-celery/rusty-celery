@@ -28,6 +28,10 @@ chrono = "0.4"
 tokio = { version = "0.2.13", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
+rmp-serde = { version = "0.14", optional = true }
+rmpv = { version = "0.4.5", optional = true, features = ["with-serde"] }
+serde_yaml = { version = "0.8", optional = true }
+serde-pickle = { version = "0.6", optional = true }
 thiserror = "1.0"
 async-trait = "0.1"
 lapin = { version = "=1.2.3" }
@@ -47,6 +51,10 @@ cookie-factory = "0.3.1"
 hostname = "0.3.0"
 
 [dev-dependencies]
+rmp-serde = "0.14"
+rmpv = { version = "0.4.5", features = ["with-serde"] }
+serde_yaml = "0.8"
+serde-pickle = "0.6"
 env_logger = "0.7"
 anyhow = "1.0"
 structopt = "0.3"
@@ -54,3 +62,4 @@ structopt = "0.3"
 [features]
 default = ["codegen"]
 codegen = ["celery-codegen", "once_cell"]
+extra_content_types = ["rmp-serde", "rmpv", "serde_yaml", "serde-pickle"]
