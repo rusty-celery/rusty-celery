@@ -109,6 +109,7 @@ pub struct TaskOptions {
     /// This can be set with
     /// - [`task_content_type`](../struct.CeleryBuilder.html#method.task_content_type) at the app level, and
     /// - [`content_type`](../attr.task.html#parameters) at the task level.
+    /// - [`with_content_type`](../task/struct.Signature.html#method.with_content_type) at the request / signature level.
     pub content_type: Option<MessageContentType>,
 }
 
