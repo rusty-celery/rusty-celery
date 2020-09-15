@@ -1,3 +1,5 @@
+use crate::protocol::MessageContentType;
+
 /// Configuration options pertaining to a task.
 ///
 /// These are set at either the app level (pertaining to all registered tasks),
@@ -101,6 +103,9 @@ pub struct TaskOptions {
     ///
     /// If this option is left unspecified, the default behavior will be to ack early.
     pub acks_late: Option<bool>,
+
+    /// Which serialization format to use for task messages.
+    pub content_type: Option<MessageContentType>,
 }
 
 impl TaskOptions {
@@ -114,5 +119,6 @@ impl TaskOptions {
             .retry_for_unexpected
             .or_else(|| other.retry_for_unexpected);
         self.acks_late = self.acks_late.or_else(|| other.acks_late);
+        self.content_type = self.content_type.or_else(|| other.content_type);
     }
 }

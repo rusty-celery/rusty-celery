@@ -168,6 +168,76 @@ pub enum ProtocolError {
     MissingRequiredHeader(String),
 
     /// Raised when serializing or de-serializing a message body fails.
-    #[error("serialization error")]
-    BodySerializationError(#[from] serde_json::Error),
+    #[error("message body serialization error")]
+    BodySerializationError(#[from] ContentTypeError),
+}
+
+impl From<serde_json::Error> for ProtocolError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<serde_yaml::Error> for ProtocolError {
+    fn from(err: serde_yaml::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<serde_pickle::error::Error> for ProtocolError {
+    fn from(err: serde_pickle::error::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<rmp_serde::decode::Error> for ProtocolError {
+    fn from(err: rmp_serde::decode::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<rmp_serde::encode::Error> for ProtocolError {
+    fn from(err: rmp_serde::encode::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+impl From<rmpv::ext::Error> for ProtocolError {
+    fn from(err: rmpv::ext::Error) -> Self {
+        Self::from(ContentTypeError::from(err))
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum ContentTypeError {
+    #[error("JSON serialization error")]
+    Json(#[from] serde_json::Error),
+
+    #[cfg(any(test, feature = "extra_content_types"))]
+    #[error("YAML serialization error")]
+    Yaml(#[from] serde_yaml::Error),
+
+    #[cfg(any(test, feature = "extra_content_types"))]
+    #[error("Pickle serialization error")]
+    Pickle(#[from] serde_pickle::error::Error),
+
+    #[cfg(any(test, feature = "extra_content_types"))]
+    #[error("MessagePack decoding error")]
+    MsgPackDecode(#[from] rmp_serde::decode::Error),
+
+    #[cfg(any(test, feature = "extra_content_types"))]
+    #[error("MessagePack encoding error")]
+    MsgPackEncode(#[from] rmp_serde::encode::Error),
+
+    #[cfg(any(test, feature = "extra_content_types"))]
+    #[error("MessagePack value error")]
+    MsgPackValue(#[from] rmpv::ext::Error),
+
+    #[error("Unknown content type error")]
+    Unknown,
 }

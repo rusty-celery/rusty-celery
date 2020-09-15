@@ -9,13 +9,12 @@ use chrono::{DateTime, Duration, Utc};
 use log::debug;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::convert::TryFrom;
 use std::process;
 use std::time::SystemTime;
 use uuid::Uuid;
 
-use crate::error::ProtocolError;
+use crate::error::{ContentTypeError, ProtocolError};
 use crate::task::{Signature, Task};
 
 static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
@@ -24,6 +23,21 @@ static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
         .and_then(|sys_hostname| sys_hostname.into_string().ok())
         .map(|sys_hostname| format!("gen{}@{}", process::id(), sys_hostname))
 });
+
+/// Serialization formats supported for message body.
+#[derive(Copy, Clone)]
+pub enum MessageContentType {
+    Json,
+    Yaml,
+    Pickle,
+    MsgPack,
+}
+
+impl Default for MessageContentType {
+    fn default() -> Self {
+        MessageContentType::Json
+    }
+}
 
 /// Create a message with a custom configuration.
 pub struct MessageBuilder<T>
@@ -58,6 +72,21 @@ where
             },
             params: None,
         }
+    }
+    /// Set which serialization method is used in the body.
+    ///
+    /// JSON is the default, and is also the only option unless the feature "extra_content_types" is enabled.
+    #[cfg(any(test, feature = "extra_content_types"))]
+    pub fn content_type(mut self, content_type: MessageContentType) -> Self {
+        use MessageContentType::*;
+        let content_type_name = match content_type {
+            Json => "application/json",
+            Yaml => "application/x-yaml",
+            Pickle => "application/x-python-serialize",
+            MsgPack => "application/x-msgpack",
+        };
+        self.message.properties.content_type = content_type_name.into();
+        self
     }
 
     pub fn time_limit(mut self, time_limit: u32) -> Self {
@@ -101,7 +130,22 @@ where
     pub fn build(mut self) -> Result<Message, ProtocolError> {
         if let Some(params) = self.params.take() {
             let body = MessageBody::<T>::new(params);
-            self.message.raw_body = serde_json::to_vec(&body)?;
+
+            let raw_body = match self.message.properties.content_type.as_str() {
+                "application/json" => serde_json::to_vec(&body)?,
+                #[cfg(any(test, feature = "extra_content_types"))]
+                "application/x-yaml" => serde_yaml::to_vec(&body)?,
+                #[cfg(any(test, feature = "extra_content_types"))]
+                "application/x-python-serialize" => serde_pickle::to_vec(&body, false)?,
+                #[cfg(any(test, feature = "extra_content_types"))]
+                "application/x-msgpack" => rmp_serde::to_vec(&body)?,
+                _ => {
+                    return Err(ProtocolError::BodySerializationError(
+                        ContentTypeError::Unknown,
+                    ));
+                }
+            };
+            self.message.raw_body = raw_body;
         };
         Ok(self.message)
     }
@@ -128,33 +172,160 @@ pub struct Message {
 impl Message {
     /// Try deserializing the body.
     pub fn body<T: Task>(&self) -> Result<MessageBody<T>, ProtocolError> {
-        let value: Value = serde_json::from_slice(&self.raw_body)?;
-        debug!("Deserialized message body: {:?}", value);
-        if let Value::Array(ref vec) = value {
-            if let [Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] =
-                vec[..]
-            {
-                if !args.is_empty() {
-                    // Non-empty args, need to try to coerce them into kwargs.
-                    let mut kwargs = kwargs.clone();
-                    let embed = embed.clone();
-                    let arg_names = T::ARGS;
-                    for (i, arg) in args.iter().enumerate() {
-                        if let Some(arg_name) = arg_names.get(i) {
-                            kwargs.insert((*arg_name).into(), arg.clone());
-                        } else {
-                            break;
+        match self.properties.content_type.as_str() {
+            "application/json" => {
+                use serde_json::{from_slice, from_value, Value};
+                let value: Value = from_slice(&self.raw_body)?;
+                debug!("Deserialized message body: {:?}", value);
+                if let Value::Array(ref vec) = value {
+                    if let [Value::Array(ref args), Value::Object(ref kwargs), Value::Object(ref embed)] =
+                        vec[..]
+                    {
+                        if !args.is_empty() {
+                            // Non-empty args, need to try to coerce them into kwargs.
+                            let mut kwargs = kwargs.clone();
+                            let embed = embed.clone();
+                            let arg_names = T::ARGS;
+                            for (i, arg) in args.iter().enumerate() {
+                                if let Some(arg_name) = arg_names.get(i) {
+                                    kwargs.insert((*arg_name).into(), arg.clone());
+                                } else {
+                                    break;
+                                }
+                            }
+                            return Ok(MessageBody(
+                                vec![],
+                                from_value::<T::Params>(Value::Object(kwargs))?,
+                                from_value::<MessageBodyEmbed>(Value::Object(embed))?,
+                            ));
                         }
                     }
-                    return Ok(MessageBody(
-                        vec![],
-                        serde_json::from_value::<T::Params>(Value::Object(kwargs))?,
-                        serde_json::from_value::<MessageBodyEmbed>(Value::Object(embed))?,
-                    ));
                 }
+                Ok(from_value::<MessageBody<T>>(value)?)
             }
+            #[cfg(any(test, feature = "extra_content_types"))]
+            "application/x-yaml" => {
+                use serde_yaml::{from_slice, from_value, Value};
+                let value: Value = from_slice(&self.raw_body)?;
+                debug!("Deserialized message body: {:?}", value);
+                if let Value::Sequence(ref vec) = value {
+                    if let [Value::Sequence(ref args), Value::Mapping(ref kwargs), Value::Mapping(ref embed)] =
+                        vec[..]
+                    {
+                        if !args.is_empty() {
+                            // Non-empty args, need to try to coerce them into kwargs.
+                            let mut kwargs = kwargs.clone();
+                            let embed = embed.clone();
+                            let arg_names = T::ARGS;
+                            for (i, arg) in args.iter().enumerate() {
+                                if let Some(arg_name) = arg_names.get(i) {
+                                    kwargs.insert((*arg_name).into(), arg.clone());
+                                } else {
+                                    break;
+                                }
+                            }
+                            return Ok(MessageBody(
+                                vec![],
+                                from_value::<T::Params>(Value::Mapping(kwargs))?,
+                                from_value::<MessageBodyEmbed>(Value::Mapping(embed))?,
+                            ));
+                        }
+                    }
+                }
+                Ok(from_value(value)?)
+            }
+            #[cfg(any(test, feature = "extra_content_types"))]
+            "application/x-python-serialize" => {
+                use serde_pickle::{from_slice, from_value, HashableValue, Value};
+                let value: Value = from_slice(&self.raw_body)?;
+                // debug!("Deserialized message body: {:?}", value);
+                if let Value::List(ref vec) = value {
+                    if let [Value::List(ref args), Value::Dict(ref kwargs), Value::Dict(ref embed)] =
+                        vec[..]
+                    {
+                        if !args.is_empty() {
+                            // Non-empty args, need to try to coerce them into kwargs.
+                            let mut kwargs = kwargs.clone();
+                            let embed = embed.clone();
+                            let arg_names = T::ARGS;
+                            for (i, arg) in args.iter().enumerate() {
+                                if let Some(arg_name) = arg_names.get(i) {
+                                    let key = HashableValue::String((*arg_name).into());
+                                    kwargs.insert(key, arg.clone());
+                                } else {
+                                    break;
+                                }
+                            }
+                            return Ok(MessageBody(
+                                vec![],
+                                from_value::<T::Params>(Value::Dict(kwargs))?,
+                                from_value::<MessageBodyEmbed>(Value::Dict(embed))?,
+                            ));
+                        }
+                    }
+                }
+                Ok(from_value(value)?)
+            }
+            #[cfg(any(test, feature = "extra_content_types"))]
+            "application/x-msgpack" => {
+                use rmp_serde::from_slice;
+                use rmpv::{ext::from_value, Value};
+                let value: Value = from_slice(&self.raw_body)?;
+                debug!("Deserialized message body: {:?}", value);
+                if let Value::Array(ref vec) = value {
+                    if let [Value::Array(ref args), Value::Map(ref kwargs), Value::Map(ref embed)] =
+                        vec[..]
+                    {
+                        if !args.is_empty() {
+                            // Non-empty args, need to try to coerce them into kwargs.
+                            let mut kwargs = kwargs.clone();
+                            let embed = embed.clone();
+                            let arg_names = T::ARGS;
+                            for (i, arg) in args.iter().enumerate() {
+                                if let Some(arg_name) = arg_names.get(i) {
+                                    // messagepack is storing the map as a vec where each item
+                                    // is a tuple of (key, value). here we will look for an item
+                                    // with the matching key and replace it, or insert a new entry
+                                    // at the end of the vec
+                                    let existing_entry = kwargs
+                                        .iter()
+                                        .enumerate()
+                                        .filter(|(_, (key, _))| {
+                                            if let Value::String(key) = key {
+                                                if let Some(key) = key.as_str() {
+                                                    key == *arg_name
+                                                } else {
+                                                    false
+                                                }
+                                            } else {
+                                                false
+                                            }
+                                        })
+                                        .map(|(i, _)| i)
+                                        .next();
+                                    if let Some(index) = existing_entry {
+                                        kwargs[index] = ((*arg_name).into(), arg.clone());
+                                    } else {
+                                        kwargs.push(((*arg_name).into(), arg.clone()));
+                                    }
+                                } else {
+                                    break;
+                                }
+                            }
+                            return Ok(MessageBody(
+                                vec![],
+                                from_value::<T::Params>(Value::Map(kwargs))?,
+                                from_value::<MessageBodyEmbed>(Value::Map(embed))?,
+                            ));
+                        }
+                    }
+                }
+                Ok(from_value(value)?)
+            }
+            _ => Err(ProtocolError::BodySerializationError(
+                ContentTypeError::Unknown,
+            )),
         }
-        Ok(serde_json::from_value::<MessageBody<T>>(value)?)
     }
 
     /// Get thet task ID.
@@ -188,6 +359,11 @@ where
             builder = builder.expires_in(expires_in);
         } else if task_sig.expires.is_some() {
             builder = builder.expires(task_sig.expires.take().unwrap());
+        }
+
+        #[cfg(any(test, feature = "extra_content_types"))]
+        if let Some(content_type) = task_sig.options.content_type {
+            builder = builder.content_type(content_type);
         }
 
         if let Some(time_limit) = task_sig.options.time_limit.take() {
@@ -379,14 +555,13 @@ mod tests {
         }
     }
 
+    const JSON: &str =
+        "[[],{\"a\":4},{\"callbacks\":null,\"errbacks\":null,\"chain\":null,\"chord\":null}]";
     #[test]
     fn test_serialize_body() {
-        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 0 });
+        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 4 });
         let serialized = serde_json::to_string(&body).unwrap();
-        assert_eq!(
-            serialized,
-            "[[],{\"a\":0},{\"callbacks\":null,\"errbacks\":null,\"chain\":null,\"chord\":null}]"
-        );
+        assert_eq!(serialized, JSON);
     }
 
     #[test]
@@ -403,9 +578,96 @@ mod tests {
                 task: "TestTask".into(),
                 ..Default::default()
             },
-            raw_body: Vec::from(&b"[[1],{},{}]"[..]),
+            raw_body: Vec::from(&JSON[..]),
         };
         let body = message.body::<TestTask>().unwrap();
-        assert_eq!(body.1.a, 1);
+        assert_eq!(body.1.a, 4);
+    }
+
+    const YAML: &str = "---\n- []\n- a: 4\n- callbacks: ~\n  errbacks: ~\n  chain: ~\n  chord: ~";
+
+    #[test]
+    fn test_yaml_serialize_body() {
+        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 4 });
+        let serialized = serde_yaml::to_string(&body).unwrap();
+        assert_eq!(serialized, YAML);
+    }
+
+    #[test]
+    fn test_yaml_deserialize_body_with_args() {
+        let message = Message {
+            properties: MessageProperties {
+                correlation_id: "aaa".into(),
+                content_type: "application/x-yaml".into(),
+                content_encoding: "utf-8".into(),
+                reply_to: None,
+            },
+            headers: MessageHeaders {
+                id: "aaa".into(),
+                task: "TestTask".into(),
+                ..Default::default()
+            },
+            raw_body: Vec::from(&YAML[..]),
+        };
+        let body = message.body::<TestTask>().unwrap();
+        assert_eq!(body.1.a, 4);
+    }
+
+    const PICKLE: &[u8] = b"\x80\x02(]}(X\x01\x00\x00\x00aJ\x04\x00\x00\x00u}(X\x09\x00\x00\x00callbacksNX\x08\x00\x00\x00errbacksNX\x05\x00\x00\x00chainNX\x05\x00\x00\x00chordNut.";
+    #[test]
+    fn test_pickle_serialize_body() {
+        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 4 });
+        let serialized = serde_pickle::to_vec(&body, false).unwrap();
+        // println!("{}", String::from_utf8(serialized.split_off(1)).unwrap());
+        assert_eq!(serialized, PICKLE.to_vec());
+    }
+
+    #[test]
+    fn test_pickle_deserialize_body_with_args() {
+        let message = Message {
+            properties: MessageProperties {
+                correlation_id: "aaa".into(),
+                content_type: "application/x-python-serialize".into(),
+                content_encoding: "utf-8".into(),
+                reply_to: None,
+            },
+            headers: MessageHeaders {
+                id: "aaa".into(),
+                task: "TestTask".into(),
+                ..Default::default()
+            },
+            raw_body: PICKLE.to_vec(),
+        };
+        let body = message.body::<TestTask>().unwrap();
+        assert_eq!(body.1.a, 4);
+    }
+
+    const MSGPACK: &[u8] = &[147, 144, 145, 4, 148, 192, 192, 192, 192];
+    #[test]
+    fn test_msgpack_serialize_body() {
+        let body = MessageBody::<TestTask>::new(TestTaskParams { a: 4 });
+        let serialized = rmp_serde::to_vec(&body).unwrap();
+        // println!("{:?}", serialized);
+        assert_eq!(serialized, MSGPACK);
+    }
+
+    #[test]
+    fn test_msgpack_deserialize_body_with_args() {
+        let message = Message {
+            properties: MessageProperties {
+                correlation_id: "aaa".into(),
+                content_type: "application/x-msgpack".into(),
+                content_encoding: "utf-8".into(),
+                reply_to: None,
+            },
+            headers: MessageHeaders {
+                id: "aaa".into(),
+                task: "TestTask".into(),
+                ..Default::default()
+            },
+            raw_body: MSGPACK.to_vec(),
+        };
+        let body = message.body::<TestTask>().unwrap();
+        assert_eq!(body.1.a, 4);
     }
 }

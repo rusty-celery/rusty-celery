@@ -25,6 +25,7 @@ use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuil
 use crate::routing::{self, Rule};
 use crate::{
     error::{BeatError, BrokerError, CeleryError},
+    protocol::MessageContentType,
     task::{Signature, Task, TaskOptions},
 };
 use log::{debug, error, info};
@@ -160,6 +161,12 @@ where
     /// Set the number of seconds to wait before re-trying the connection with the broker.
     pub fn broker_connection_retry_delay(mut self, retry_delay: u32) -> Self {
         self.config.broker_connection_retry_delay = retry_delay;
+        self
+    }
+
+    /// Set a default content type of the message body serialization.
+    pub fn content_type(mut self, content_type: MessageContentType) -> Self {
+        self.config.task_options.content_type = Some(content_type);
         self
     }
 

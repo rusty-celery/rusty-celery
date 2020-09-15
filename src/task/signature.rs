@@ -1,4 +1,5 @@
 use super::{Task, TaskOptions};
+use crate::protocol::MessageContentType;
 use chrono::{DateTime, Utc};
 
 /// Wraps the parameters and execution options for a single task invocation.
@@ -99,6 +100,12 @@ where
     /// Set the expiration time.
     pub fn with_expires(mut self, expires: DateTime<Utc>) -> Self {
         self.expires = Some(expires);
+        self
+    }
+
+    /// Set the content type serialization format for the message body.
+    pub fn with_content_type(mut self, content_type: Option<MessageContentType>) -> Self {
+        self.options.content_type = content_type;
         self
     }
 
