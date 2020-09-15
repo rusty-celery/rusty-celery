@@ -26,7 +26,11 @@ impl RegularSchedule {
 impl Schedule for RegularSchedule {
     fn next_call_at(&self, last_run_at: Option<SystemTime>) -> Option<SystemTime> {
         match last_run_at {
-            Some(last_run_at) => Some(last_run_at.checked_add(self.interval).unwrap()),
+            Some(last_run_at) => Some(
+                last_run_at
+                    .checked_add(self.interval)
+                    .expect("Invalid SystemTime encountered"),
+            ),
             None => Some(SystemTime::now()),
         }
     }

@@ -6,7 +6,7 @@
 //! [`TryCreateMessage`](trait.TryCreateMessage.html).
 
 use chrono::{DateTime, Duration, Utc};
-use log::debug;
+use log::{debug, warn};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -349,16 +349,30 @@ where
 
         let mut builder = MessageBuilder::<T>::new(id);
 
+        // 'countdown' arbitrarily takes priority over 'eta'.
         if let Some(countdown) = task_sig.countdown.take() {
             builder = builder.countdown(countdown);
-        } else if task_sig.eta.is_some() {
-            builder = builder.eta(task_sig.eta.take().unwrap());
+            if task_sig.eta.is_some() {
+                warn!(
+                    "Task {} specified both a 'countdown' and an 'eta'. Ignoring 'eta'.",
+                    T::NAME
+                )
+            }
+        } else if let Some(eta) = task_sig.eta.take() {
+            builder = builder.eta(eta);
         }
 
+        // 'expires_in' arbitrarily takes priority over 'expires'.
         if let Some(expires_in) = task_sig.expires_in.take() {
             builder = builder.expires_in(expires_in);
-        } else if task_sig.expires.is_some() {
-            builder = builder.expires(task_sig.expires.take().unwrap());
+            if task_sig.expires.is_some() {
+                warn!(
+                    "Task {} specified both 'expires_in' and 'expires'. Ignoring 'expires'.",
+                    T::NAME
+                )
+            }
+        } else if let Some(expires) = task_sig.expires.take() {
+            builder = builder.expires(expires);
         }
 
         #[cfg(any(test, feature = "extra_content_types"))]

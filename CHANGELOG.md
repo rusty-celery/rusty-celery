@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Ensure a `Signature` inherits default `TaskOptions` from the corresponding `Task` and `Celery` or `Beat` app.
+- Cleaned up remaining uses of `.unwrap()` in the library.
 
 ## v0.4.0-rc3 - 2020-09-09
 
