@@ -105,6 +105,10 @@ pub struct TaskOptions {
     pub acks_late: Option<bool>,
 
     /// Which serialization format to use for task messages.
+    ///
+    /// This can be set with
+    /// - [`task_content_type`](../struct.CeleryBuilder.html#method.task_content_type) at the app level, and
+    /// - [`content_type`](../attr.task.html#parameters) at the task level.
     pub content_type: Option<MessageContentType>,
 }
 

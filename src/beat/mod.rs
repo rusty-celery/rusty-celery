@@ -165,7 +165,7 @@ where
     }
 
     /// Set a default content type of the message body serialization.
-    pub fn content_type(mut self, content_type: MessageContentType) -> Self {
+    pub fn task_content_type(mut self, content_type: MessageContentType) -> Self {
         self.config.task_options.content_type = Some(content_type);
         self
     }
