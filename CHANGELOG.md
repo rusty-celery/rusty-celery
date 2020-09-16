@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a `MockBroker` for internal testing.
+- Added more tests to the `app` module.
 - Added a `prelude` module.
 - Added support for YAML, MsgPack, and Pickle content types, behind the `extra_content_types` feature flag.
 

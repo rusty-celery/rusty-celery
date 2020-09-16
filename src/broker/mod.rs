@@ -15,6 +15,8 @@ use crate::{
 
 mod amqp;
 pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
+#[cfg(test)]
+pub mod mock;
 
 /// A message `Broker` is used as the transport for producing or consuming tasks.
 #[async_trait]

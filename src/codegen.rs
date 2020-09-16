@@ -12,25 +12,29 @@ macro_rules! __app_internal {
         static CELERY_APP: $crate::export::OnceCell<$crate::Celery<$broker_type>> =
             $crate::export::OnceCell::new();
         CELERY_APP.get_or_init(|| {
-            let broker_url = $broker_url;
+            async fn _build_app() -> $crate::Celery::<$broker_type> {
+                let broker_url = $broker_url;
 
-            let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
+                let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
 
-            $(
-                builder = builder.$x($y);
-            )*
+                $(
+                    builder = builder.$x($y);
+                )*
 
-            $(
-                builder = builder.task_route($pattern, $queue);
-            )*
+                $(
+                    builder = builder.task_route($pattern, $queue);
+                )*
 
-            let celery: $crate::Celery<$broker_type> = $crate::export::block_on(builder.build()).unwrap();
+                let celery: $crate::Celery<$broker_type> = builder.build().await.unwrap();
 
-            $(
-                $crate::export::block_on(celery.register_task::<$t>()).unwrap();
-            )*
+                $(
+                    celery.register_task::<$t>().await.unwrap();
+                )*
 
-            celery
+                celery
+            }
+
+            $crate::export::block_on(_build_app())
         })
     }};
 }
