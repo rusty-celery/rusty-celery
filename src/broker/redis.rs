@@ -1,5 +1,6 @@
 //! Redis broker.
 #![allow(dead_code)]
+use redis::RedisResult;
 use crate::protocol::MessageHeaders;
 use crate::protocol::MessageProperties;
 use std::fmt;
@@ -20,6 +21,7 @@ use redis::RedisError;
 use redis::Client;
 use serde_json::json;
 use serde_json::value::Value;
+use serde::Deserialize;
 
 
 struct Config {
@@ -78,15 +80,23 @@ impl BrokerBuilder for RedisBrokerBuilder {
         let client = Client::open(&self.config.broker_url[..])
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
 
-        Ok(RedisBroker{
-            client: Mutex::new(
-                    client
+        let multiplexed_conn = client
                     .get_multiplexed_async_std_connection()
                     .await
-                    .map_err(|err| BrokerError::RedisError(err))?
-            ),
+                    .map_err(|err| BrokerError::RedisError(err))?;
+        // let blocking_conn = client.get_connection().unwrap();
+
+        let consume_channel = Channel{
+            client: client.clone(),
+            prefetch_count: self.config.prefetch_count,
+        };
+
+        Ok(RedisBroker{
+            client: Mutex::new(multiplexed_conn.clone()),
             queues: queues,
             prefetch_count: Mutex::new(self.config.prefetch_count),
+            consume_channel: consume_channel,
+            consume_channel_write_lock: Mutex::new(0),
         })
     }
 }
@@ -94,8 +104,9 @@ impl BrokerBuilder for RedisBrokerBuilder {
 pub struct RedisBroker{
     /// Broker connection.
     client: Mutex<MultiplexedConnection>,
-
+    consume_channel: Channel,
     /// Mapping of queue name to Queue struct.
+    consume_channel_write_lock: Mutex<u8>,
     queues: HashSet<String>,
 
     /// Need to keep track of prefetch count. We put this behind a mutex to get interior
@@ -104,7 +115,7 @@ pub struct RedisBroker{
 }
 
 pub struct Channel{
-    client: MultiplexedConnection,
+    client: Client,
     prefetch_count: u16,
 }
 
@@ -114,45 +125,68 @@ impl fmt::Debug for Channel{
     }
 }
 
-#[derive(Debug)]
-pub struct Delivery{
-    pub delivery_tag: u64,
-    pub exchange: String,
-    pub routing_key: String,
-    pub redelivered: bool,
-    pub properties: MessageProperties,
-    pub headers: MessageHeaders,
-    pub data: Vec<u8>
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeliveryHeaders{
+    pub id: String,
+    pub task: String,
+    pub lang: Option<String>,
+    pub root_id: Option<String>,
+    pub parent_id: Option<String>,
+    pub group: Option<String>,
+    pub meth: Option<String>,
+    pub shadow: Option<String>,
+    pub eta: Option<DateTime<Utc>>,
+    pub expires: Option<DateTime<Utc>>,
+    pub retries: Option<u32>,
+    pub timelimit: (Option<u32>, Option<u32>),
+    pub argsrepr: Option<String>,
+    pub kwargsrepr: Option<String>,
+    pub origin: Option<String>,
 }
 
-impl Clone for Delivery{
-    fn clone(&self) -> Delivery{
-        Delivery{
-            headers: self.headers.clone(),
-            delivery_tag: self.delivery_tag.clone(),
-            exchange: self.exchange.clone(),
-            routing_key: self.routing_key.clone(),
-            redelivered: self.redelivered.clone(),
-            properties: self.properties.clone(),
-            data: self.data.clone()
-        }
-    }
+#[derive(Debug, Deserialize, Clone)]
+pub struct Delivery{
+    // pub delivery_tag: u64,
+    // pub exchange: String,
+    // pub routing_key: String,
+    // pub redelivered: bool,
+    // pub properties: MessageProperties,
+    // pub headers: MessageHeaders,
+    // pub data: Vec<u8>
+    pub raw_body: Vec<u8>,
+    pub content_encoding: String,
+    pub content_type: String,
+    pub correlation_id: String,
+    pub reply_to: Option<String>,
+    pub delivery_tag: String,
+    pub headers: DeliveryHeaders,
 }
+
+// impl Clone for Delivery{
+//     fn clone(&self) -> Delivery{
+//         Delivery{
+//             headers: self.headers.clone(),
+//             delivery_tag: self.delivery_tag.clone(),
+//             exchange: self.exchange.clone(),
+//             routing_key: self.routing_key.clone(),
+//             redelivered: self.redelivered.clone(),
+//             properties: self.properties.clone(),
+//             data: self.data.clone()
+//         }
+//     }
+// }
 
 impl Delivery{
     fn try_create_message(&self) -> Result<Message, ProtocolError>{
         Ok(Message {
             properties: MessageProperties {
                 correlation_id: self
-                    .properties
                     .correlation_id.clone(),
                 content_type: self
-                    .properties
                     .content_type.clone(),
                 content_encoding: self
-                    .properties
                     .content_encoding.clone(),
-                reply_to: self.properties.reply_to.clone(),
+                reply_to: self.reply_to.clone(),
             },
             headers: MessageHeaders {
                 id: self.headers.id.clone(),
@@ -171,12 +205,16 @@ impl Delivery{
                 kwargsrepr: self.headers.kwargsrepr.clone(),
                 origin: self.headers.origin.clone(),
             },
-            raw_body: self.data.clone(),
+            raw_body: self.raw_body.clone(),
         })
     }
 }
 
-pub struct Consumer{}
+pub struct Consumer{
+    channel: Channel,
+    queue_name: String,
+    processing_queue_name: String,
+}
 
 impl TryCreateMessage for (Channel, Delivery){
     fn try_create_message(&self) -> Result<Message, ProtocolError> {
@@ -198,12 +236,37 @@ impl Clone for Channel{
 
 impl Stream for Consumer{
     type Item = Result<(Channel, Delivery), RedisError>;
-    fn poll_next(self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<std::option::Option<<Self as futures::Stream>::Item>> { 
+    fn poll_next(mut self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<std::option::Option<<Self as futures::Stream>::Item>> { 
         // execute pipeline
         // - get from queue
         // - add delivery tag in processing unacked_index_key sortedlist
         // - add delivery tag, msg in processing hashset unacked_key
-        todo!()
+        // TODO: Check prefetch count
+        let item: RedisResult<String> = redis::cmd("RPOP")
+            .arg(&self.queue_name[..])
+            .query(&mut self.channel.client);
+        let item: String = match item{
+            Ok(json_str) => json_str,
+            Err(e) => {
+                match e.kind(){
+                    redis::ErrorKind::TypeError => {
+                        // It returns `Nil` which means list / queue is empty.
+                        return std::task::Poll::Ready(None);
+                    },
+                    _ => {
+                        eprintln!("Error receiving message: {:?}", e);
+                        return std::task::Poll::Pending;
+                    }
+                }
+            }
+        };
+        let delivery: Delivery = serde_json::from_str(&item[..]).unwrap();
+        println!("Received msg: {}", delivery.delivery_tag);
+        // TODO: add to pending hashmap.
+        // let _hashresult = redis::cmd("HSET")
+        //     .arg(&self.process_map_name[..])
+        //     .arg();
+        return std::task::Poll::Ready(Some(Ok((self.channel.clone(), delivery))));
     }
 }
 
