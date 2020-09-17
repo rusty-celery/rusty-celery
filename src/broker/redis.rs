@@ -11,9 +11,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crate::protocol::{Message, TryCreateMessage};
 use crate::error::{BrokerError, ProtocolError};
-use log::warn;
 use tokio::sync::Mutex;
 use uuid::Uuid;
+use log::{debug, warn};
 
 use super::{Broker, BrokerBuilder};
 use redis::aio::{MultiplexedConnection};
@@ -92,7 +92,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
         };
 
         Ok(RedisBroker{
-            client: Mutex::new(multiplexed_conn.clone()),
+            conn: Mutex::new(multiplexed_conn.clone()),
             queues: queues,
             prefetch_count: Mutex::new(self.config.prefetch_count),
             consume_channel: consume_channel,
@@ -103,7 +103,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
 
 pub struct RedisBroker{
     /// Broker connection.
-    client: Mutex<MultiplexedConnection>,
+    conn: Mutex<MultiplexedConnection>,
     consume_channel: Channel,
     /// Mapping of queue name to Queue struct.
     consume_channel_write_lock: Mutex<u8>,
@@ -153,7 +153,7 @@ pub struct Delivery{
     // pub properties: MessageProperties,
     // pub headers: MessageHeaders,
     // pub data: Vec<u8>
-    pub raw_body: Vec<u8>,
+    pub body: Vec<u8>,
     pub content_encoding: String,
     pub content_type: String,
     pub correlation_id: String,
@@ -205,7 +205,7 @@ impl Delivery{
                 kwargsrepr: self.headers.kwargsrepr.clone(),
                 origin: self.headers.origin.clone(),
             },
-            raw_body: self.raw_body.clone(),
+            raw_body: self.body.clone(),
         })
     }
 }
@@ -213,7 +213,7 @@ impl Delivery{
 pub struct Consumer{
     channel: Channel,
     queue_name: String,
-    processing_queue_name: String,
+    // processing_queue_name: String,
 }
 
 impl TryCreateMessage for (Channel, Delivery){
@@ -251,17 +251,18 @@ impl Stream for Consumer{
                 match e.kind(){
                     redis::ErrorKind::TypeError => {
                         // It returns `Nil` which means list / queue is empty.
-                        return std::task::Poll::Ready(None);
+                        debug!("End of queue: {}", self.queue_name);
+                        return std::task::Poll::Pending;
                     },
                     _ => {
                         eprintln!("Error receiving message: {:?}", e);
-                        return std::task::Poll::Pending;
+                        return std::task::Poll::Ready(Some(Err(e)));
                     }
                 }
             }
         };
         let delivery: Delivery = serde_json::from_str(&item[..]).unwrap();
-        println!("Received msg: {}", delivery.delivery_tag);
+        debug!("Received msg: {} / {}", delivery.delivery_tag, delivery.headers.task);
         // TODO: add to pending hashmap.
         // let _hashresult = redis::cmd("HSET")
         //     .arg(&self.process_map_name[..])
@@ -293,15 +294,20 @@ impl Broker for RedisBroker {
     /// [`Self::DeliveryError`](trait.Broker.html#associatedtype.DeliveryError) type.
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
-        _queue: &str,
+        queue: &str,
         _handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError> { 
-        todo!()
+        let consumer = Consumer{
+            channel: self.consume_channel.clone(),
+            queue_name: String::from(queue),
+        };
+        Ok(consumer)
     }
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
-    async fn ack(&self, _delivery: &Self::Delivery) -> Result<(), BrokerError> { 
-        todo!()
+    async fn ack(&self, _delivery: &Self::Delivery) -> Result<(), BrokerError> {
+        println!("TODO: ack");
+        Ok(())
     }
 
     /// Retry a delivery.
@@ -310,7 +316,8 @@ impl Broker for RedisBroker {
         _delivery: &Self::Delivery,
         _eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError> {
-        todo!()
+        println!("TODO: retry");
+        Ok(())
     }
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
@@ -320,7 +327,7 @@ impl Broker for RedisBroker {
         let _result = redis::cmd("LPUSH")
             .arg(String::from(queue))
             .arg(ser_msg)
-            .query_async(&mut *self.client.lock().await)
+            .query_async(&mut *self.conn.lock().await)
             .await.map_err(|err| BrokerError::RedisError(err))?;
         return Ok(());
 
@@ -329,18 +336,21 @@ impl Broker for RedisBroker {
     /// Increase the `prefetch_count`. This has to be done when a task with a future
     /// ETA is consumed.
     async fn increase_prefetch_count(&self) -> Result<(), BrokerError>{
-        todo!()
+        println!("TODO: increase_prefetch_count");
+        Ok(())
     }
 
     /// Decrease the `prefetch_count`. This has to be done after a task with a future
     /// ETA is executed.
     async fn decrease_prefetch_count(&self) -> Result<(), BrokerError>{
-        todo!()
+        println!("TODO: decrease_prefetch_count");
+        Ok(())
     }
 
     /// Clone all channels and connection.
     async fn close(&self) -> Result<(), BrokerError>{
-        todo!()
+        println!("TODO: close");
+        Ok(())
     }
 }
 
