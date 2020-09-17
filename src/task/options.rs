@@ -114,6 +114,7 @@ pub struct TaskOptions {
 }
 
 impl TaskOptions {
+    /// Update the fields in `self` with the fields in `other`.
     pub(crate) fn update(&mut self, other: &TaskOptions) {
         self.time_limit = self.time_limit.or_else(|| other.time_limit);
         self.hard_time_limit = self.hard_time_limit.or_else(|| other.hard_time_limit);
@@ -125,6 +126,11 @@ impl TaskOptions {
             .or_else(|| other.retry_for_unexpected);
         self.acks_late = self.acks_late.or_else(|| other.acks_late);
         self.content_type = self.content_type.or_else(|| other.content_type);
+    }
+
+    /// Override the fields in `other` with the fields in `self`.
+    pub(crate) fn override_other(&self, other: &mut TaskOptions) {
+        other.update(self);
     }
 }
 
