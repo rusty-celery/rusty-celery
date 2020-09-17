@@ -1,3 +1,5 @@
+use crate::protocol::MessageContentType;
+
 /// Configuration options pertaining to a task.
 ///
 /// These are set at either the app level (pertaining to all registered tasks),
@@ -8,29 +10,44 @@
 /// That is, options set at the request level have the highest precendence,
 /// followed by options set at the task level, and lastly the app level.
 ///
-/// For example, if `timeout: Some(10)` is set at the app level through the
-/// [`task_timeout` option](../struct.CeleryBuilder.html#method.task_timeout),
-/// then every task will use a timeout of 10 seconds unless some other timeout is specified in the
+/// For example, if `time_limit: Some(10)` is set at the app level through the
+/// [`task_time_limit` option](../struct.CeleryBuilder.html#method.task_time_limit),
+/// then every task will use a time limit of 10 seconds unless some other time limit is specified in the
 /// [task definition](attr.task.html#parameters) or in a
-/// [task signature](../task/struct.Signature.html#structfield.timeout) for that task.
+/// [task signature](../task/struct.Signature.html#structfield.time_limit) for that task.
 #[derive(Copy, Clone, Default)]
 pub struct TaskOptions {
-    /// Timeout for a task.
+    /// Time limit for a task.
     ///
     /// If set to `Some(n)`, the task will be interrupted and fail with a
     /// [`TimeoutError`](error/enum.TaskError.html#variant.TimeoutError)
     /// if it runs longer than `n` seconds.
     ///
     /// This can be set with
-    /// - [`task_timeout`](../struct.CeleryBuilder.html#method.task_timeout) at the app level,
-    /// - [`timeout`](../attr.task.html#parameters) at the task level, and
-    /// - [`with_timeout`](../task/struct.Signature.html#method.with_timeout) at the request / signature level.
+    /// - [`task_time_limit`](../struct.CeleryBuilder.html#method.task_time_limit) at the app level,
+    /// - [`time_limit`](../attr.task.html#parameters) at the task level, and
+    /// - [`with_time_limit`](../task/struct.Signature.html#method.with_time_limit) at the request / signature level.
     ///
-    /// If this option is left unspecified, the default behavior will be to enforce no timeout.
+    /// If this option is left unspecified, the default behavior will be to enforce no time limit.
     ///
     /// *Note, however, that only non-blocking tasks can be interrupted, so it's important
     /// to use async functions within task implementations whenever they are available.*
-    pub timeout: Option<u32>,
+    pub time_limit: Option<u32>,
+
+    /// The `time_limit` option is equivalent to the ["soft time
+    /// limit"](https://docs.celeryproject.org/en/stable/userguide/workers.html#time-limits)
+    /// option when sending tasks to a Python consumer.
+    /// If you desire to set a "hard time limit", use this option.
+    ///
+    /// *Note that this is really only for compatability with Python workers*.
+    /// `time_limit` and `hard_time_limit` are treated the same by Rust workers, and if both
+    /// are set, the minimum of the two will be used.
+    ///
+    /// This can be set with
+    /// - [`task_hard_time_limit`](../struct.CeleryBuilder.html#method.task_hard_time_limit) at the app level,
+    /// - [`hard_time_limit`](../attr.task.html#parameters) at the task level, and
+    /// - [`with_hard_time_limit`](../task/struct.Signature.html#method.with_hard_time_limit) at the request / signature level.
+    pub hard_time_limit: Option<u32>,
 
     /// Maximum number of retries for this task.
     ///
@@ -86,4 +103,54 @@ pub struct TaskOptions {
     ///
     /// If this option is left unspecified, the default behavior will be to ack early.
     pub acks_late: Option<bool>,
+
+    /// Which serialization format to use for task messages.
+    ///
+    /// This can be set with
+    /// - [`task_content_type`](../struct.CeleryBuilder.html#method.task_content_type) at the app level, and
+    /// - [`content_type`](../attr.task.html#parameters) at the task level.
+    /// - [`with_content_type`](../task/struct.Signature.html#method.with_content_type) at the request / signature level.
+    pub content_type: Option<MessageContentType>,
+}
+
+impl TaskOptions {
+    /// Update the fields in `self` with the fields in `other`.
+    pub(crate) fn update(&mut self, other: &TaskOptions) {
+        self.time_limit = self.time_limit.or_else(|| other.time_limit);
+        self.hard_time_limit = self.hard_time_limit.or_else(|| other.hard_time_limit);
+        self.max_retries = self.max_retries.or_else(|| other.max_retries);
+        self.min_retry_delay = self.min_retry_delay.or_else(|| other.min_retry_delay);
+        self.max_retry_delay = self.max_retry_delay.or_else(|| other.max_retry_delay);
+        self.retry_for_unexpected = self
+            .retry_for_unexpected
+            .or_else(|| other.retry_for_unexpected);
+        self.acks_late = self.acks_late.or_else(|| other.acks_late);
+        self.content_type = self.content_type.or_else(|| other.content_type);
+    }
+
+    /// Override the fields in `other` with the fields in `self`.
+    pub(crate) fn override_other(&self, other: &mut TaskOptions) {
+        other.update(self);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_update() {
+        let mut options = TaskOptions::default();
+        options.max_retries = Some(3);
+        options.acks_late = Some(true);
+
+        let mut other = TaskOptions::default();
+        other.time_limit = Some(2);
+        other.acks_late = Some(false);
+
+        options.update(&other);
+        assert_eq!(options.time_limit, Some(2));
+        assert_eq!(options.max_retries, Some(3));
+        assert_eq!(options.acks_late, Some(true));
+    }
 }

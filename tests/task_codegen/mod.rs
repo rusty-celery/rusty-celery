@@ -27,7 +27,8 @@ fn test_auto_name() {
 }
 
 #[celery::task(
-    timeout = 2,
+    time_limit = 2,
+    hard_time_limit = 3,
     max_retries = 3,
     min_retry_delay = 0,
     max_retry_delay = 60,
@@ -40,7 +41,8 @@ fn task_with_options() -> TaskResult<String> {
 
 #[test]
 fn test_task_options() {
-    assert_eq!(task_with_options::DEFAULTS.timeout, Some(2));
+    assert_eq!(task_with_options::DEFAULTS.time_limit, Some(2));
+    assert_eq!(task_with_options::DEFAULTS.hard_time_limit, Some(3));
     assert_eq!(task_with_options::DEFAULTS.max_retries, Some(3));
     assert_eq!(task_with_options::DEFAULTS.min_retry_delay, Some(0));
     assert_eq!(task_with_options::DEFAULTS.max_retry_delay, Some(60));
@@ -53,12 +55,13 @@ fn test_task_options() {
 
 #[celery::task(bind = true)]
 fn bound_task(t: &Self) -> TaskResult<Option<u32>> {
-    Ok(t.timeout())
+    t.retry_with_countdown(2)?;
+    Ok(t.time_limit())
 }
 
 #[celery::task(bind = true)]
-fn bound_task_with_other_params(t: &Self, default_timeout: u32) -> TaskResult<u32> {
-    Ok(t.timeout().unwrap_or(default_timeout))
+fn bound_task_with_other_params(t: &Self, default_time_limit: u32) -> TaskResult<u32> {
+    Ok(t.time_limit().unwrap_or(default_time_limit))
 }
 
 // This didn't work before since Task::run took a reference to self
@@ -98,4 +101,11 @@ fn task_with_callbacks() {
 #[celery::task]
 fn inferred_return_type() {
     println!("Yeeeup");
+}
+
+#[cfg(any(test, feature = "extra_content_types"))]
+use celery::protocol::MessageContentType::MsgPack;
+#[celery::task(content_type = MsgPack)]
+fn custom_content_type() {
+    println!()
 }
