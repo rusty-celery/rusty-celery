@@ -9,6 +9,8 @@ use futures::{
     task::{Context, Poll},
     Stream,
 };
+use std::collections::HashMap;
+use tokio::sync::RwLock;
 
 pub struct MockBrokerBuilder;
 
@@ -38,11 +40,24 @@ impl BrokerBuilder for MockBrokerBuilder {
 
     #[allow(unused)]
     async fn build(&self, connection_timeout: u32) -> Result<Self::Broker, BrokerError> {
-        Ok(MockBroker {})
+        Ok(MockBroker::new())
     }
 }
 
-pub struct MockBroker;
+#[derive(Default)]
+pub struct MockBroker {
+    pub sent_tasks: RwLock<HashMap<String, Message>>,
+}
+
+impl MockBroker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn reset(&self) {
+        self.sent_tasks.write().await.clear();
+    }
+}
 
 #[async_trait]
 impl Broker for MockBroker {
@@ -80,6 +95,10 @@ impl Broker for MockBroker {
 
     #[allow(unused)]
     async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
+        self.sent_tasks
+            .write()
+            .await
+            .insert(message.task_id().into(), message.clone());
         Ok(())
     }
 
