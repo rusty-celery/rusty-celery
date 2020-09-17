@@ -20,12 +20,10 @@ enum TaskAttr {
     Name(syn::LitStr),
     Wrapper(syn::Ident),
     ParamsType(syn::Ident),
-    TimeLimit(syn::LitInt),
-    HardTimeLimit(syn::LitInt),
+    Timeout(syn::LitInt),
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
     MaxRetryDelay(syn::LitInt),
-    ContentType(syn::Ident),
     RetryForUnexpected(syn::LitBool),
     AcksLate(syn::LitBool),
     Bind(syn::LitBool),
@@ -40,14 +38,12 @@ struct Task {
     name: Option<String>,
     wrapper: Option<syn::Ident>,
     params_type: Option<syn::Ident>,
-    time_limit: Option<syn::LitInt>,
-    hard_time_limit: Option<syn::LitInt>,
+    timeout: Option<syn::LitInt>,
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
     retry_for_unexpected: Option<syn::LitBool>,
     acks_late: Option<syn::LitBool>,
-    content_type: Option<syn::Ident>,
     original_args: Vec<syn::FnArg>,
     inputs: Option<Punctuated<FnArg, Comma>>,
     inner_block: Option<syn::Block>,
@@ -89,21 +85,11 @@ impl TaskAttrs {
             .next()
     }
 
-    fn time_limit(&self) -> Option<syn::LitInt> {
+    fn timeout(&self) -> Option<syn::LitInt> {
         self.attrs
             .iter()
             .filter_map(|a| match a {
-                TaskAttr::TimeLimit(r) => Some(r.clone()),
-                _ => None,
-            })
-            .next()
-    }
-
-    fn hard_time_limit(&self) -> Option<syn::LitInt> {
-        self.attrs
-            .iter()
-            .filter_map(|a| match a {
-                TaskAttr::HardTimeLimit(r) => Some(r.clone()),
+                TaskAttr::Timeout(r) => Some(r.clone()),
                 _ => None,
             })
             .next()
@@ -159,16 +145,6 @@ impl TaskAttrs {
             .next()
     }
 
-    fn content_type(&self) -> Option<syn::Ident> {
-        self.attrs
-            .iter()
-            .filter_map(|a| match a {
-                TaskAttr::ContentType(r) => Some(r.clone()),
-                _ => None,
-            })
-            .next()
-    }
-
     fn bind(&self) -> Option<syn::LitBool> {
         self.attrs
             .iter()
@@ -213,14 +189,12 @@ mod kw {
     syn::custom_keyword!(name);
     syn::custom_keyword!(wrapper);
     syn::custom_keyword!(params_type);
-    syn::custom_keyword!(time_limit);
-    syn::custom_keyword!(hard_time_limit);
+    syn::custom_keyword!(timeout);
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
     syn::custom_keyword!(max_retry_delay);
     syn::custom_keyword!(retry_for_unexpected);
     syn::custom_keyword!(acks_late);
-    syn::custom_keyword!(content_type);
     syn::custom_keyword!(bind);
     syn::custom_keyword!(on_failure);
     syn::custom_keyword!(on_success);
@@ -241,14 +215,10 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::params_type>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::ParamsType(input.parse()?))
-        } else if lookahead.peek(kw::time_limit) {
-            input.parse::<kw::time_limit>()?;
+        } else if lookahead.peek(kw::timeout) {
+            input.parse::<kw::timeout>()?;
             input.parse::<Token![=]>()?;
-            Ok(TaskAttr::TimeLimit(input.parse()?))
-        } else if lookahead.peek(kw::hard_time_limit) {
-            input.parse::<kw::hard_time_limit>()?;
-            input.parse::<Token![=]>()?;
-            Ok(TaskAttr::HardTimeLimit(input.parse()?))
+            Ok(TaskAttr::Timeout(input.parse()?))
         } else if lookahead.peek(kw::max_retries) {
             input.parse::<kw::max_retries>()?;
             input.parse::<Token![=]>()?;
@@ -269,10 +239,6 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::acks_late>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::AcksLate(input.parse()?))
-        } else if lookahead.peek(kw::content_type) {
-            input.parse::<kw::content_type>()?;
-            input.parse::<Token![=]>()?;
-            Ok(TaskAttr::ContentType(input.parse()?))
         } else if lookahead.peek(kw::bind) {
             input.parse::<kw::bind>()?;
             input.parse::<Token![=]>()?;
@@ -299,14 +265,12 @@ impl Task {
             name: attrs.name(),
             wrapper: attrs.wrapper(),
             params_type: attrs.params_type(),
-            time_limit: attrs.time_limit(),
-            hard_time_limit: attrs.hard_time_limit(),
+            timeout: attrs.timeout(),
             max_retries: attrs.max_retries(),
             min_retry_delay: attrs.min_retry_delay(),
             max_retry_delay: attrs.max_retry_delay(),
             retry_for_unexpected: attrs.retry_for_unexpected(),
             acks_late: attrs.acks_late(),
-            content_type: attrs.content_type(),
             original_args: Vec::new(),
             inputs: None,
             inner_block: None,
@@ -493,13 +457,8 @@ impl ToTokens for Task {
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
         let params_type = self.params_type.as_ref().unwrap();
-        let time_limit = self
-            .time_limit
-            .as_ref()
-            .map(|r| quote! { Some(#r) })
-            .unwrap_or_else(|| quote! { None });
-        let hard_time_limit = self
-            .hard_time_limit
+        let timeout = self
+            .timeout
             .as_ref()
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { None });
@@ -528,11 +487,6 @@ impl ToTokens for Task {
             .as_ref()
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { None });
-        let content_type = self
-            .content_type
-            .as_ref()
-            .map(|r| quote! { Some(#r) })
-            .unwrap_or_else(|| quote! { Some(#krate::protocol::MessageContentType::Json) });
         let task_name = self.name.as_ref().unwrap();
         let arg_names = args_to_arg_names(&self.original_args, self.bind);
         let serialized_fields = args_to_fields(&self.original_args, self.bind);
@@ -553,7 +507,6 @@ impl ToTokens for Task {
 
         let wrapper_struct = quote! {
             #[allow(non_camel_case_types)]
-            #[derive(Clone)]
             #vis struct #wrapper {
                 request: #krate::task::Request<Self>,
                 options: #krate::task::TaskOptions,
@@ -654,14 +607,12 @@ impl ToTokens for Task {
                     const NAME: &'static str = #task_name;
                     const ARGS: &'static [&'static str] = &[#arg_names];
                     const DEFAULTS: #krate::task::TaskOptions = #krate::task::TaskOptions {
-                        time_limit: #time_limit,
-                        hard_time_limit: #hard_time_limit,
+                        timeout: #timeout,
                         max_retries: #max_retries,
                         min_retry_delay: #min_retry_delay,
                         max_retry_delay: #max_retry_delay,
                         retry_for_unexpected: #retry_for_unexpected,
                         acks_late: #acks_late,
-                        content_type: #content_type,
                     };
 
                     type Params = #params_type;

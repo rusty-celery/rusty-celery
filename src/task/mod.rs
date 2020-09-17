@@ -8,12 +8,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::TaskError;
 
-mod async_result;
 mod options;
 mod request;
 mod signature;
 
-pub use async_result::AsyncResult;
 pub use options::TaskOptions;
 pub use request::Request;
 pub use signature::Signature;
@@ -35,7 +33,7 @@ where
 
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///
-/// The recommended way to create tasks is through the [`task`](../attr.task.html) attribute macro, not by directly implementing
+/// The recommended way to create tasks is through the [`task`](attr.task.html) attribute macro, not by directly implementing
 /// this trait. For more information see the [tasks chapter](https://rusty-celery.github.io/guide/defining-tasks.html)
 /// in the Rusty Celery Book.
 #[async_trait]
@@ -50,14 +48,12 @@ pub trait Task: Send + Sync + std::marker::Sized {
 
     /// Default task options.
     const DEFAULTS: TaskOptions = TaskOptions {
-        time_limit: None,
-        hard_time_limit: None,
+        timeout: None,
         max_retries: None,
         min_retry_delay: None,
         max_retry_delay: None,
         retry_for_unexpected: None,
         acks_late: None,
-        content_type: None,
     };
 
     /// The parameters of the task.
@@ -72,22 +68,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
     /// Get a reference to the request used to create this task instance.
     fn request(&self) -> &Request<Self>;
 
-    /// Get a reference to the task's configuration options.
-    ///
-    /// This is a product of both app-level task options and the options configured specifically
-    /// for the given task. Options specified at the *task*-level take priority over options
-    /// specified at the app level. So, if the task was defined like this:
-    ///
-    /// ```rust
-    /// # use celery::prelude::*;
-    /// #[celery::task(time_limit = 3)]
-    /// fn add(x: i32, y: i32) -> TaskResult<i32> {
-    ///     Ok(x + y)
-    /// }
-    /// ```
-    ///
-    /// But the `Celery` app was built with a `task_time_limit` of 5, then
-    /// `Task::options().time_limit` would be `Some(3)`.
+    /// Get a reference to the options corresponding to this instance / request.
     fn options(&self) -> &TaskOptions;
 
     /// This function defines how a task executes.
@@ -104,28 +85,6 @@ pub trait Task: Send + Sync + std::marker::Sized {
     /// Returns the registered name of the task.
     fn name(&self) -> &'static str {
         Self::NAME
-    }
-
-    /// This can be called from within a task function to trigger a retry in `countdown` seconds.
-    fn retry_with_countdown(&self, countdown: u32) -> TaskResult<Self::Returns> {
-        let eta = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(now) => {
-                let now_secs = now.as_secs() as u32;
-                let now_millis = now.subsec_millis();
-                let eta_secs = now_secs + countdown;
-                Some(DateTime::<Utc>::from_utc(
-                    NaiveDateTime::from_timestamp(eta_secs as i64, now_millis * 1000),
-                    Utc,
-                ))
-            }
-            Err(_) => None,
-        };
-        Err(TaskError::Retry(eta))
-    }
-
-    /// This can be called from within a task function to trigger a retry at the specified `eta`.
-    fn retry_with_eta(&self, eta: DateTime<Utc>) -> TaskResult<Self::Returns> {
-        Err(TaskError::Retry(Some(eta)))
     }
 
     /// Get a future ETA at which time the task should be retried. By default this
@@ -163,20 +122,10 @@ pub trait Task: Send + Sync + std::marker::Sized {
             .unwrap_or(true)
     }
 
-    fn time_limit(&self) -> Option<u32> {
-        self.request().time_limit.or_else(|| {
-            // Take min or `time_limit` and `hard_time_limit`.
-            let time_limit = Self::DEFAULTS.time_limit.or(self.options().time_limit);
-            let hard_time_limit = Self::DEFAULTS
-                .hard_time_limit
-                .or(self.options().hard_time_limit);
-            match (time_limit, hard_time_limit) {
-                (Some(t1), Some(t2)) => Some(std::cmp::min(t1, t2)),
-                (Some(t1), None) => Some(t1),
-                (None, Some(t2)) => Some(t2),
-                _ => None,
-            }
-        })
+    fn timeout(&self) -> Option<u32> {
+        self.request()
+            .timeout
+            .or_else(|| Self::DEFAULTS.timeout.or(self.options().timeout))
     }
 
     fn max_retries(&self) -> Option<u32> {
@@ -214,47 +163,4 @@ pub(crate) enum TaskEvent {
 pub(crate) enum TaskStatus {
     Pending,
     Finished,
-}
-
-/// Extension methods for `Result` types within a task body.
-///
-/// These methods can be used to convert a `Result<T, E>` to a `Result<T, TaskError>` with the
-/// appropriate `TaskError` variant. The trait has a blanket implementation for any error type that implements
-/// [`std::error::Error`](https://doc.rust-lang.org/std/error/trait.Error.html).
-///
-/// # Examples
-///
-/// ```rust
-/// # use celery::prelude::*;
-/// fn do_some_io() -> Result<(), std::io::Error> {
-///     unimplemented!()
-/// }
-///
-/// #[celery::task]
-/// fn fallible_io_task() -> TaskResult<()> {
-///     do_some_io().with_expected_err(|| "IO error")?;
-///     Ok(())
-/// }
-/// ```
-pub trait TaskResultExt<T, E, F, C> {
-    /// Convert the error type to a `TaskError::ExpectedError`.
-    fn with_expected_err(self, f: F) -> Result<T, TaskError>;
-
-    /// Convert the error type to a `TaskError::UnexpectedError`.
-    fn with_unexpected_err(self, f: F) -> Result<T, TaskError>;
-}
-
-impl<T, E, F, C> TaskResultExt<T, E, F, C> for Result<T, E>
-where
-    E: std::error::Error,
-    F: FnOnce() -> C,
-    C: std::fmt::Display + Send + Sync + 'static,
-{
-    fn with_expected_err(self, f: F) -> Result<T, TaskError> {
-        self.map_err(|e| TaskError::ExpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
-    }
-
-    fn with_unexpected_err(self, f: F) -> Result<T, TaskError> {
-        self.map_err(|e| TaskError::UnexpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
-    }
 }

@@ -6,7 +6,7 @@
 //! Define tasks by decorating functions with the [`task`](attr.task.html) attribute:
 //!
 //! ```rust
-//! use celery::prelude::*;
+//! use celery::TaskResult;
 //!
 //! #[celery::task]
 //! fn add(x: i32, y: i32) -> TaskResult<i32> {
@@ -19,7 +19,7 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
+//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
 //! let my_app = celery::app!(
@@ -34,11 +34,11 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
+//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
 //! # let my_app = celery::app!(
 //! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
@@ -54,11 +54,11 @@
 //!
 //! ```rust,no_run
 //! # #[celery::task]
-//! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
+//! # fn add(x: i32, y: i32) -> celery::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
 //! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # async fn main() -> Result<(), exitfailure::ExitFailure> {
 //! # let my_app = celery::app!(
 //! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
@@ -77,14 +77,13 @@
 )]
 
 mod app;
-mod routing;
 pub use app::{Celery, CeleryBuilder};
-pub mod beat;
 pub mod broker;
 pub mod error;
-pub mod prelude;
+pub use error::TaskResultExt;
 pub mod protocol;
 pub mod task;
+pub use task::TaskResult;
 
 #[cfg(feature = "codegen")]
 mod codegen;
@@ -98,14 +97,12 @@ mod codegen;
 ///
 /// - `name`: The name to use when registering the task. Should be unique. If not given the name
 /// will be set to the name of the function being decorated.
-/// - `time_limit`: Set a task-level [`TaskOptions::time_limit`](task/struct.TaskOptions.html#structfield.time_limit).
-/// - `hard_time_limit`: Set a task-level [`TaskOptions::hard_time_limit`](task/struct.TaskOptions.html#structfield.hard_time_limit).
+/// - `timeout`: Set a task-level [`TaskOptions::timeout`](task/struct.TaskOptions.html#structfield.timeout).
 /// - `max_retries`: Set a task-level [`TaskOptions::max_retries`](task/struct.TaskOptions.html#structfield.max_retries).
 /// - `min_retry_delay`: Set a task-level [`TaskOptions::min_retry_delay`](task/struct.TaskOptions.html#structfield.min_retry_delay).
 /// - `max_retry_delay`: Set a task-level [`TaskOptions::max_retry_delay`](task/struct.TaskOptions.html#structfield.max_retry_delay).
 /// - `retry_for_unexpected`: Set a task-level [`TaskOptions::retry_for_unexpected`](task/struct.TaskOptions.html#structfield.retry_for_unexpected).
 /// - `acks_late`: Set a task-level [`TaskOptions::acks_late`](task/struct.TaskOptions.html#structfield.acks_late).
-/// - `content_type`: Set a task-level [`TaskOptions::content_type`](task/struct.TaskOptions.html#structfield.content_type).
 /// - `bind`: A bool. If true, the task will be run like an instance method and so the function's
 /// first argument should be a reference to `Self`. Note however that Rust won't allow you to call
 /// the argument `self`. Instead, you could use `task` or just `t`.
@@ -122,7 +119,7 @@ mod codegen;
 /// Create a task named `add` with all of the default options:
 ///
 /// ```rust
-/// use celery::prelude::*;
+/// use celery::TaskResult;
 ///
 /// #[celery::task]
 /// fn add(x: i32, y: i32) -> TaskResult<i32> {
@@ -133,7 +130,7 @@ mod codegen;
 /// Use a name different from the function name:
 ///
 /// ```rust
-/// # use celery::prelude::*;
+/// # use celery::TaskResult;
 /// #[celery::task(name = "sum")]
 /// fn add(x: i32, y: i32) -> TaskResult<i32> {
 ///     Ok(x + y)
@@ -143,9 +140,9 @@ mod codegen;
 /// Customize the default retry behavior:
 ///
 /// ```rust
-/// # use celery::prelude::*;
+/// # use celery::TaskResult;
 /// #[celery::task(
-///     time_limit = 3,
+///     timeout = 3,
 ///     max_retries = 100,
 ///     min_retry_delay = 1,
 ///     max_retry_delay = 60,
@@ -159,7 +156,7 @@ mod codegen;
 /// Bind the function to the task instance so it runs like an instance method:
 ///
 /// ```rust
-/// # use celery::prelude::*;
+/// # use celery::task::{Task, TaskResult};
 /// #[celery::task(bind = true)]
 /// fn bound_task(task: &Self) {
 ///     println!("Hello, World! From {}", task.name());

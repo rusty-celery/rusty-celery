@@ -7,7 +7,6 @@ use std::time::SystemTime;
 use tokio::time::Duration;
 
 /// A `Request` contains information and state related to the currently executing task.
-#[derive(Clone)]
 pub struct Request<T>
 where
     T: Task,
@@ -46,7 +45,7 @@ where
     pub reply_to: Option<String>,
 
     /// The time limit (in seconds) allocated for this task to execute.
-    pub time_limit: Option<u32>,
+    pub timeout: Option<u32>,
 }
 
 impl<T> Request<T>
@@ -54,7 +53,7 @@ where
     T: Task,
 {
     pub fn new(m: Message, p: T::Params) -> Self {
-        let time_limit = match m.headers.timelimit {
+        let timeout = match m.headers.timelimit {
             (Some(soft_timelimit), Some(hard_timelimit)) => {
                 Some(std::cmp::min(soft_timelimit, hard_timelimit))
             }
@@ -74,7 +73,7 @@ where
             expires: m.headers.expires,
             hostname: None,
             reply_to: m.properties.reply_to,
-            time_limit,
+            timeout,
         }
     }
 

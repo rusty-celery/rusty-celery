@@ -2,7 +2,7 @@
 
 use amq_protocol::{
     types::{AMQPValue, FieldArray},
-    uri::{self, AMQPUri},
+    uri::AMQPUri,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -15,11 +15,11 @@ use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
-use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
+use crate::protocol::{Message, MessageHeaders, MessageProperties, TryCreateMessage};
 
 struct Config {
     broker_url: String,
@@ -78,16 +78,13 @@ impl BrokerBuilder for AMQPBrokerBuilder {
     }
 
     /// Build an `AMQPBroker`.
-    async fn build(&self, connection_timeout: u32) -> Result<AMQPBroker, BrokerError> {
+    async fn build(&self) -> Result<AMQPBroker, BrokerError> {
         let mut uri = AMQPUri::from_str(&self.config.broker_url)
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
-        uri.query.connection_timeout = Some((connection_timeout as u64) * 1000);
-
-        let conn = Connection::connect_uri(uri.clone(), ConnectionProperties::default()).await?;
+        let conn = Connection::connect_uri(uri, ConnectionProperties::default()).await?;
         let consume_channel = conn.create_channel().await?;
-        let produce_channel = conn.create_channel().await?;
-
+        let produce_channel = Mutex::new(conn.create_channel().await?);
         let mut queues: HashMap<String, Queue> = HashMap::new();
         for (queue_name, queue_options) in &self.config.queues {
             let queue = consume_channel
@@ -95,15 +92,12 @@ impl BrokerBuilder for AMQPBrokerBuilder {
                 .await?;
             queues.insert(queue_name.into(), queue);
         }
-
         let broker = AMQPBroker {
-            uri,
-            conn: Mutex::new(conn),
-            consume_channel: RwLock::new(consume_channel),
-            produce_channel: Mutex::new(produce_channel),
+            conn,
+            consume_channel,
+            produce_channel,
             consume_channel_write_lock: Mutex::new(0),
-            queues: RwLock::new(queues),
-            queue_declare_options: self.config.queues.clone(),
+            queues,
             prefetch_count: Mutex::new(self.config.prefetch_count),
         };
         broker
@@ -115,37 +109,29 @@ impl BrokerBuilder for AMQPBrokerBuilder {
 
 /// An AMQP broker.
 pub struct AMQPBroker {
-    uri: AMQPUri,
-
     /// Broker connection.
-    ///
-    /// This is only wrapped in a Mutex for interior mutability.
-    conn: Mutex<Connection>,
+    conn: Connection,
 
     /// Channel to consume messages from.
-    consume_channel: RwLock<Channel>,
+    consume_channel: Channel,
 
     /// Channel to produce messages from.
     ///
-    /// We wrap it in a Mutex not only for interior mutability, but also to avoid
-    /// race conditions when writing to the channel.
+    /// To avoid race conditions when writing to the channel we have to wrap it
+    /// in a mutex.
     produce_channel: Mutex<Channel>,
 
     /// Like the `produce_channel`, we have to be careful to avoid race conditions
-    /// when writing to the `consume_channel`, like when ack-ing or setting the
+    /// when writing to the `cosume_channel`, like when ack-ing or setting the
     /// `prefetch_count` (these have to be done through the same channel that consumes
-    /// the messages). But we can't try to acquire a write lock on the `consume_channel`
-    /// itself since the worker that is consuming would always own a read lock, and so we'd
-    /// never be able to acquire a write lock for anything else. Hence we use this dummy
-    /// Mutex that we only try to acquire when writing.
+    /// the messages). But we can't put `consume_channel` itself inside of a Mutex since a worker
+    /// that is consuming would always own the lock on the mutex, so we'd never be able
+    /// to acquire it for anything else. Hence this dummy Mutex that we only
+    /// try to acquire when writing.
     consume_channel_write_lock: Mutex<u8>,
 
     /// Mapping of queue name to Queue struct.
-    ///
-    /// This is only wrapped in RwLock for interior mutability.
-    queues: RwLock<HashMap<String, Queue>>,
-
-    queue_declare_options: HashMap<String, QueueDeclareOptions>,
+    queues: HashMap<String, Queue>,
 
     /// Need to keep track of prefetch count. We put this behind a mutex to get interior
     /// mutability.
@@ -157,8 +143,6 @@ impl AMQPBroker {
         debug!("Setting prefetch count to {}", prefetch_count);
         let _lock = self.consume_channel_write_lock.lock().await;
         self.consume_channel
-            .read()
-            .await
             .basic_qos(prefetch_count, BasicQosOptions { global: true })
             .await?;
         Ok(())
@@ -172,36 +156,17 @@ impl Broker for AMQPBroker {
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
 
-    fn safe_url(&self) -> String {
-        format!(
-            "{}://{}:***@{}:{}/{}",
-            match self.uri.scheme {
-                uri::AMQPScheme::AMQP => "amqp",
-                _ => "amqps",
-            },
-            self.uri.authority.userinfo.username,
-            self.uri.authority.host,
-            self.uri.authority.port,
-            self.uri.vhost,
-        )
-    }
-
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
-        error_handler: Box<E>,
+        handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError> {
-        self.conn
-            .lock()
-            .await
-            .on_error(move |e| error_handler(BrokerError::from(e)));
-        let queues = self.queues.read().await;
-        let queue = queues
+        self.conn.on_error(move |e| handler(BrokerError::from(e)));
+        let queue = self
+            .queues
             .get(queue)
             .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
         self.consume_channel
-            .read()
-            .await
             .basic_consume(
                 queue.name().as_str(),
                 "",
@@ -215,8 +180,6 @@ impl Broker for AMQPBroker {
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
         let _lock = self.consume_channel_write_lock.lock().await;
         self.consume_channel
-            .read()
-            .await
             .basic_ack(delivery.1.delivery_tag, BasicAckOptions::default())
             .await
             .map_err(|e| e.into())
@@ -315,44 +278,14 @@ impl Broker for AMQPBroker {
     }
 
     async fn close(&self) -> Result<(), BrokerError> {
+        debug!("Connection status: {:?}", self.conn.status());
         // 320 reply-code = "connection-forced", operator intervened.
         // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
         let _lock = self.consume_channel_write_lock.lock().await;
-        let conn = self.conn.lock().await;
-        if conn.status().connected() {
+        if self.conn.status().connected() {
             debug!("Closing connection...");
-            conn.close(320, "").await?;
+            self.conn.close(320, "").await?;
         }
-        Ok(())
-    }
-
-    /// Try reconnecting in the event of some sort of connection error.
-    async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError> {
-        let mut conn = self.conn.lock().await;
-        if !conn.status().connected() {
-            debug!("Attempting to reconnect to broker");
-            let _consume_write_lock = self.consume_channel_write_lock.lock().await;
-
-            let mut uri = self.uri.clone();
-            uri.query.connection_timeout = Some(connection_timeout as u64);
-            *conn = Connection::connect_uri(uri, ConnectionProperties::default()).await?;
-
-            let mut consume_channel = self.consume_channel.write().await;
-            let mut produce_channel = self.produce_channel.lock().await;
-            let mut queues = self.queues.write().await;
-
-            *consume_channel = conn.create_channel().await?;
-            *produce_channel = conn.create_channel().await?;
-
-            queues.clear();
-            for (queue_name, queue_options) in &self.queue_declare_options {
-                let queue = consume_channel
-                    .queue_declare(queue_name, *queue_options, FieldTable::default())
-                    .await?;
-                queues.insert(queue_name.into(), queue);
-            }
-        }
-
         Ok(())
     }
 }
@@ -458,14 +391,14 @@ impl Message {
     }
 }
 
-impl TryDeserializeMessage for (Channel, Delivery) {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
-        self.1.try_deserialize_message()
+impl TryCreateMessage for (Channel, Delivery) {
+    fn try_create_message(&self) -> Result<Message, ProtocolError> {
+        self.1.try_create_message()
     }
 }
 
-impl TryDeserializeMessage for Delivery {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
+impl TryCreateMessage for Delivery {
+    fn try_create_message(&self) -> Result<Message, ProtocolError> {
         let headers = self
             .properties
             .headers()
@@ -627,7 +560,7 @@ mod tests {
             data: vec![],
         };
 
-        let message2 = delivery.try_deserialize_message();
+        let message2 = delivery.try_create_message();
         assert!(message2.is_ok());
 
         let message2 = message2.unwrap();

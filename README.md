@@ -31,7 +31,7 @@
 
 We welcome contributions from everyone regardless of your experience level with Rust. For complete beginners, see [HACKING_QUICKSTART.md](https://github.com/rusty-celery/rusty-celery/blob/master/HACKING_QUICKSTART.md).
 
-If you already know the basics of Rust but are new to Celery, check out the [Rusty Celery Book](https://rusty-celery.github.io/) or the original Python [Celery Project](http://www.celeryproject.org/).
+If you already know the basics of Rust, the [Rusty Celery Book](https://rusty-celery.github.io/) is the best place to start. If you're coming from Python you may also be interested to know [what's different](https://rusty-celery.github.io/coming-from-python/index.html). And if you've never heard of Celery, the official [Celery Project](http://www.celeryproject.org/) is a great source of tutorials and overviews.
 
 ## Quick start
 
@@ -71,15 +71,7 @@ And consume tasks as a worker from a queue with
 my_app.consume().await?;
 ```
 
-## Examples
-
-The `./examples` directory contains:
-
-- a simple Celery app implemented in Rust using an AMQP broker ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs));
-- the same Celery app implemented in Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py));
-- and a Beat app implemented in Rust ([beat_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/beat_app.rs)).
-
-### Prerequisites
+The `./examples` directory contains a simple Celery app that is implemented in both Rust ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)) and Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)) using an AMQP broker. 
 
 If you already have an AMQP broker running you can set the environment variable `AMQP_ADDR` to your broker's URL (e.g., `amqp://localhost:5672//`, where
 the second slash at the end is the name of the [default vhost](https://www.rabbitmq.com/access-control.html#default-state)).
@@ -89,52 +81,32 @@ Otherwise simply run the helper script:
 ./scripts/brokers/amqp.sh
 ```
 
-This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) image (RabbitMQ is a popular AMQP broker).
-
-### Run the examples
-
-![](./img/demo.gif)
-
-#### Run Rust Celery app
-
-You can consume tasks with:
+This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) image (RabbitMQ is a popular AMQP broker). Then you can run a Rust worker with:
 
 ```bash
 cargo run --example celery_app consume
 ```
 
-And you can produce tasks with:
+And then send tasks to the worker with:
 
 ```bash
 cargo run --example celery_app produce
 ```
 
-#### Run Python Celery app
-
-Similarly, you can consume or produce tasks from Python by running
+Alternatively, you can consume or produce tasks from Python by running
 
 
 ```bash
 python examples/celery_app.py consume
 ```
 
-or
+Or
 
 ```bash
 python examples/celery_app.py produce
 ```
 
 You'll need to have Python 3 installed, along with the requirements listed in the `requirements.txt` file.
-
-#### Run Rust Beat app
-
-You can start the Rust beat with:
-
-```bash
-cargo run --example beat_app
-```
-
-And then you can consume tasks from Rust or Python as explained above.
 
 ## Road map and current state
 
@@ -150,8 +122,8 @@ And then you can consume tasks from Rust or Python as explained above.
 | Producers        | ✅      | |
 | Consumers        | ✅      | |
 | Brokers          | ✅      | |
-| Beat             | ✅      | |
 | Backends         | 🔴      | |
+| [Beat](https://github.com/rusty-celery/rusty-celery/issues/55)    | 🔴      | |
 | [Baskets](https://github.com/rusty-celery/rusty-celery/issues/53) | 🔴      | |
 
 ### Brokers
@@ -171,3 +143,5 @@ And then you can consume tasks from Rust or Python as explained above.
 ## Team
 
 [![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/0)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/0)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/1)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/1)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/2)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/2)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/3)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/3)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/4)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/4)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/5)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/5)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/6)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/6)[![](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/images/7)](https://sourcerer.io/fame/epwalsh/rusty-celery/rusty-celery/links/7)
+
+Rusty Celery is an open source community effort. It is also backed by [Structurely](https://structurely.com/), a start-up building conversational AI that has been using Python Celery in production since 2017.

@@ -17,7 +17,7 @@ Cargo.lock
 #
 #already existing elements are commented out
 
-target
+/target
 #**/*.rs.bk
 
 # Contains some private env variables.

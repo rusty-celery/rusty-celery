@@ -42,7 +42,7 @@ fn test_with_options() {
         AMQP { std::env::var("AMQP_ADDR").unwrap() },
         [],
         [],
-        task_time_limit = 2
+        task_timeout = 2
     );
 }
 
@@ -52,7 +52,7 @@ fn test_with_keywords_and_options() {
         broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
         tasks = [],
         task_routes = [],
-        task_time_limit = 2
+        task_timeout = 2
     );
 }
 
@@ -62,7 +62,7 @@ fn test_with_options_and_trailing_comma() {
         AMQP { std::env::var("AMQP_ADDR").unwrap() },
         [],
         [],
-        task_time_limit = 2,
+        task_timeout = 2,
     );
 }
 
@@ -72,6 +72,6 @@ fn test_with_keywords_and_options_and_trailing_comma() {
         broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
         tasks = [],
         task_routes = [],
-        task_time_limit = 2,
+        task_timeout = 2,
     );
 }

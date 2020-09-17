@@ -3,7 +3,7 @@ members = ["./", "celery-codegen"]
 
 [package]
 name = "celery"
-version = "0.4.0-rc4"
+version = "0.3.0"
 authors = ["epwalsh <epwalsh10@gmail.com>"]
 edition = "2018"
 keywords = ["celery", "amqp", "rabbitmq", "background-jobs"]
@@ -28,39 +28,28 @@ chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "0.2.13", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-rmp-serde = { version = "0.14", optional = true }
-rmpv = { version = "0.4.5", optional = true, features = ["with-serde"] }
-serde_yaml = { version = "0.8", optional = true }
-serde-pickle = { version = "0.6", optional = true }
-thiserror = "1.0"
+failure = "0.1.7"
 async-trait = "0.1"
-lapin = { version = "=1.2.3" }
+lapin = { version = "=1.2.1" }
 amq-protocol = "=6.0.0-rc12"
 log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
 uuid = { version = "0.8", features = ["v4"]}
 rand = "0.7"
-celery-codegen = { version = "0.4.0-rc4", path = "./celery-codegen", optional = true }
-colored = "2"
+celery-codegen = { version = "0.3.0", path = "./celery-codegen", optional = true }
 once_cell = { version = "1.3.1", optional = true }
 globset = "0.4"
 # This is only used by amqp-protocol. We need to pin to this version to avoid a compilation error
-# where building on nightly Rust.
-# TODO (epwalsh): is this still needed?
+# where building on nighty Rust.
 cookie-factory = "0.3.1"
 hostname = "0.3.0"
 redis = { version = "0.17.0" }
 
 [dev-dependencies]
-rmp-serde = "0.14"
-rmpv = { version = "0.4.5", features = ["with-serde"] }
-serde_yaml = "0.8"
-serde-pickle = "0.6"
 env_logger = "0.7"
-anyhow = "1.0"
+exitfailure = "0.5.1"
 structopt = "0.3"
 
 [features]
 default = ["codegen"]
 codegen = ["celery-codegen", "once_cell"]
-extra_content_types = ["rmp-serde", "rmpv", "serde_yaml", "serde-pickle"]
