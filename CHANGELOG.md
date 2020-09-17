@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.4.0-rc4 - 2020-09-16
+
 ### Added
 
 - Added a `MockBroker` for internal testing.
