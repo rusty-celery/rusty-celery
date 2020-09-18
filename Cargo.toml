@@ -34,7 +34,7 @@ serde_yaml = { version = "0.8", optional = true }
 serde-pickle = { version = "0.6", optional = true }
 thiserror = "1.0"
 async-trait = "0.1"
-lapin = { version = "=1.2.3" }
+lapin = { version = "=1.2.4" }
 amq-protocol = "=6.0.0-rc12"
 log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
