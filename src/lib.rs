@@ -70,10 +70,10 @@
 //! ```
 
 #![doc(
-    html_favicon_url = "https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery.ico"
+    html_favicon_url = "https://raw.githubusercontent.com/rusty-celery/rusty-celery/master/img/favicon.ico"
 )]
 #![doc(
-    html_logo_url = "https://structurely-images.s3-us-west-2.amazonaws.com/logos/rusty-celery-4.png"
+    html_logo_url = "https://raw.githubusercontent.com/rusty-celery/rusty-celery/master/img/rusty-celery-logo-only.png"
 )]
 
 mod app;
