@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Now using `tokio-amqp` internally with `lapin`.
+
 ### Fixed
 
 - Task ID now logged when a beat app sends a task.
