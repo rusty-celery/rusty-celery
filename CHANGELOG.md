@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Task ID now logged when a beat app sends a task.
+
 ## v0.4.0-rc4 - 2020-09-16
 
 ### Added
