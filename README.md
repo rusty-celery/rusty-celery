@@ -75,11 +75,11 @@ my_app.consume().await?;
 
 ## Examples
 
-The `./examples` directory contains:
+The [`examples/`](https://github.com/rusty-celery/rusty-celery/tree/master/examples) directory contains:
 
-- a simple Celery app implemented in Rust using an AMQP broker ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs));
-- the same Celery app implemented in Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py));
-- and a Beat app implemented in Rust ([beat_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/beat_app.rs)).
+- a simple Celery app implemented in Rust using an AMQP broker ([`examples/celery_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)),
+- the same Celery app implemented in Python ([`examples/celery_app.py`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)),
+- and a Beat app implemented in Rust ([`examples/beat_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/beat_app.rs)).
 
 ### Prerequisites
 
