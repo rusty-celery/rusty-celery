@@ -1,6 +1,6 @@
 <div align="center">
     <br>
-    <img src="img/rusty-celery-logo.png"/>
+    <img src="img/rusty-celery-logo-transparent.png"/>
     <br>
     <br>
     <p>
