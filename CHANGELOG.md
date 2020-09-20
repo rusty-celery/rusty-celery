@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Now using `tokio-amqp` internally with `lapin`.
+
+### Fixed
+
+- Task ID now logged when a beat app sends a task.
+
+## v0.4.0-rc4 - 2020-09-16
+
+### Added
+
+- Added a `MockBroker` for internal testing.
+- Added more tests to the `app` module.
+- Added a `prelude` module.
+- Added support for YAML, MsgPack, and Pickle content types, behind the `extra_content_types` feature flag.
+
+### Changed
+
+- Improved `TaskResultExt`. Now takes a `FnOnce() -> Context` instead of `&str`.
+
+### Fixed
+
+- Ensure a `Signature` inherits default `TaskOptions` from the corresponding `Task` and `Celery` or `Beat` app.
+- Cleaned up remaining uses of `.unwrap()` in the library.
+- Options returned with `Task::options()` now have the current values, where app-level values are overriden by task-level values.
+
+## v0.4.0-rc3 - 2020-09-09
+
+### Added
+
+- Added a `.display_pretty()` method on the `Celery` struct that prints out a cool ASCII logo
+  with some useful information about the app.
+- Added an `AsyncResult` struct that acts as a handler for task results.
+- Added `Task::retry_with_countdown` and `Task::retry_with_eta` trait methods so that tasks can
+  manually trigger a retry.
+
+### Changed
+
+- Fields of the `Signature` struct made private to avoid confusion around which fields of `TaskOptions` apply to a `Signature`.
+- `Celery::send_task` now returns an `AsyncResult` instead of a `String` for the `Ok` variant.
+- Renamed `DummyBackend` to `LocalSchedulerBackend`.
+- Switched to [`thiserror`](https://github.com/dtolnay/thiserror) for the error module instead of the deprecated `failure` crate.
+
+### Fixed
+
+- Fixed bug where `hard_time_limit` was ignored by worker if only specified at the app or task level.
+
+## v0.4.0-rc2 - 2020-08-27
+
+### Added
+
+- Added a `reconnect` method on the `Broker`.
+
+### Changed
+
+- `Celery` and `Beat` apps will automatically try to reconnect the broker when the connection fails.
+
+## v0.4.0-rc1 - 2020-08-18
+
+### Added
+
+- Added a `hard_time_limit` task option for compatability with Python.
+
+### Changed
+
+- The `timeout` task option was renamed to `time_limit` to be more consistent with the Python API.
+
+### Fixed
+
+- Compiles on Windows
+
+## v0.3.1 - 2020-07-22
+
+### Added
+
+- `beat` module with basic support for scheduling tasks.
+- `beat` macro to create a `Beat` app.
+
 ## v0.3.0 - 2020-05-28
 
 ### Changed

@@ -1,36 +1,34 @@
 # Publishing a new release
 
-1. Set the environment variable `VERSION` to the desired version and change the version in all subcrate `Cargo.toml` files and in the root `Cargo.toml`. Also change the version of the subcrate dependencies in the root `Cargo.toml`. All versions should now match `VERSION`.
+1. Set the environment variable `TAG`, which should be of the form `v{VERSION}`, where `VERSION` is the target version of the release.
 
-2. Update the [CHANGELOG]("CHANGELOG.md").
+2. Change version in all subcrate `Cargo.toml` files and in the root `Cargo.toml` to the target version. Also change the version of the subcrate dependencies in the root `Cargo.toml`. All versions should now match the target version.
 
-3. Commit and push these changes:
+3. Update the [CHANGELOG]("CHANGELOG.md") by creating a new release section header right the `## Unreleased` header.
 
-    ```bash
-    git commit -a -m "(cargo-release) version $VERSION"
-    git push
-    ```
-
-4. Add a tag in git to mark the release:
+4. Commit and push these changes:
 
     ```bash
-    git tag "v$VERSION" -m "Adds tag v$VERSION for cargo"
-    git push --tags origin master
+    git commit -a -m "(cargo-release) $TAG" && git push
     ```
 
-5. Lastly, go to the corresponding release on GitHub and copy over the notes from the CHANGELOG. Then add a "Commits" section with the output of this command:
+5. Add a tag in git to mark the release:
 
     ```bash
-    git log `git describe --always --tags --abbrev=0 HEAD^^`..HEAD^ --oneline
+    git tag "$TAG" -m "Adds tag $TAG for release" && git push --tags
     ```
 
-    Or, if you're using fish shell:
+6. Find the tag you just pushed [on GitHub](https://github.com/rusty-celery/rusty-celery/releases), click edit, then copy over the output of:
 
-    ```fish
-    git log (git describe --always --tags --abbrev=0 HEAD^^)..HEAD^ --oneline
+    ```
+    python scripts/generate_release_notes.py
     ```
 
-    The GitHub Actions release workflow will handle testing and publishing to crates.io.
+    On a Mac, for example, you can just pipe the above command into `pbcopy`.
+
+7. Check the box "This is a pre-release" if the release is a release candidate (ending with `-rc*`). Otherwise leave it unchecked.
+
+8. Finally, click "Publish Release". GitHub Actions will then build and publish to [crates.io](https://crates.io).
 
 # Fixing a failed release
 

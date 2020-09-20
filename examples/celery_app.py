@@ -13,7 +13,10 @@ my_app = Celery("celery", broker=os.environ.get("AMQP_ADDR", "amqp://127.0.0.1:5
 my_app.conf.update(
     result_backend=None,
     task_ignore_result=True,
-    task_routes=([("buggy_task", {"queue": "buggy-queue"})], [("*", {"queue": "celery"})],),
+    task_routes=(
+        [("buggy_task", {"queue": "buggy-queue"})],
+        [("*", {"queue": "celery"})],
+    ),
 )
 
 
@@ -25,7 +28,10 @@ def add(x, y):
 
 
 @my_app.task(
-    name="buggy_task", max_retries=3, autoretry_for=(RuntimeError,), retry_backoff=True,
+    name="buggy_task",
+    max_retries=3,
+    autoretry_for=(RuntimeError,),
+    retry_backoff=True,
 )
 def buggy_task():
     raise RuntimeError("This error is part of the example: it is used to showcase error handling")
