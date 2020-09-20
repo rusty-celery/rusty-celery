@@ -137,8 +137,8 @@ pub enum BrokerError {
     AMQPError(#[from] lapin::Error),
 
     /// Any other Redis error that could happen.
-    #[fail(display = "BrokerError: Redis error ({})", _0)]
-    RedisError(#[fail(cause)] redis::RedisError),
+    #[error("Redis error")]
+    RedisError(#[from] redis::RedisError),
 }
 
 impl BrokerError {
