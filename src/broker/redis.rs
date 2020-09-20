@@ -358,10 +358,12 @@ impl Broker for RedisBroker {
     }
 
     fn safe_url(&self) -> String{
+        println!("TODO: safe_url");
         self.uri.clone()
     }
 
     async fn reconnect(&self, _connection_timeout: u32) -> Result<(), BrokerError>{
+        println!("TODO: reconnect");
         todo!()
     }
 }
