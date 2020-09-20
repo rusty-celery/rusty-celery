@@ -1,5 +1,6 @@
 //! Redis broker.
 #![allow(dead_code)]
+use crate::protocol::TryDeserializeMessage;
 use redis::RedisResult;
 use crate::protocol::MessageHeaders;
 use crate::protocol::MessageProperties;
@@ -9,7 +10,7 @@ use futures::Stream;
 use std::collections::HashSet;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use crate::protocol::{Message, TryCreateMessage};
+use crate::protocol::{Message};
 use crate::error::{BrokerError, ProtocolError};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -71,7 +72,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
     }
 
     /// Construct the `Broker` with the given configuration.
-    async fn build(&self) -> Result<Self::Broker, BrokerError>{
+    async fn build(&self, connection_timeout: u32) -> Result<Self::Broker, BrokerError>{
         let mut queues: HashSet<String> = HashSet::new();
         for queue_name in &self.config.queues{
             queues.insert(queue_name.into());
@@ -92,6 +93,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
         };
 
         Ok(RedisBroker{
+            uri: self.config.broker_url.clone(),
             conn: Mutex::new(multiplexed_conn.clone()),
             queues: queues,
             prefetch_count: Mutex::new(self.config.prefetch_count),
@@ -102,6 +104,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
 }
 
 pub struct RedisBroker{
+    uri: String,
     /// Broker connection.
     conn: Mutex<MultiplexedConnection>,
     consume_channel: Channel,
@@ -177,7 +180,7 @@ pub struct Delivery{
 // }
 
 impl Delivery{
-    fn try_create_message(&self) -> Result<Message, ProtocolError>{
+    fn try_deserialize_message(&self) -> Result<Message, ProtocolError>{
         Ok(Message {
             properties: MessageProperties {
                 correlation_id: self
@@ -216,9 +219,10 @@ pub struct Consumer{
     // processing_queue_name: String,
 }
 
-impl TryCreateMessage for (Channel, Delivery){
-    fn try_create_message(&self) -> Result<Message, ProtocolError> {
-        self.1.try_create_message()
+
+impl TryDeserializeMessage for (Channel, Delivery) {
+    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
+        self.1.try_deserialize_message()
     }
 }
 
@@ -273,7 +277,7 @@ impl Stream for Consumer{
 
 
 #[async_trait]
-impl Broker for RedisBroker {
+impl Broker for RedisBroker {    
     /// The builder type used to create the broker with a custom configuration.
     type Builder = RedisBrokerBuilder;
     type Delivery = (Channel, Delivery);
@@ -351,6 +355,14 @@ impl Broker for RedisBroker {
     async fn close(&self) -> Result<(), BrokerError>{
         println!("TODO: close");
         Ok(())
+    }
+
+    fn safe_url(&self) -> String{
+        self.uri.clone()
+    }
+
+    async fn reconnect(&self, _connection_timeout: u32) -> Result<(), BrokerError>{
+        todo!()
     }
 }
 
