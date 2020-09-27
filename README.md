@@ -4,7 +4,7 @@
     <br>
     <br>
     <p>
-    A Rust implementation of <a href="https://github.com/celery/celery">Celery</a> for producing and consuming asyncronous tasks with a distributed message queue.
+    A Rust implementation of <a href="https://github.com/celery/celery">Celery</a> for producing and consuming asynchronous tasks with a distributed message queue.
     </p>
     <hr/>
 </div>
