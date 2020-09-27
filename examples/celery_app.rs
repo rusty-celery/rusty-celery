@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
             "buggy_task" => "buggy-queue",
             "*" => "celery",
         ],
-        prefetch_count = 1,
+        prefetch_count = 2,
         heartbeat = Some(10),
     );
 

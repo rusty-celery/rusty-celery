@@ -7,7 +7,6 @@ use crate::protocol::MessageProperties;
 use crate::protocol::TryDeserializeMessage;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use crossbeam_channel::{bounded, Receiver, Sender};
 use futures::Stream;
 use log::{debug, warn};
 use std::clone::Clone;
@@ -17,7 +16,10 @@ use std::future::Future;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use std::task::{Poll, Waker};
-use tokio::sync::Mutex;
+use tokio::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Mutex,
+};
 use uuid::Uuid;
 
 use super::{Broker, BrokerBuilder};
@@ -88,7 +90,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
 
         let manager = client.get_tokio_connection_manager().await?;
 
-        let (tx, rx) = bounded(1);
+        let (tx, rx) = channel(1);
         Ok(RedisBroker {
             uri: self.config.broker_url.clone(),
             queues: queues,
@@ -146,8 +148,15 @@ impl Channel {
         format!("_celery.{}_process_map", self.queue_name)
     }
 
-    async fn fetch_task(mut self) -> Result<Delivery, BrokerError> {
+    async fn fetch_task(
+        mut self,
+        send_waker: Option<(Sender<Waker>, Waker)>,
+    ) -> Result<Delivery, BrokerError> {
         let pending_queue = self.pending_queue();
+        if let Some((mut sender, waker)) = send_waker {
+            sender.send(waker).await.unwrap();
+            futures::pending!();
+        }
         loop {
             let rez: Result<Option<String>, RedisError> = redis::cmd("RPOPLPUSH")
                 .arg(&self.queue_name)
@@ -301,6 +310,7 @@ impl Delivery {
 
 pub struct Consumer {
     channel: Channel,
+    error_handler: Box<dyn Fn(BrokerError) + Send + Sync + 'static>,
     polled_pop: Option<std::pin::Pin<Box<dyn Future<Output = Result<Delivery, BrokerError>>>>>,
     pending_tasks: Arc<AtomicU16>,
     waker_tx: Sender<Waker>,
@@ -329,24 +339,32 @@ impl Stream for Consumer {
         // - get from queue
         // - add delivery tag in processing unacked_index_key sortedlist
         // - add delivery tag, msg in processing hashset unacked_key
-        if self.pending_tasks.load(Ordering::SeqCst) == self.prefetch_count.load(Ordering::SeqCst) {
-            debug!("Pending tasks filled prefetch limit");
-            self.waker_tx.send(cx.waker().clone()).unwrap();
-            return Poll::Pending;
-        }
         let mut polled_pop = if self.polled_pop.is_none() {
-            Box::pin(self.channel.clone().fetch_task())
+            let send_waker = if self.pending_tasks.load(Ordering::SeqCst)
+                >= self.prefetch_count.load(Ordering::SeqCst)
+            {
+                debug!("Pending tasks filled prefetch limit");
+                let sender = self.waker_tx.clone();
+                Some((sender, cx.waker().clone()))
+            } else {
+                None
+            };
+            Box::pin(self.channel.clone().fetch_task(send_waker))
         } else {
             self.polled_pop.take().unwrap()
         };
         if let Poll::Ready(item) = Future::poll(polled_pop.as_mut(), cx) {
-            Poll::Ready(Some({
-                Ok({
-                    let item = item?;
+            match item {
+                Ok(item) => {
                     self.pending_tasks.fetch_add(1, Ordering::SeqCst);
-                    (self.channel.clone(), item)
-                })
-            }))
+                    Poll::Ready(Some(Ok((self.channel.clone(), item))))
+                }
+                Err(err) => {
+                    (self.error_handler)(err);
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                }
+            }
         } else {
             self.polled_pop = Some(polled_pop);
             Poll::Pending
@@ -377,13 +395,14 @@ impl Broker for RedisBroker {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
-        _handler: Box<E>,
+        error_handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError> {
         let consumer = Consumer {
             channel: Channel {
                 connection: self.manager.clone(),
                 queue_name: queue.to_string(),
             },
+            error_handler,
             polled_pop: None,
             prefetch_count: Arc::clone(&self.prefetch_count),
             pending_tasks: Arc::clone(&self.pending_tasks),
@@ -397,7 +416,7 @@ impl Broker for RedisBroker {
         self.pending_tasks.fetch_sub(1, Ordering::SeqCst);
         let (channel, delivery) = delivery;
         channel.remove_task(delivery).await?;
-        let waker_rx = self.waker_rx.lock().await;
+        let mut waker_rx = self.waker_rx.lock().await;
         if let Ok(waker) = waker_rx.try_recv() {
             waker.wake();
         }
@@ -450,16 +469,39 @@ impl Broker for RedisBroker {
     }
 
     async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError> {
+        // Stop additional task fetching
+        let old_prefetch_count = self.prefetch_count.fetch_and(0, Ordering::SeqCst);
         let mut conn = self.manager.clone();
+        let timeed_out = false;
         loop {
-            let rez: String = redis::cmd("PING").query_async(&mut conn).await?;
-            if rez.eq("PONG") {
-                return Ok(());
+            let rez: Result<String, RedisError> = redis::cmd("PING").query_async(&mut conn).await;
+            match rez {
+                Ok(rez) => {
+                    if rez.eq("PONG") {
+                        self.prefetch_count
+                            .store(old_prefetch_count, Ordering::SeqCst);
+                        return Ok(());
+                    } else {
+                        tokio::time::delay_for(tokio::time::Duration::from_secs(
+                            connection_timeout as u64,
+                        ))
+                        .await;
+                        continue;
+                    }
+                }
+                Err(e) => {
+                    if !timeed_out {
+                        tokio::time::delay_for(tokio::time::Duration::from_secs(
+                            connection_timeout as u64,
+                        ))
+                        .await;
+                        continue;
+                    }
+                    self.prefetch_count
+                        .store(old_prefetch_count, Ordering::SeqCst);
+                    return Err(e.into());
+                }
             }
-            tokio::time::delay_for(tokio::time::Duration::from_millis(
-                connection_timeout as u64,
-            ))
-            .await;
         }
     }
 }

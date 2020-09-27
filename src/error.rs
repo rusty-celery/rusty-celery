@@ -159,6 +159,9 @@ impl BrokerError {
                 lapin::Error::InvalidChannelState(_) => true,
                 _ => false,
             },
+            BrokerError::RedisError(err) => {
+                err.is_connection_dropped() || err.is_connection_refusal()
+            }
             _ => false,
         }
     }
