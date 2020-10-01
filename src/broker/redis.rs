@@ -1,9 +1,10 @@
 //! Redis broker.
 #![allow(dead_code)]
+use crate::protocol::Delivery;
 use crate::protocol::TryDeserializeMessage;
 use redis::RedisResult;
-use crate::protocol::MessageHeaders;
-use crate::protocol::MessageProperties;
+
+
 use std::fmt;
 use std::clone::Clone;
 use futures::Stream;
@@ -13,16 +14,13 @@ use chrono::{DateTime, Utc};
 use crate::protocol::{Message};
 use crate::error::{BrokerError, ProtocolError};
 use tokio::sync::Mutex;
-use uuid::Uuid;
+
 use log::{debug, warn};
 
 use super::{Broker, BrokerBuilder};
 use redis::aio::{MultiplexedConnection};
 use redis::RedisError;
 use redis::Client;
-use serde_json::json;
-use serde_json::value::Value;
-use serde::Deserialize;
 
 
 struct Config {
@@ -128,90 +126,7 @@ impl fmt::Debug for Channel{
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct DeliveryHeaders{
-    pub id: String,
-    pub task: String,
-    pub lang: Option<String>,
-    pub root_id: Option<String>,
-    pub parent_id: Option<String>,
-    pub group: Option<String>,
-    pub meth: Option<String>,
-    pub shadow: Option<String>,
-    pub eta: Option<DateTime<Utc>>,
-    pub expires: Option<DateTime<Utc>>,
-    pub retries: Option<u32>,
-    pub timelimit: (Option<u32>, Option<u32>),
-    pub argsrepr: Option<String>,
-    pub kwargsrepr: Option<String>,
-    pub origin: Option<String>,
-}
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct Delivery{
-    // pub delivery_tag: u64,
-    // pub exchange: String,
-    // pub routing_key: String,
-    // pub redelivered: bool,
-    // pub properties: MessageProperties,
-    // pub headers: MessageHeaders,
-    // pub data: Vec<u8>
-    pub body: Vec<u8>,
-    pub content_encoding: String,
-    pub content_type: String,
-    pub correlation_id: String,
-    pub reply_to: Option<String>,
-    pub delivery_tag: String,
-    pub headers: DeliveryHeaders,
-}
-
-// impl Clone for Delivery{
-//     fn clone(&self) -> Delivery{
-//         Delivery{
-//             headers: self.headers.clone(),
-//             delivery_tag: self.delivery_tag.clone(),
-//             exchange: self.exchange.clone(),
-//             routing_key: self.routing_key.clone(),
-//             redelivered: self.redelivered.clone(),
-//             properties: self.properties.clone(),
-//             data: self.data.clone()
-//         }
-//     }
-// }
-
-impl Delivery{
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError>{
-        Ok(Message {
-            properties: MessageProperties {
-                correlation_id: self
-                    .correlation_id.clone(),
-                content_type: self
-                    .content_type.clone(),
-                content_encoding: self
-                    .content_encoding.clone(),
-                reply_to: self.reply_to.clone(),
-            },
-            headers: MessageHeaders {
-                id: self.headers.id.clone(),
-                task: self.headers.task.clone(),
-                lang: self.headers.lang.clone(),
-                root_id: self.headers.root_id.clone(),
-                parent_id: self.headers.parent_id.clone(),
-                group: self.headers.group.clone(),
-                meth: self.headers.meth.clone(),
-                shadow: self.headers.shadow.clone(),
-                eta: self.headers.eta.clone(),
-                expires: self.headers.expires.clone(),
-                retries: self.headers.retries.clone(),
-                timelimit: self.headers.timelimit.clone(),
-                argsrepr: self.headers.argsrepr.clone(),
-                kwargsrepr: self.headers.kwargsrepr.clone(),
-                origin: self.headers.origin.clone(),
-            },
-            raw_body: self.body.clone(),
-        })
-    }
-}
 
 pub struct Consumer{
     channel: Channel,
@@ -368,57 +283,6 @@ impl Broker for RedisBroker {
     }
 }
 
-impl Message{
-    pub fn json_serialized(&self) -> Result<Vec<u8>, serde_json::error::Error>{
-        let root_id = match &self.headers.root_id{
-            Some(root_id) => json!(root_id.clone()),
-            None => Value::Null
-        };
-        let reply_to = match &self.properties.reply_to{
-            Some(reply_to) => json!(reply_to.clone()),
-            None => Value::Null
-        };
-        let eta = match self.headers.eta{
-            Some(time) => json!(time.to_rfc3339()),
-            None => Value::Null
-        };
-        let expires = match self.headers.expires{
-            Some(time) => json!(time.to_rfc3339()),
-            None => Value::Null
-        };
-        let mut buffer = Uuid::encode_buffer();
-        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
-        let delivery_tag = uuid.to_owned();
-        let msg_json_value = json!({
-            "body": self.raw_body.clone(),
-            "content_encoding": self.properties.content_encoding.clone(),
-            "content_type": self.properties.content_type.clone(),
-            "correlation_id": self.properties.correlation_id.clone(),
-            "reply_to": reply_to,
-            "delivery_tag": delivery_tag,
-            "headers": {
-                "id": self.headers.id.clone(),
-                "task": self.headers.task.clone(),
-                "lang": self.headers.lang.clone(),
-                "root_id": root_id,
-                "parent_id": self.headers.parent_id.clone(),
-                "group": self.headers.group.clone(),
-                "meth": self.headers.meth.clone(),
-                "shadow": self.headers.shadow.clone(),
-                "eta": eta,
-                "expires": expires,
-                "retries": self.headers.retries.clone(),
-                "timelimit": self.headers.timelimit.clone(),
-                "argsrepr": self.headers.argsrepr.clone(),
-                "kwargsrepr": self.headers.kwargsrepr.clone(),
-                "origin": self.headers.origin.clone()
-            }
-        });
-        let res = serde_json::to_string(&msg_json_value)?;
-        Ok(res.into_bytes())
-        // Ok(res.bytes())
-    }
-}
 
 #[cfg(test)]
 mod tests{
