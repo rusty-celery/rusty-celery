@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
     let opt = CeleryOpt::from_args();
     let my_app = celery::app!(
         // broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
-        broker = REDIS { "redis://127.0.0.1:6379" },
+        broker = Redis { "redis://127.0.0.1:6379" },
         tasks = [
             add,
             buggy_task,
