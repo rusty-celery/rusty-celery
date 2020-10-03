@@ -1,3 +1,5 @@
+use crate::protocol::MessageContentType;
+
 /// Configuration options pertaining to a task.
 ///
 /// These are set at either the app level (pertaining to all registered tasks),
@@ -101,4 +103,54 @@ pub struct TaskOptions {
     ///
     /// If this option is left unspecified, the default behavior will be to ack early.
     pub acks_late: Option<bool>,
+
+    /// Which serialization format to use for task messages.
+    ///
+    /// This can be set with
+    /// - [`task_content_type`](../struct.CeleryBuilder.html#method.task_content_type) at the app level, and
+    /// - [`content_type`](../attr.task.html#parameters) at the task level.
+    /// - [`with_content_type`](../task/struct.Signature.html#method.with_content_type) at the request / signature level.
+    pub content_type: Option<MessageContentType>,
+}
+
+impl TaskOptions {
+    /// Update the fields in `self` with the fields in `other`.
+    pub(crate) fn update(&mut self, other: &TaskOptions) {
+        self.time_limit = self.time_limit.or_else(|| other.time_limit);
+        self.hard_time_limit = self.hard_time_limit.or_else(|| other.hard_time_limit);
+        self.max_retries = self.max_retries.or_else(|| other.max_retries);
+        self.min_retry_delay = self.min_retry_delay.or_else(|| other.min_retry_delay);
+        self.max_retry_delay = self.max_retry_delay.or_else(|| other.max_retry_delay);
+        self.retry_for_unexpected = self
+            .retry_for_unexpected
+            .or_else(|| other.retry_for_unexpected);
+        self.acks_late = self.acks_late.or_else(|| other.acks_late);
+        self.content_type = self.content_type.or_else(|| other.content_type);
+    }
+
+    /// Override the fields in `other` with the fields in `self`.
+    pub(crate) fn override_other(&self, other: &mut TaskOptions) {
+        other.update(self);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_update() {
+        let mut options = TaskOptions::default();
+        options.max_retries = Some(3);
+        options.acks_late = Some(true);
+
+        let mut other = TaskOptions::default();
+        other.time_limit = Some(2);
+        other.acks_late = Some(false);
+
+        options.update(&other);
+        assert_eq!(options.time_limit, Some(2));
+        assert_eq!(options.max_retries, Some(3));
+        assert_eq!(options.acks_late, Some(true));
+    }
 }

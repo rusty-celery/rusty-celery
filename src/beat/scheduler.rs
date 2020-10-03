@@ -109,7 +109,12 @@ where
 
         let message = scheduled_task.message_factory.try_create_message()?;
 
-        info!("Sending task {} to {} queue", scheduled_task.name, queue);
+        info!(
+            "Sending task {}[{}] to {} queue",
+            scheduled_task.name,
+            message.task_id(),
+            queue
+        );
         self.broker.send(&message, &queue).await?;
         scheduled_task.last_run_at.replace(SystemTime::now());
         scheduled_task.total_run_count += 1;

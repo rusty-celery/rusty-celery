@@ -1,21 +1,19 @@
 //! AMQP broker.
 
-use amq_protocol::{
-    types::{AMQPValue, FieldArray},
-    uri::{self, AMQPUri},
-};
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
 use lapin::message::Delivery;
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
-use lapin::types::FieldTable;
+use lapin::types::{AMQPValue, FieldArray, FieldTable};
+use lapin::uri::{self, AMQPUri};
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tokio::sync::{Mutex, RwLock};
+use tokio_amqp::LapinTokioExt;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
@@ -84,7 +82,9 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         uri.query.heartbeat = self.config.heartbeat;
         uri.query.connection_timeout = Some((connection_timeout as u64) * 1000);
 
-        let conn = Connection::connect_uri(uri.clone(), ConnectionProperties::default()).await?;
+        let conn =
+            Connection::connect_uri(uri.clone(), ConnectionProperties::default().with_tokio())
+                .await?;
         let consume_channel = conn.create_channel().await?;
         let produce_channel = conn.create_channel().await?;
 
@@ -335,7 +335,8 @@ impl Broker for AMQPBroker {
 
             let mut uri = self.uri.clone();
             uri.query.connection_timeout = Some(connection_timeout as u64);
-            *conn = Connection::connect_uri(uri, ConnectionProperties::default()).await?;
+            *conn =
+                Connection::connect_uri(uri, ConnectionProperties::default().with_tokio()).await?;
 
             let mut consume_channel = self.consume_channel.write().await;
             let mut produce_channel = self.produce_channel.lock().await;

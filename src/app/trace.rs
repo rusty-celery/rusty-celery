@@ -230,13 +230,16 @@ pub(super) type TraceBuilder = Box<
 
 pub(super) fn build_tracer<T: Task + Send + 'static>(
     message: Message,
-    options: TaskOptions,
+    mut options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
     hostname: String,
 ) -> TraceBuilderResult {
     // Build request object.
     let mut request = Request::<T>::try_from(message)?;
     request.hostname = Some(hostname);
+
+    // Override app-level options with task-level options.
+    T::DEFAULTS.override_other(&mut options);
 
     // Now construct the task from the request and options.
     // It seems redundant to construct a request just to use it to construct a task,

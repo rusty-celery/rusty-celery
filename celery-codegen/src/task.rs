@@ -25,6 +25,7 @@ enum TaskAttr {
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
     MaxRetryDelay(syn::LitInt),
+    ContentType(syn::Ident),
     RetryForUnexpected(syn::LitBool),
     AcksLate(syn::LitBool),
     Bind(syn::LitBool),
@@ -46,6 +47,7 @@ struct Task {
     max_retry_delay: Option<syn::LitInt>,
     retry_for_unexpected: Option<syn::LitBool>,
     acks_late: Option<syn::LitBool>,
+    content_type: Option<syn::Ident>,
     original_args: Vec<syn::FnArg>,
     inputs: Option<Punctuated<FnArg, Comma>>,
     inner_block: Option<syn::Block>,
@@ -157,6 +159,16 @@ impl TaskAttrs {
             .next()
     }
 
+    fn content_type(&self) -> Option<syn::Ident> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::ContentType(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
     fn bind(&self) -> Option<syn::LitBool> {
         self.attrs
             .iter()
@@ -208,6 +220,7 @@ mod kw {
     syn::custom_keyword!(max_retry_delay);
     syn::custom_keyword!(retry_for_unexpected);
     syn::custom_keyword!(acks_late);
+    syn::custom_keyword!(content_type);
     syn::custom_keyword!(bind);
     syn::custom_keyword!(on_failure);
     syn::custom_keyword!(on_success);
@@ -256,6 +269,10 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::acks_late>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::AcksLate(input.parse()?))
+        } else if lookahead.peek(kw::content_type) {
+            input.parse::<kw::content_type>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::ContentType(input.parse()?))
         } else if lookahead.peek(kw::bind) {
             input.parse::<kw::bind>()?;
             input.parse::<Token![=]>()?;
@@ -289,6 +306,7 @@ impl Task {
             max_retry_delay: attrs.max_retry_delay(),
             retry_for_unexpected: attrs.retry_for_unexpected(),
             acks_late: attrs.acks_late(),
+            content_type: attrs.content_type(),
             original_args: Vec::new(),
             inputs: None,
             inner_block: None,
@@ -510,6 +528,11 @@ impl ToTokens for Task {
             .as_ref()
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { None });
+        let content_type = self
+            .content_type
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .unwrap_or_else(|| quote! { Some(#krate::protocol::MessageContentType::Json) });
         let task_name = self.name.as_ref().unwrap();
         let arg_names = args_to_arg_names(&self.original_args, self.bind);
         let serialized_fields = args_to_fields(&self.original_args, self.bind);
@@ -638,6 +661,7 @@ impl ToTokens for Task {
                         max_retry_delay: #max_retry_delay,
                         retry_for_unexpected: #retry_for_unexpected,
                         acks_late: #acks_late,
+                        content_type: #content_type,
                     };
 
                     type Params = #params_type;

@@ -18,7 +18,7 @@ mod trace;
 
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::error::{BrokerError, CeleryError, TraceError};
-use crate::protocol::{Message, TryDeserializeMessage};
+use crate::protocol::{Message, MessageContentType, TryDeserializeMessage};
 use crate::routing::Rule;
 use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
@@ -159,6 +159,13 @@ where
     /// [`TaskOption::acks_late`](task/struct.TaskOptions.html#structfield.acks_late)).
     pub fn acks_late(mut self, acks_late: bool) -> Self {
         self.config.task_options.acks_late = Some(acks_late);
+        self
+    }
+
+    /// Set default serialization format a task will have (see
+    /// [`TaskOption::content_type`](task/struct.TaskOptions.html#structfield.content_type)).
+    pub fn task_content_type(mut self, content_type: MessageContentType) -> Self {
+        self.config.task_options.content_type = Some(content_type);
         self
     }
 
@@ -318,6 +325,7 @@ where
         &self,
         mut task_sig: Signature<T>,
     ) -> Result<AsyncResult, CeleryError> {
+        task_sig.options.update(&self.task_options);
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
             crate::routing::route(T::NAME, &self.task_routes).unwrap_or(&self.default_queue)
@@ -724,3 +732,6 @@ impl Ender {
         Ok(SigType::Interrupt)
     }
 }
+
+#[cfg(test)]
+mod tests;
