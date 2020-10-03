@@ -15,10 +15,7 @@ use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
 
 mod trace;
-use lapin::{ExchangeKind, Channel};
-use lapin::types::FieldTable;
-use lapin::options::{QueueDeclareOptions, ExchangeDeclareOptions};
-use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
+use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder, Queue};
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, TryDeserializeMessage};
 use crate::routing::Rule;
@@ -38,8 +35,8 @@ where
     broker_connection_retry_delay: u32,
     default_queue: String,
     task_options: TaskOptions,
-    task_routes: Vec<(String, CeleryQueue)>,
-    queues: Vec<CeleryQueue>,
+    task_routes: Vec<(String, Queue)>,
+    queues: Vec<Queue>,
 }
 
 /// Used to create a `Celery` app with a custom configuration.
@@ -198,7 +195,7 @@ where
     }
     
     /// Set a vector of Celery queues to associatde with your celery app. 
-    pub fn queues(mut self, queues: Vec<CeleryQueue>) -> Self { 
+    pub fn queues(mut self, queues: Vec<Queue>) -> Self { 
         self.config.queues = queues;
         self
     }
@@ -209,7 +206,7 @@ where
         let broker_builder = self
             .config
             .broker_builder
-            .declare_queue(CeleryQueue::new((*self.config.default_queue).to_string()));
+            .declare_queue(Queue::new((*self.config.default_queue).to_string()));
 
         let (broker_builder, task_routes) =
             configure_task_routes(broker_builder, &self.config.task_routes)?;
@@ -241,100 +238,6 @@ where
         })
     }
 }
-/// Exchange for a Celery Queue
-#[derive(Clone)]
-pub struct Exchange {
-    /// Name of the exchange.
-    name: String,
-    /// Key used for message routing.
-    routing_key: String, 
-    /// Exchange Kind Type.
-    kind: ExchangeKind,
-    /// Options for a given exchange.
-    options: ExchangeDeclareOptions
-}
-impl Exchange { 
-    pub async fn declare(&self, channel: &Channel) -> Result<(), lapin::Error> { 
-       channel.exchange_declare(
-            &self.name,
-            self.kind.clone(),
-            self.options,
-            FieldTable::default()
-       ).await
-    }
-}
-
-/// A 'CeleryQueue' is used to declare a queue that can be used in conjunction with a Celery app
-/// for task routing.
-#[derive(Clone)]
-pub struct CeleryQueue {
-    /// Human-readable name for the queue.
-    pub name: String,
-    /// A set of custom options for the given queue. 
-    pub options: Option<QueueDeclareOptions>,
-    /// A custom exchange for the custom queue. 
-    pub exchange: Option<Exchange>
-}
-
-impl CeleryQueue {
-    /// Creates a new Celery Queue and default options. 
-    pub fn new(name: String) -> Self {
-        let options = QueueDeclareOptions {
-            passive: false,
-            durable: true,
-            exclusive: false,
-            auto_delete: false,
-            nowait: false,
-        };
-        Self { name: name, options: Some(options), exchange: None }
-    }
-
-    /// Retrieves the current set of options from the queue.
-    pub fn get_options(&self) -> QueueDeclareOptions { 
-        match self.options { 
-            Some(x) => x,
-            None => { 
-                QueueDeclareOptions {
-                passive: false,
-                durable: true,
-                exclusive: false,
-                auto_delete: false,
-                nowait: false,
-                }
-            }
-        }
-    }
-
-    /// Set's exchange options for a given CeleryQueue.
-    pub fn options(mut self, opts: QueueDeclareOptions) -> Self {
-        self.options = Some(opts);
-        self
-    }
-    /// Set's exchange for a given CeleryQueue.
-    pub fn exchange(mut self, exch: Exchange) -> Self { 
-        self.exchange = Some(exch);
-        self
-    }
-}
-
-impl From<&str> for CeleryQueue {
-
-    /// Convert from string into a Celery Queue.
-    fn from(input: &str) -> Self {
-        Self {
-            name: String::from(input),
-            options: Some(QueueDeclareOptions {
-                passive: false,
-                durable: true,
-                exclusive: false,
-                auto_delete: false,
-                nowait: false,
-            }),
-            exchange: None 
-        }
-    }
-}
-
 /// A `Celery` app is used to produce or consume tasks asynchronously. This is the struct that is
 /// created with the [`app`](macro.app.html) macro.
 pub struct Celery<B: Broker> {
