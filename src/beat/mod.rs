@@ -25,7 +25,8 @@ use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuil
 use crate::routing::{self, Rule};
 use crate::{
     error::{BeatError, BrokerError, CeleryError},
-    task::{Signature, Task},
+    protocol::MessageContentType,
+    task::{Signature, Task, TaskOptions},
 };
 use log::{debug, error, info};
 use std::time::SystemTime;
@@ -54,6 +55,7 @@ where
     broker_connection_retry_delay: u32,
     default_queue: String,
     task_routes: Vec<(String, Queue)>,
+    task_options: TaskOptions,
 }
 
 /// Used to create a `Beat` app with a custom configuration.
@@ -83,6 +85,7 @@ where
                 broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
                 task_routes: vec![],
+                task_options: TaskOptions::default(),
             },
             scheduler_backend: LocalSchedulerBackend::new(),
         }
@@ -111,6 +114,7 @@ where
                 broker_connection_retry_delay: 5,
                 default_queue: "celery".into(),
                 task_routes: vec![],
+                task_options: TaskOptions::default(),
             },
             scheduler_backend,
         }
@@ -159,6 +163,12 @@ where
         self
     }
 
+    /// Set a default content type of the message body serialization.
+    pub fn task_content_type(mut self, content_type: MessageContentType) -> Self {
+        self.config.task_options.content_type = Some(content_type);
+        self
+    }
+
     /// Construct a `Beat` app with the current configuration.
     pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, CeleryError> {
         // Declare default queue to broker.
@@ -190,6 +200,7 @@ where
             scheduler_backend: self.scheduler_backend,
             task_routes,
             default_queue: self.config.default_queue,
+            task_options: self.config.task_options,
             broker_connection_timeout: self.config.broker_connection_timeout,
             broker_connection_retry: self.config.broker_connection_retry,
             broker_connection_max_retries: self.config.broker_connection_max_retries,
@@ -209,6 +220,7 @@ pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     scheduler_backend: Sb,
     task_routes: Vec<Rule>,
     default_queue: String,
+    task_options: TaskOptions,
 
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
@@ -252,11 +264,12 @@ where
     }
 
     /// Schedule the execution of a task.
-    pub fn schedule_task<T, S>(&mut self, signature: Signature<T>, schedule: S)
+    pub fn schedule_task<T, S>(&mut self, mut signature: Signature<T>, schedule: S)
     where
         T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
+        signature.options.update(&self.task_options);
         let queue = match &signature.queue {
             Some(queue) => queue.to_string(),
             None => routing::route(T::NAME, &self.task_routes)

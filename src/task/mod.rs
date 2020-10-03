@@ -57,6 +57,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
         max_retry_delay: None,
         retry_for_unexpected: None,
         acks_late: None,
+        content_type: None,
     };
 
     /// The parameters of the task.
@@ -71,7 +72,22 @@ pub trait Task: Send + Sync + std::marker::Sized {
     /// Get a reference to the request used to create this task instance.
     fn request(&self) -> &Request<Self>;
 
-    /// Get a reference to the options corresponding to this instance / request.
+    /// Get a reference to the task's configuration options.
+    ///
+    /// This is a product of both app-level task options and the options configured specifically
+    /// for the given task. Options specified at the *task*-level take priority over options
+    /// specified at the app level. So, if the task was defined like this:
+    ///
+    /// ```rust
+    /// # use celery::prelude::*;
+    /// #[celery::task(time_limit = 3)]
+    /// fn add(x: i32, y: i32) -> TaskResult<i32> {
+    ///     Ok(x + y)
+    /// }
+    /// ```
+    ///
+    /// But the `Celery` app was built with a `task_time_limit` of 5, then
+    /// `Task::options().time_limit` would be `Some(3)`.
     fn options(&self) -> &TaskOptions;
 
     /// This function defines how a task executes.

@@ -1,8 +1,10 @@
 <div align="center">
     <br>
-    <img src="img/rusty-celery-logo.png" width="400"/>
+    <img src="img/rusty-celery-logo-transparent.png"/>
+    <br>
+    <br>
     <p>
-    A Rust implementation of <a href="https://github.com/celery/celery">Celery</a> for producing and consuming asyncronous tasks with a distributed message queue.
+    A Rust implementation of <a href="https://github.com/celery/celery">Celery</a> for producing and consuming asynchronous tasks with a distributed message queue.
     </p>
     <hr/>
 </div>
@@ -73,11 +75,11 @@ my_app.consume().await?;
 
 ## Examples
 
-The `./examples` directory contains:
+The [`examples/`](https://github.com/rusty-celery/rusty-celery/tree/master/examples) directory contains:
 
-- a simple Celery app implemented in Rust using an AMQP broker ([celery_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs));
-- the same Celery app implemented in Python ([celery_app.py](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py));
-- and a Beat app implemented in Rust ([beat_app.rs](https://github.com/rusty-celery/rusty-celery/blob/master/examples/beat_app.rs)).
+- a simple Celery app implemented in Rust using an AMQP broker ([`examples/celery_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)),
+- the same Celery app implemented in Python ([`examples/celery_app.py`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)),
+- and a Beat app implemented in Rust ([`examples/beat_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/beat_app.rs)).
 
 ### Prerequisites
 

@@ -7,13 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Now using `tokio-amqp` internally with `lapin`.
+- Drop explicit dependency on amq-protocol
+
+### Fixed
+
+- Task ID now logged when a beat app sends a task.
+
+## v0.4.0-rc4 - 2020-09-16
+
 ### Added
 
+- Added a `MockBroker` for internal testing.
+- Added more tests to the `app` module.
 - Added a `prelude` module.
+- Added support for YAML, MsgPack, and Pickle content types, behind the `extra_content_types` feature flag.
 
 ### Changed
 
 - Improved `TaskResultExt`. Now takes a `FnOnce() -> Context` instead of `&str`.
+
+### Fixed
+
+- Ensure a `Signature` inherits default `TaskOptions` from the corresponding `Task` and `Celery` or `Beat` app.
+- Cleaned up remaining uses of `.unwrap()` in the library.
+- Options returned with `Task::options()` now have the current values, where app-level values are overriden by task-level values.
 
 ## v0.4.0-rc3 - 2020-09-09
 
