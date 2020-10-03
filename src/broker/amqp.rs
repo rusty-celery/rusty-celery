@@ -1,16 +1,13 @@
 //! AMQP broker.
 
-use amq_protocol::{
-    types::{AMQPValue, FieldArray},
-    uri::{self, AMQPUri},
-};
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
 use lapin::message::Delivery;
 use lapin::options::{
     BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
 };
-use lapin::types::FieldTable;
+use lapin::types::{AMQPValue, FieldArray, FieldTable};
+use lapin::uri::{self, AMQPUri};
 use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
