@@ -132,10 +132,6 @@ impl Channel {
         }
     }
 
-    fn pending_queue(&self) -> String {
-        format!("_celery.{}_pending", self.queue_name)
-    }
-
     fn process_map_name(&self) -> String {
         format!("_celery.{}_process_map", self.queue_name)
     }
@@ -144,15 +140,13 @@ impl Channel {
         mut self,
         send_waker: Option<(Sender<Waker>, Waker)>,
     ) -> Result<Delivery, BrokerError> {
-        let pending_queue = self.pending_queue();
         if let Some((mut sender, waker)) = send_waker {
             sender.send(waker).await.unwrap();
             futures::pending!();
         }
         loop {
-            let rez: Result<Option<String>, RedisError> = redis::cmd("RPOPLPUSH")
+            let rez: Result<Option<String>, RedisError> = redis::cmd("RPOP")
                 .arg(&self.queue_name)
-                .arg(&pending_queue)
                 .query_async(&mut self.connection)
                 .await;
             match rez {
@@ -166,12 +160,6 @@ impl Channel {
                     let _set_rez: u32 = redis::cmd("HSET")
                         .arg(&self.process_map_name())
                         .arg(&delivery.correlation_id)
-                        .arg(&rez)
-                        .query_async(&mut self.connection)
-                        .await?;
-                    let _lrem_rez: u32 = redis::cmd("LREM")
-                        .arg(&pending_queue)
-                        .arg(-1)
                         .arg(&rez)
                         .query_async(&mut self.connection)
                         .await?;
@@ -190,20 +178,11 @@ impl Channel {
             .await?)
     }
 
-    async fn send_task_front(mut self, message: &Message) -> Result<(), BrokerError> {
-        Ok(redis::cmd("RPUSH")
-            .arg(&self.queue_name)
-            .arg(message.json_serialized()?)
-            .query_async(&mut self.connection)
-            .await?)
-    }
-
-    async fn retry_task(&self, delivery: &Delivery) -> Result<(), BrokerError> {
+    async fn resend_task(&self, delivery: &Delivery) -> Result<(), BrokerError> {
         let mut message = delivery.clone().try_deserialize_message()?;
         let retries = message.headers.retries.unwrap_or_default();
         message.headers.retries = Some(retries + 1);
-        self.clone().send_task_front(&message).await?;
-        self.remove_task(delivery).await?;
+        self.clone().send_task(&message).await?;
         Ok(())
     }
 
@@ -338,8 +317,9 @@ impl Broker for RedisBroker {
         delivery: &Self::Delivery,
         _eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError> {
-        let (channel, delivery) = delivery;
-        channel.retry_task(delivery).await?;
+        let (channel, delivery_msg) = delivery;
+        channel.resend_task(delivery_msg).await?;
+        self.ack(delivery).await?;
         Ok(())
     }
 
