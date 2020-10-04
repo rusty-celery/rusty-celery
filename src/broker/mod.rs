@@ -159,7 +159,7 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
     })?)
 }
 
-/// Exchange for a Celery Queue
+/// Exchange message router that can be used alongside a queue.
 #[derive(Clone)]
 pub struct Exchange {
     /// Name of the exchange.
@@ -185,8 +185,7 @@ impl Exchange {
     }
 }
 
-/// A 'Queue' is used to declare a queue that can be used in conjunction with a Celery app
-/// for task routing.
+/// Queue that can be used in conjunction with a Celery app for task routing.
 #[derive(Clone)]
 pub struct Queue {
     /// Human-readable name for the queue.
@@ -198,7 +197,7 @@ pub struct Queue {
 }
 
 impl Queue {
-    /// Creates a new Celery Queue and default options.
+    /// Creates a new Queue and default options.
     pub fn new(name: String) -> Self {
         let options = QueueDeclareOptions {
             passive: false,
@@ -238,10 +237,18 @@ impl Queue {
         self.exchange = Some(exch);
         self
     }
+
+    /// Retrieves a routing key, or alternatively an empty string if no exchange is defined.
+    pub fn routing_key(&self) -> &str { 
+        match &self.exchange { 
+            Some(exch) => &exch.routing_key,
+            None => ""
+        }
+    }
 }
 
 impl From<&str> for Queue {
-    /// Convert from string into a Celery Queue.
+    /// Convert from string into a Queue.
     fn from(input: &str) -> Self {
         Self {
             name: String::from(input),
