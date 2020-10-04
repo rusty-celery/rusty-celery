@@ -9,11 +9,11 @@ use crate::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use lapin::options::{ExchangeDeclareOptions, QueueDeclareOptions};
+use lapin::types::FieldTable;
+use lapin::{Channel, ExchangeKind};
 use log::error;
 use tokio::time::{self, Duration};
-use lapin::options::{QueueDeclareOptions, ExchangeDeclareOptions};
-use lapin::{ExchangeKind, Channel};
-use lapin::types::FieldTable;
 mod amqp;
 pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
 #[cfg(test)]
@@ -159,28 +159,29 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
     })?)
 }
 
-
 /// Exchange for a Celery Queue
 #[derive(Clone)]
 pub struct Exchange {
     /// Name of the exchange.
     name: String,
     /// Key used for message routing.
-    routing_key: String, 
+    routing_key: String,
     /// Exchange Kind Type.
     kind: ExchangeKind,
     /// Options for a given exchange.
-    options: ExchangeDeclareOptions
+    options: ExchangeDeclareOptions,
 }
-impl Exchange { 
-    /// Instantiates an exchange for use alongside a provided channel. 
-    pub async fn declare(&self, channel: &Channel) -> Result<(), lapin::Error> { 
-       channel.exchange_declare(
-            &self.name,
-            self.kind.clone(),
-            self.options,
-            FieldTable::default()
-       ).await
+impl Exchange {
+    /// Instantiates an exchange for use alongside a provided channel.
+    pub async fn declare(&self, channel: &Channel) -> Result<(), lapin::Error> {
+        channel
+            .exchange_declare(
+                &self.name,
+                self.kind.clone(),
+                self.options,
+                FieldTable::default(),
+            )
+            .await
     }
 }
 
@@ -190,14 +191,14 @@ impl Exchange {
 pub struct Queue {
     /// Human-readable name for the queue.
     pub name: String,
-    /// A set of custom options for the given queue. 
+    /// A set of custom options for the given queue.
     pub options: Option<QueueDeclareOptions>,
-    /// A custom exchange for the custom queue. 
-    pub exchange: Option<Exchange>
+    /// A custom exchange for the custom queue.
+    pub exchange: Option<Exchange>,
 }
 
 impl Queue {
-    /// Creates a new Celery Queue and default options. 
+    /// Creates a new Celery Queue and default options.
     pub fn new(name: String) -> Self {
         let options = QueueDeclareOptions {
             passive: false,
@@ -206,22 +207,24 @@ impl Queue {
             auto_delete: false,
             nowait: false,
         };
-        Self { name, options: Some(options), exchange: None }
+        Self {
+            name,
+            options: Some(options),
+            exchange: None,
+        }
     }
 
     /// Retrieves the current set of options from the queue.
-    pub fn get_options(&self) -> QueueDeclareOptions { 
-        match self.options { 
+    pub fn get_options(&self) -> QueueDeclareOptions {
+        match self.options {
             Some(x) => x,
-            None => { 
-                QueueDeclareOptions {
+            None => QueueDeclareOptions {
                 passive: false,
                 durable: true,
                 exclusive: false,
                 auto_delete: false,
                 nowait: false,
-                }
-            }
+            },
         }
     }
 
@@ -231,7 +234,7 @@ impl Queue {
         self
     }
     /// Set's exchange for a given Queue.
-    pub fn exchange(mut self, exch: Exchange) -> Self { 
+    pub fn exchange(mut self, exch: Exchange) -> Self {
         self.exchange = Some(exch);
         self
     }
@@ -249,8 +252,7 @@ impl From<&str> for Queue {
                 auto_delete: false,
                 nowait: false,
             }),
-            exchange: None 
+            exchange: None,
         }
     }
 }
-

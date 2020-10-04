@@ -79,27 +79,26 @@ impl BrokerBuilder for AMQPBrokerBuilder {
                 .await?;
         let consume_channel = conn.create_channel().await?;
         let produce_channel = conn.create_channel().await?;
-       
+
         let mut queues: HashMap<String, lapin::Queue> = HashMap::new();
         let mut queue_options: HashMap<String, QueueDeclareOptions> = HashMap::new();
-  
-        for queue in &self.config.queues { 
+
+        for queue in &self.config.queues {
             queues.insert(
                 queue.name.clone(),
                 consume_channel
-                .queue_declare(
-                    &queue.name.clone(),
-                    queue.options.unwrap(),
-                    FieldTable::default()
-                ).await?);
-            
-            queue_options.insert(
-                queue.name.clone(),
-                queue.get_options()
+                    .queue_declare(
+                        &queue.name.clone(),
+                        queue.options.unwrap(),
+                        FieldTable::default(),
+                    )
+                    .await?,
             );
-            match &queue.exchange { 
+
+            queue_options.insert(queue.name.clone(), queue.get_options());
+            match &queue.exchange {
                 Some(exchange) => exchange.declare(&consume_channel).await?,
-                None => continue
+                None => continue,
             }
         }
 

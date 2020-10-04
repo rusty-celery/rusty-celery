@@ -96,7 +96,7 @@ macro_rules! __beat_internal {
 /// [`CeleryBuilder::broker_connection_retry`](struct.CeleryBuilder.html#method.broker_connection_retry).
 /// - `broker_connection_max_retries`: Set the
 /// [`CeleryBuilder::broker_connection_max_retries`](struct.CeleryBuilder.html#method.broker_connection_max_retries).
-/// - `queues`: Set the 
+/// - `queues`: Set the
 /// [`CeleryBuilder::queues`](struct.CeleryBuilder.html#method.queues).
 /// # Examples
 ///

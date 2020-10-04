@@ -72,7 +72,7 @@ where
                 default_queue: "celery".into(),
                 task_options: TaskOptions::default(),
                 task_routes: vec![],
-                queues: vec![]
+                queues: vec![],
             },
         }
     }
@@ -200,9 +200,9 @@ where
         self.config.broker_connection_retry_delay = retry_delay;
         self
     }
-    
-    /// Set a vector of Celery queues to associatde with your celery app. 
-    pub fn queues(mut self, queues: Vec<Queue>) -> Self { 
+
+    /// Set a vector of Celery queues to associatde with your celery app.
+    pub fn queues(mut self, queues: Vec<Queue>) -> Self {
         self.config.queues = queues;
         self
     }

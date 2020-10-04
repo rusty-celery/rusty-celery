@@ -1,9 +1,9 @@
 //! Defines mock broker that can be used to test other components that rely on a broker.
 
 use super::{Broker, BrokerBuilder};
+use crate::broker::Queue;
 use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::{Message, TryDeserializeMessage};
-use crate::broker::{Queue};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::{
