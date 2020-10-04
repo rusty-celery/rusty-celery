@@ -8,7 +8,7 @@ use lapin::options::{
 };
 use lapin::types::{AMQPValue, FieldArray, FieldTable};
 use lapin::uri::{self, AMQPUri};
-use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
+use lapin::{BasicProperties, Channel, Connection, ConnectionProperties};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
