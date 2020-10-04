@@ -205,7 +205,7 @@ impl Queue {
             auto_delete: false,
             nowait: false,
         };
-        Self { name: name, options: Some(options), exchange: None }
+        Self { name, options: Some(options), exchange: None }
     }
 
     /// Retrieves the current set of options from the queue.
