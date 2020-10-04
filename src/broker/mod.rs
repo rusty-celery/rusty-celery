@@ -173,6 +173,7 @@ pub struct Exchange {
     options: ExchangeDeclareOptions
 }
 impl Exchange { 
+    /// Instantiates an exchange for use alongside a provided channel. 
     pub async fn declare(&self, channel: &Channel) -> Result<(), lapin::Error> { 
        channel.exchange_declare(
             &self.name,
