@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.4.0-rc5 - 2020-10-03
+
+### Added
+
+- Added a `Queue` struct for instantiating custom queues.
+- Added an `Exchange` struct for declaring exchanges.
+
 ### Changed
 
 - Now using `tokio-amqp` internally with `lapin`.
