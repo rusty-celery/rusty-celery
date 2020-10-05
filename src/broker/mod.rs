@@ -199,17 +199,9 @@ pub struct Queue {
 impl Queue {
     /// Creates a new Queue and default options.
     pub fn new(name: String) -> Self {
-        let options = QueueDeclareOptions {
-            passive: false,
-            durable: true,
-            exclusive: false,
-            auto_delete: false,
-            nowait: false,
-        };
-        Self {
+        Self { 
             name,
-            options: Some(options),
-            exchange: None,
+            ..Default::default()
         }
     }
 
@@ -259,6 +251,24 @@ impl From<&str> for Queue {
                 auto_delete: false,
                 nowait: false,
             }),
+            exchange: None,
+        }
+    }
+}
+
+impl Default for Queue { 
+
+    fn default() -> Self { 
+        let options = QueueDeclareOptions {
+            passive: false,
+            durable: true,
+            exclusive: false,
+            auto_delete: false,
+            nowait: false,
+        };
+        Self {
+            name:"celery".into(),
+            options: Some(options),
             exchange: None,
         }
     }
