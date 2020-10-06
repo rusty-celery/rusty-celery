@@ -100,6 +100,12 @@ async fn main() -> Result<()> {
                 my_app
                     .send_task(long_running_task::new(Some(3)).with_time_limit(2))
                     .await?;
+                // Send the long running task that will succeed.
+                for _ in 0..100 {
+                    my_app
+                        .send_task(long_running_task::new(Some(10)).with_time_limit(20))
+                        .await?;
+                }
             } else {
                 for task in tasks {
                     match task.as_str() {
