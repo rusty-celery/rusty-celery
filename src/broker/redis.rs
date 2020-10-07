@@ -8,7 +8,7 @@ use crate::protocol::TryDeserializeMessage;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
-use log::{debug, warn};
+use log::{debug, warn, error};
 use redis::aio::ConnectionManager;
 use redis::Client;
 use redis::RedisError;
@@ -353,8 +353,23 @@ impl Broker for RedisBroker {
     }
 
     fn safe_url(&self) -> String {
-        println!("TODO: safe_url");
-        self.uri.clone()
+        let parsed_url = redis::parse_redis_url(&self.uri[..]);
+        match parsed_url{
+            Ok(url) => {
+                format!(
+                    "{}://{}:***@{}:{}/{}",
+                    url.scheme(),
+                    url.username(),
+                    url.host_str().unwrap(),
+                    url.port().unwrap(),
+                    url.path(),
+                )
+            },
+            Err(err) =>{
+                error!("Invalid redis url. Error: {:?}", err);
+                String::from("")
+            }
+        }
     }
 
     async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError> {
