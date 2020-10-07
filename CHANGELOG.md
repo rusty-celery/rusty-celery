@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Redis broker support.
+
 ### Changed
 
 - Now using `tokio-amqp` internally with `lapin`.
-- Drop explicit dependency on amq-protocol
+- Drop explicit dependency on amq-protocol.
+- Default celery-app example runs on redis broker.
 
 ### Fixed
 
