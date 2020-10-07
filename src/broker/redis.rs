@@ -8,7 +8,7 @@ use crate::protocol::TryDeserializeMessage;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
-use log::{debug, warn, error};
+use log::{debug, error, warn};
 use redis::aio::ConnectionManager;
 use redis::Client;
 use redis::RedisError;
@@ -214,7 +214,6 @@ impl TryDeserializeMessage for (Channel, Delivery) {
     }
 }
 
-
 impl Stream for Consumer {
     type Item = Result<(Channel, Delivery), BrokerError>;
     fn poll_next(
@@ -350,18 +349,16 @@ impl Broker for RedisBroker {
 
     fn safe_url(&self) -> String {
         let parsed_url = redis::parse_redis_url(&self.uri[..]);
-        match parsed_url{
-            Ok(url) => {
-                format!(
-                    "{}://{}:***@{}:{}/{}",
-                    url.scheme(),
-                    url.username(),
-                    url.host_str().unwrap(),
-                    url.port().unwrap(),
-                    url.path(),
-                )
-            },
-            Err(err) =>{
+        match parsed_url {
+            Ok(url) => format!(
+                "{}://{}:***@{}:{}/{}",
+                url.scheme(),
+                url.username(),
+                url.host_str().unwrap(),
+                url.port().unwrap(),
+                url.path(),
+            ),
+            Err(err) => {
                 error!("Invalid redis url. Error: {:?}", err);
                 String::from("")
             }

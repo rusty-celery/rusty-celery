@@ -15,8 +15,8 @@ use crate::{
 
 mod amqp;
 mod redis;
-pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
 pub use self::redis::{RedisBroker, RedisBrokerBuilder};
+pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
 
 #[cfg(test)]
 pub mod mock;

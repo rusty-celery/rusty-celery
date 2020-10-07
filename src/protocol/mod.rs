@@ -333,24 +333,24 @@ impl Message {
         &self.headers.id
     }
 
-    pub fn json_serialized(&self) -> Result<Vec<u8>, serde_json::error::Error>{
-        use serde_json::{json,value::Value};
-        
-        let root_id = match &self.headers.root_id{
+    pub fn json_serialized(&self) -> Result<Vec<u8>, serde_json::error::Error> {
+        use serde_json::{json, value::Value};
+
+        let root_id = match &self.headers.root_id {
             Some(root_id) => json!(root_id.clone()),
-            None => Value::Null
+            None => Value::Null,
         };
-        let reply_to = match &self.properties.reply_to{
+        let reply_to = match &self.properties.reply_to {
             Some(reply_to) => json!(reply_to.clone()),
-            None => Value::Null
+            None => Value::Null,
         };
-        let eta = match self.headers.eta{
+        let eta = match self.headers.eta {
             Some(time) => json!(time.to_rfc3339()),
-            None => Value::Null
+            None => Value::Null,
         };
-        let expires = match self.headers.expires{
+        let expires = match self.headers.expires {
             Some(time) => json!(time.to_rfc3339()),
-            None => Value::Null
+            None => Value::Null,
         };
         let mut buffer = Uuid::encode_buffer();
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
@@ -579,7 +579,7 @@ pub struct MessageBodyEmbed {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeliveryHeaders{
+pub struct DeliveryHeaders {
     pub id: String,
     pub task: String,
     pub lang: Option<String>,
@@ -598,7 +598,7 @@ pub struct DeliveryHeaders{
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct Delivery{
+pub struct Delivery {
     pub body: Vec<u8>,
     pub content_encoding: String,
     pub content_type: String,
@@ -608,17 +608,13 @@ pub struct Delivery{
     pub headers: DeliveryHeaders,
 }
 
-
-impl Delivery{
-    pub fn try_deserialize_message(&self) -> Result<Message, ProtocolError>{
+impl Delivery {
+    pub fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
         Ok(Message {
             properties: MessageProperties {
-                correlation_id: self
-                    .correlation_id.clone(),
-                content_type: self
-                    .content_type.clone(),
-                content_encoding: self
-                    .content_encoding.clone(),
+                correlation_id: self.correlation_id.clone(),
+                content_type: self.content_type.clone(),
+                content_encoding: self.content_encoding.clone(),
                 reply_to: self.reply_to.clone(),
             },
             headers: MessageHeaders {
