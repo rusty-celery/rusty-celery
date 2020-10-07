@@ -69,7 +69,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
     }
 
     /// Construct the `Broker` with the given configuration.
-    async fn build(&self, connection_timeout: u32) -> Result<Self::Broker, BrokerError> {
+    async fn build(&self, _connection_timeout: u32) -> Result<Self::Broker, BrokerError> {
         let mut queues: HashSet<String> = HashSet::new();
         for queue_name in &self.config.queues {
             queues.insert(queue_name.into());
@@ -85,9 +85,9 @@ impl BrokerBuilder for RedisBrokerBuilder {
         let (tx, rx) = channel(1);
         Ok(RedisBroker {
             uri: self.config.broker_url.clone(),
-            queues: queues,
-            client: client,
-            manager: manager,
+            queues,
+            client,
+            manager,
             prefetch_count: Arc::new(AtomicU16::new(self.config.prefetch_count)),
             pending_tasks: Arc::new(AtomicU16::new(0)),
             waker_rx: Mutex::new(rx),
@@ -196,10 +196,13 @@ impl Channel {
     }
 }
 
+type ConsumerOutput = Result<Delivery, BrokerError>;
+type ConsumerOutputFuture = Box<dyn Future<Output = ConsumerOutput>>;
+
 pub struct Consumer {
     channel: Channel,
     error_handler: Box<dyn Fn(BrokerError) + Send + Sync + 'static>,
-    polled_pop: Option<std::pin::Pin<Box<dyn Future<Output = Result<Delivery, BrokerError>>>>>,
+    polled_pop: Option<std::pin::Pin<ConsumerOutputFuture>>,
     pending_tasks: Arc<AtomicU16>,
     waker_tx: Sender<Waker>,
     prefetch_count: Arc<AtomicU16>,
@@ -211,11 +214,6 @@ impl TryDeserializeMessage for (Channel, Delivery) {
     }
 }
 
-// impl Clone for Delivery{
-//     fn clone(&self) -> Delivery{
-//         todo!()
-//     }
-// }
 
 impl Stream for Consumer {
     type Item = Result<(Channel, Delivery), BrokerError>;
@@ -325,11 +323,10 @@ impl Broker for RedisBroker {
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
-        // TODO: Message delivery_properties need to be included too?
         Channel::new(self.manager.clone(), queue.to_string())
             .send_task(message)
             .await?;
-        return Ok(());
+        Ok(())
     }
 
     /// Increase the `prefetch_count`. This has to be done when a task with a future
@@ -348,7 +345,6 @@ impl Broker for RedisBroker {
 
     /// Clone all channels and connection.
     async fn close(&self) -> Result<(), BrokerError> {
-        println!("TODO: close");
         Ok(())
     }
 
