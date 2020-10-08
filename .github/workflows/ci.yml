@@ -113,7 +113,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install rust nightly
+    - name: Install rust nightly  # we build docs on nightly because that's what docs.rs does.
       uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
