@@ -3,7 +3,7 @@
 //!
 //! # Examples
 //!
-//! Define tasks by decorating functions with the [`task`](attr.task.html) attribute:
+//! Define tasks by decorating functions with the [`macro@task`] attribute:
 //!
 //! ```rust
 //! use celery::prelude::*;
@@ -14,7 +14,7 @@
 //! }
 //! ```
 //!
-//! Then create a [`Celery`](struct.Celery.html) app with the [`app`](macro.app.html)
+//! Then create a [`Celery`] app with the [`app!`]
 //! macro and register your tasks with it:
 //!
 //! ```rust,no_run
@@ -30,7 +30,7 @@
 //! ```
 //!
 //! The Celery app can be used as either a producer or consumer (worker). To send tasks to a
-//! queue for a worker to consume, use the [`Celery::send_task`](struct.Celery.html#method.send_task) method:
+//! queue for a worker to consume, use the [`Celery::send_task`] method:
 //!
 //! ```rust,no_run
 //! # #[celery::task]
@@ -50,7 +50,7 @@
 //! ```
 //!
 //! And to act as worker and consume tasks sent to a queue by a producer, use the
-//! [`Celery::consume`](struct.Celery.html#method.consume) method:
+//! [`Celery::consume`] method:
 //!
 //! ```rust,no_run
 //! # #[celery::task]

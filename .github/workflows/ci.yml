@@ -112,6 +112,24 @@ jobs:
         command: test
         args: --no-run --test codegen app_codegen
 
+  docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install rust nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+
+    - name: Build docs
+      uses: actions-rs/cargo@v1
+      with:
+        command: doc
+        args: --all-features --workspace --no-deps
+
   broker_amqp_test:
     name: Check Broker (AMQP)
     runs-on: ubuntu-latest
