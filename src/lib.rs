@@ -3,7 +3,7 @@
 //!
 //! # Examples
 //!
-//! Define tasks by decorating functions with the [`task`](attr.task.html) attribute:
+//! Define tasks by decorating functions with the [`macro@task`] attribute:
 //!
 //! ```rust
 //! use celery::prelude::*;
@@ -14,7 +14,7 @@
 //! }
 //! ```
 //!
-//! Then create a [`Celery`](struct.Celery.html) app with the [`app`](macro.app.html)
+//! Then create a [`Celery`] app with the [`app!`]
 //! macro and register your tasks with it:
 //!
 //! ```rust,no_run
@@ -29,8 +29,8 @@
 //! );
 //! ```
 //!
-//! The Celery app can be used as either a producer or consumer (worker). To send tasks to a
-//! queue for a worker to consume, use the [`Celery::send_task`](struct.Celery.html#method.send_task) method:
+//! The [`Celery`] app can be used as either a producer or consumer (worker). To send tasks to a
+//! queue for a worker to consume, use the [`Celery::send_task`] method:
 //!
 //! ```rust,no_run
 //! # #[celery::task]
@@ -50,7 +50,7 @@
 //! ```
 //!
 //! And to act as worker and consume tasks sent to a queue by a producer, use the
-//! [`Celery::consume`](struct.Celery.html#method.consume) method:
+//! [`Celery::consume`] method:
 //!
 //! ```rust,no_run
 //! # #[celery::task]
@@ -89,7 +89,7 @@ pub mod task;
 #[cfg(feature = "codegen")]
 mod codegen;
 
-/// A procedural macro for generating a [`Task`](task/trait.Task.html) from a function.
+/// A procedural macro for generating a [`Task`](crate::task::Task) from a function.
 ///
 /// If the annotated function has a return value, the return value must be a
 /// [`TaskResult<R>`](task/type.TaskResult.html).
@@ -110,7 +110,7 @@ mod codegen;
 /// first argument should be a reference to `Self`. Note however that Rust won't allow you to call
 /// the argument `self`. Instead, you could use `task` or just `t`.
 /// - `on_failure`: An async callback function to run when the task fails. Should accept a reference to
-/// a task instance and a reference to a `TaskError`.
+/// a task instance and a reference to a [`TaskError`](error/enum.TaskError.html).
 /// - `on_success`: An async callback function to run when the task succeeds. Should accept a reference to
 /// a task instance and a reference to the value returned by the task.
 ///

@@ -1,4 +1,4 @@
-//! Celery beat is an app that can automatically produce tasks at scheduled times.
+//! Celery [`Beat`] is an app that can automatically produce tasks at scheduled times.
 //!
 //! ### Terminology
 //!
@@ -59,7 +59,7 @@ where
     task_options: TaskOptions,
 }
 
-/// Used to create a `Beat` app with a custom configuration.
+/// Used to create a [`Beat`] app with a custom configuration.
 pub struct BeatBuilder<Bb, Sb>
 where
     Bb: BrokerBuilder,
@@ -210,8 +210,8 @@ where
     }
 }
 
-/// A `Beat` app is used to send out scheduled tasks. This is the struct that is
-/// created with the [`beat`](../macro.beat.html) macro.
+/// A [`Beat`] app is used to send out scheduled tasks. This is the struct that is
+/// created with the [`beat!`] macro.
 ///
 /// It drives execution by making the internal scheduler "tick", and updates the list of scheduled
 /// tasks through a customizable scheduler backend.

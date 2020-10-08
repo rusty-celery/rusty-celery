@@ -1,8 +1,8 @@
 /// This module contains the definition of application-provided schedules.
 ///
 /// This structs have not changed a lot compared to Python: in Python there are three
-/// different types of schedules: `schedule` (correspinding to `RegularSchedule`),
-/// `crontab`, `solar`. They all inherit from `BaseSchedule`.
+/// different types of schedules: `schedule` (corresponding to [`RegularSchedule`]),
+/// `crontab` (not implemented yet), `solar` (not implemented yet).
 use std::time::{Duration, SystemTime};
 
 /// The trait that all schedules implement.
