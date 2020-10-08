@@ -53,23 +53,18 @@ jobs:
       run: |
         # We use these variables as part of the cache keys.
         echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "CARGO_VERSION=$(cargo --version)" >> $GITHUB_ENV
 
     - name: Cache cargo registry
       uses: actions/cache@v2
       with:
         path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: |
-          cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
 
     - name: Cache cargo build
       uses: actions/cache@v2
       with:
         path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: |
-          cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
 
     - name: Lint with rustfmt
       uses: actions-rs/cargo@v1
@@ -128,23 +123,18 @@ jobs:
       run: |
         # We use these variables as part of the cache keys.
         echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "CARGO_VERSION=$(cargo --version)" >> $GITHUB_ENV
 
     - name: Cache cargo registry
       uses: actions/cache@v2
       with:
         path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: |
-          cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
 
     - name: Cache cargo build
       uses: actions/cache@v2
       with:
         path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: |
-          cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
 
     - name: Build docs
       uses: actions-rs/cargo@v1
@@ -175,23 +165,18 @@ jobs:
     - name: Set build variables
       run: |
         echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "CARGO_VERSION=$(cargo --version)" >> $GITHUB_ENV
 
     - name: Cache cargo registry
       uses: actions/cache@v2
       with:
         path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: |
-          cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
 
     - name: Cache cargo build
       uses: actions/cache@v2
       with:
         path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: |
-          cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ env.CARGO_VERSION }}
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }}
 
     - name: Run broker integration tests
       uses: actions-rs/cargo@v1
@@ -219,8 +204,6 @@ jobs:
       with:
         path: ~/.cache/pip # This path is specific to Ubuntu
         key: pip ${{ runner.os }} ${{ env.pythonLocation }} ${{ hashFiles('requirements.txt') }} ${{ hashFiles('dev-requirements.txt') }}
-        restore-keys: |
-          pip ${{ runner.os }} ${{ env.pythonLocation }}
 
     - name: Install requirements
       run: |
