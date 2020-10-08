@@ -26,7 +26,7 @@ struct Config {
     heartbeat: Option<u16>,
 }
 
-/// Builds an AMQP broker with a custom configuration.
+/// Builds an [`AMQPBroker`] with a custom configuration.
 pub struct AMQPBrokerBuilder {
     config: Config,
 }

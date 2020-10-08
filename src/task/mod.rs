@@ -219,7 +219,7 @@ pub(crate) enum TaskStatus {
 /// Extension methods for `Result` types within a task body.
 ///
 /// These methods can be used to convert a `Result<T, E>` to a `Result<T, TaskError>` with the
-/// appropriate `TaskError` variant. The trait has a blanket implementation for any error type that implements
+/// appropriate [`TaskError`] variant. The trait has a blanket implementation for any error type that implements
 /// [`std::error::Error`](https://doc.rust-lang.org/std/error/trait.Error.html).
 ///
 /// # Examples
@@ -237,10 +237,10 @@ pub(crate) enum TaskStatus {
 /// }
 /// ```
 pub trait TaskResultExt<T, E, F, C> {
-    /// Convert the error type to a `TaskError::ExpectedError`.
+    /// Convert the error type to a [`TaskError::ExpectedError`].
     fn with_expected_err(self, f: F) -> Result<T, TaskError>;
 
-    /// Convert the error type to a `TaskError::UnexpectedError`.
+    /// Convert the error type to a [`TaskError::UnexpectedError`].
     fn with_unexpected_err(self, f: F) -> Result<T, TaskError>;
 }
 

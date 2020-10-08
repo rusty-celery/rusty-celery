@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use std::time::SystemTime;
 use tokio::time::Duration;
 
-/// A `Request` contains information and state related to the currently executing task.
+/// A [`Request`] contains information and state related to the currently executing task.
 #[derive(Clone)]
 pub struct Request<T>
 where

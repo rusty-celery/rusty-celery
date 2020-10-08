@@ -11,7 +11,7 @@ use crate::protocol::MessageContentType;
 /// followed by options set at the task level, and lastly the app level.
 ///
 /// For example, if `time_limit: Some(10)` is set at the app level through the
-/// [`task_time_limit` option](../struct.CeleryBuilder.html#method.task_time_limit),
+/// [`task_time_limit`](crate::CeleryBuilder::task_time_limit) option,
 /// then every task will use a time limit of 10 seconds unless some other time limit is specified in the
 /// [task definition](attr.task.html#parameters) or in a
 /// [task signature](../task/struct.Signature.html#structfield.time_limit) for that task.
@@ -24,9 +24,9 @@ pub struct TaskOptions {
     /// if it runs longer than `n` seconds.
     ///
     /// This can be set with
-    /// - [`task_time_limit`](../struct.CeleryBuilder.html#method.task_time_limit) at the app level,
+    /// - [`task_time_limit`](crate::CeleryBuilder::task_time_limit) at the app level,
     /// - [`time_limit`](../attr.task.html#parameters) at the task level, and
-    /// - [`with_time_limit`](../task/struct.Signature.html#method.with_time_limit) at the request / signature level.
+    /// - [`with_time_limit`](crate::task::Signature::with_time_limit) at the request / signature level.
     ///
     /// If this option is left unspecified, the default behavior will be to enforce no time limit.
     ///
@@ -34,7 +34,7 @@ pub struct TaskOptions {
     /// to use async functions within task implementations whenever they are available.*
     pub time_limit: Option<u32>,
 
-    /// The `time_limit` option is equivalent to the ["soft time
+    /// The [`time_limit`](TaskOptions::time_limit) option is equivalent to the ["soft time
     /// limit"](https://docs.celeryproject.org/en/stable/userguide/workers.html#time-limits)
     /// option when sending tasks to a Python consumer.
     /// If you desire to set a "hard time limit", use this option.
@@ -44,15 +44,15 @@ pub struct TaskOptions {
     /// are set, the minimum of the two will be used.
     ///
     /// This can be set with
-    /// - [`task_hard_time_limit`](../struct.CeleryBuilder.html#method.task_hard_time_limit) at the app level,
+    /// - [`task_hard_time_limit`](crate::CeleryBuilder::task_hard_time_limit) at the app level,
     /// - [`hard_time_limit`](../attr.task.html#parameters) at the task level, and
-    /// - [`with_hard_time_limit`](../task/struct.Signature.html#method.with_hard_time_limit) at the request / signature level.
+    /// - [`with_hard_time_limit`](crate::task::Signature::method.with_hard_time_limit) at the request / signature level.
     pub hard_time_limit: Option<u32>,
 
     /// Maximum number of retries for this task.
     ///
     /// This can be set with
-    /// - [`task_max_retries`](../struct.CeleryBuilder.html#method.task_max_retries) at the app level, and
+    /// - [`task_max_retries`](crate::CeleryBuilder::task_max_retries) at the app level, and
     /// - [`max_retries`](../attr.task.html#parameters) at the task level.
     ///
     /// If this option is left unspecified, the default behavior will be to retry tasks indefinitely.
@@ -61,30 +61,30 @@ pub struct TaskOptions {
     /// Minimum retry delay (in seconds).
     ///
     /// This can be set with
-    /// - [`task_min_retry_delay`](../struct.CeleryBuilder.html#method.task_min_retry_delay) at the app level, and
+    /// - [`task_min_retry_delay`](crate::CeleryBuilder::task_min_retry_delay) at the app level, and
     /// - [`min_retry_delay`](../attr.task.html#parameters) at the task level.
     ///
     /// If this option is left unspecified, the default behavior will be to use 0 as the
     /// minimum. In practice this means the first retry will usually be delayed only a couple hundred milliseconds.
     /// The delay for subsequent retries will increase exponentially (with random jitter) before
-    /// maxing out at [`max_retry_delay`](#structfield.max_retry_delay).
+    /// maxing out at [`max_retry_delay`](TaskOptions::max_retry_delay).
     pub min_retry_delay: Option<u32>,
 
     /// Maximum retry delay (in seconds).
     ///
     /// This can be set with
-    /// - [`task_max_retry_delay`](../struct.CeleryBuilder.html#method.task_max_retry_delay) at the app level, and
+    /// - [`task_max_retry_delay`](crate::CeleryBuilder::task_max_retry_delay) at the app level, and
     /// - [`max_retry_delay`](../attr.task.html#parameters) at the task level.
     ///
     /// If this option is left unspecified, the default behavior will be to cap delays at 1 hour
     /// (3600 seconds) with some random jitter.
     pub max_retry_delay: Option<u32>,
 
-    /// Whether or not to retry the task when an [`UnexpectedError`](error/enum.TaskError.html#variant.UnexpectedError)
+    /// Whether or not to retry the task when an [`UnexpectedError`](crate::error::TaskError::UnexpectedError)
     /// is returned.
     ///
     /// This can be set with
-    /// - [`task_retry_for_unexpected`](../struct.CeleryBuilder.html#method.task_retry_for_unexpected) at the app level, and
+    /// - [`task_retry_for_unexpected`](crate::CeleryBuilder::task_retry_for_unexpected) at the app level, and
     /// - [`retry_for_unexpected`](../attr.task.html#parameters) at the task level.
     ///
     /// If this option is left unspecified, the default behavior will be to retry for these
@@ -98,7 +98,7 @@ pub struct TaskOptions {
     /// then it is recommended that you set this to `true`.
     ///
     /// This can be set with
-    /// - [`acks_late`](../struct.CeleryBuilder.html#method.acks_late) at the app level, and
+    /// - [`acks_late`](crate::CeleryBuilder::acks_late) at the app level, and
     /// - [`acks_late`](../attr.task.html#parameters) at the task level.
     ///
     /// If this option is left unspecified, the default behavior will be to ack early.
@@ -107,9 +107,9 @@ pub struct TaskOptions {
     /// Which serialization format to use for task messages.
     ///
     /// This can be set with
-    /// - [`task_content_type`](../struct.CeleryBuilder.html#method.task_content_type) at the app level, and
+    /// - [`task_content_type`](crate::CeleryBuilder::task_content_type) at the app level, and
     /// - [`content_type`](../attr.task.html#parameters) at the task level.
-    /// - [`with_content_type`](../task/struct.Signature.html#method.with_content_type) at the request / signature level.
+    /// - [`with_content_type`](crate::task::Signature::with_content_type) at the request / signature level.
     pub content_type: Option<MessageContentType>,
 }
 
