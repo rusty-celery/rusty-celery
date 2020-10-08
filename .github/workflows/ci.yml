@@ -52,8 +52,8 @@ jobs:
     - name: Set build variables
       run: |
         # We use these variables as part of the cache keys.
-        echo "::set-env name=RUST_VERSION::$(rustc --version)"
-        echo "::set-env name=CARGO_VERSION::$(cargo --version)"
+        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
+        echo "CARGO_VERSION=$(cargo --version)" >> $GITHUB_ENV
 
     - name: Cache cargo registry
       uses: actions/cache@v2
@@ -134,8 +134,8 @@ jobs:
 
     - name: Set build variables
       run: |
-        echo "::set-env name=RUST_VERSION::$(rustc --version)"
-        echo "::set-env name=CARGO_VERSION::$(cargo --version)"
+        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
+        echo "CARGO_VERSION=$(cargo --version)" >> $GITHUB_ENV
 
     - name: Cache cargo registry
       uses: actions/cache@v2
