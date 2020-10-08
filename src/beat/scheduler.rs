@@ -4,11 +4,11 @@ use log::{debug, info};
 use std::collections::BinaryHeap;
 use std::time::{Duration, SystemTime};
 
-/// A scheduler is in charge of executing scheduled tasks when they are due.
+/// A [`Scheduler`] is in charge of executing scheduled tasks when they are due.
 ///
 /// It is somehow similar to a future, in the sense that by itself it does nothing,
-/// and execution is driven by an "executor" (the [`Beat`](struct.beat.html)) which
-/// is in charge of calling the scheduler *tick*.
+/// and execution is driven by an "executor" (the [`Beat`](super::Beat)) which
+/// is in charge of calling the scheduler [`tick`](Scheduler::tick).
 ///
 /// Internally it uses a min-heap to store tasks and efficiently retrieve the ones
 /// that are due for execution.
