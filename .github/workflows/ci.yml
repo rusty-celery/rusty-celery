@@ -49,7 +49,7 @@ jobs:
         components: rustfmt, clippy
         override: true
 
-    - name: Set build variables (linux)
+    - name: Set build variables
       shell: bash
       run: |
         # We use these variables as part of the cache keys.
