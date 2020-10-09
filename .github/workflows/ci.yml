@@ -50,18 +50,11 @@ jobs:
         override: true
 
     - name: Set build variables (linux)
-      if: matrix.os == 'ubuntu-latest'
+      shell: bash
       run: |
         # We use these variables as part of the cache keys.
         echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
         echo "WEEK_NUMBER=$(date +%U)" >> $GITHUB_ENV
-
-    - name: Set build variables (windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        # We use these variables as part of the cache keys.
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "WEEK_NUMBER=$(get-date -UFormat %V)" >> $GITHUB_ENV
 
     - name: Cache cargo registry
       uses: actions/cache@v2
