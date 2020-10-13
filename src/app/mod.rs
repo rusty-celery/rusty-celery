@@ -298,7 +298,7 @@ where
 "#,
             self.hostname
         );
-        println!("{}", banner.green());
+        println!("{}", banner.truecolor(255, 102, 0));
 
         // Broker.
         println!("{}", "[broker]".bold());
