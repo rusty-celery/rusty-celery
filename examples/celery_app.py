@@ -54,6 +54,9 @@ def parse_args():
         "celery_app", description="Run a Python Celery producer or consumer"
     )
     parser.add_argument("mode", choices=["consume", "produce"])
+    parser.add_argument(
+        "task", nargs="*", choices=["add", "buggy_task", "long_running_task", "bound_task"]
+    )
     return parser.parse_args()
 
 
@@ -71,18 +74,29 @@ def main():
         ]
         _main()
     else:
-        # Basic task sending.
-        add.apply_async(args=(1, 0))
-        bound_task.apply_async()
+        if opts.task:
+            for task in opts.task:
+                if task == "add":
+                    add.apply_async(args=(1, 0))
+                elif task == "buggy_task":
+                    buggy_task.apply_async()
+                elif task == "long_running_task":
+                    long_running_task.apply_async()
+                else:
+                    buggy_task.apply_async()
+        else:
+            # Basic task sending.
+            add.apply_async(args=(1, 0))
+            bound_task.apply_async()
 
-        # Send with additional options like `countdown`.
-        add.apply_async(args=(1, 3), countdown=3)
+            # Send with additional options like `countdown`.
+            add.apply_async(args=(1, 3), countdown=3)
 
-        # Send the buggy task that will fail and be retried a few times.
-        buggy_task.apply_async()
+            # Send the buggy task that will fail and be retried a few times.
+            buggy_task.apply_async()
 
-        # Send the long running task that will fail with a timeout error.
-        long_running_task.apply_async(args=(3,), time_limit=2)
+            # Send the long running task that will fail with a timeout error.
+            long_running_task.apply_async(args=(3,), time_limit=2)
 
 
 if __name__ == "__main__":
