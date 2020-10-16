@@ -517,7 +517,7 @@ where
             let mut reconnect_successful: bool = false;
             for _ in 0..self.broker_connection_max_retries {
                 info!("Trying to re-establish connection with broker");
-                time::delay_for(Duration::from_secs(
+                time::sleep(Duration::from_secs(
                     self.broker_connection_retry_delay as u64,
                 ))
                 .await;

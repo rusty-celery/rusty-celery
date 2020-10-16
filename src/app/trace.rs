@@ -186,7 +186,7 @@ where
 
     async fn wait(&self) {
         if let Some(countdown) = self.task.request().countdown() {
-            time::delay_for(countdown).await;
+            time::sleep(countdown).await;
         }
     }
 

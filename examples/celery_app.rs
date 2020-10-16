@@ -31,7 +31,7 @@ async fn buggy_task() -> TaskResult<()> {
 #[celery::task(max_retries = 2)]
 async fn long_running_task(secs: Option<u64>) {
     let secs = secs.unwrap_or(10);
-    time::delay_for(Duration::from_secs(secs)).await;
+    time::sleep(Duration::from_secs(secs)).await;
 }
 
 // Demonstrates a task that is bound to the task instance, i.e. runs as an instance method.
