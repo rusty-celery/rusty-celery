@@ -9,33 +9,29 @@ macro_rules! __app_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        static CELERY_APP: $crate::export::OnceCell<$crate::Celery<$broker_type>> =
-            $crate::export::OnceCell::new();
-        CELERY_APP.get_or_init(|| {
-            async fn _build_app() -> $crate::Celery::<$broker_type> {
-                let broker_url = $broker_url;
+        async fn _build_app() -> Result<std::sync::Arc<$crate::Celery::<$broker_type>>, $crate::error::CeleryError> {
+            let broker_url = $broker_url;
 
-                let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
+            let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
 
-                $(
-                    builder = builder.$x($y);
-                )*
+            $(
+                builder = builder.$x($y);
+            )*
 
-                $(
-                    builder = builder.task_route($pattern, $queue);
-                )*
+            $(
+                builder = builder.task_route($pattern, $queue);
+            )*
 
-                let celery: $crate::Celery<$broker_type> = builder.build().await.unwrap();
+            let celery: $crate::Celery<$broker_type> = builder.build().await?;
 
-                $(
-                    celery.register_task::<$t>().await.unwrap();
-                )*
+            $(
+                celery.register_task::<$t>().await?;
+            )*
 
-                celery
-            }
+            Ok(std::sync::Arc::new(celery))
+        }
 
-            $crate::export::block_on(_build_app())
-        })
+        _build_app()
     }};
 }
 
