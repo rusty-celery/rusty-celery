@@ -49,6 +49,9 @@ pub enum BeatError {
     /// A protocol error.
     #[error("protocol error")]
     ProtocolError(#[from] ProtocolError),
+
+    #[error("invalid cron schedule: {0}")]
+    CronScheduleError(String),
 }
 
 /// Errors that can occur at the task level.

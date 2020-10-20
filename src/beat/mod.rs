@@ -39,7 +39,7 @@ mod backend;
 pub use backend::{LocalSchedulerBackend, SchedulerBackend};
 
 mod schedule;
-pub use schedule::{RegularSchedule, Schedule};
+pub use schedule::{CronSchedule, RegularSchedule, Schedule};
 
 mod scheduled_task;
 pub use scheduled_task::ScheduledTask;
