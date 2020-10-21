@@ -6,6 +6,8 @@ use crate::error::BeatError;
 pub type Ordinal = u32;
 pub type SignedOrdinal = i32;
 
+pub const MAX_YEAR: Ordinal = 2100; // TODO is this OK?
+
 #[derive(Error, Debug)]
 #[error("Error")]
 struct CronParsingError;
@@ -109,33 +111,49 @@ fn parse_element_with_step(s: &str) -> Result<ParsedElement, CronParsingError> {
     }
 }
 
-pub fn wrapped_gte(candidates: &[Ordinal], target: Ordinal) -> Ordinal {
+fn wrapped_gte(candidates: &[Ordinal], target: Ordinal) -> Ordinal {
     if candidates.is_empty() {
         target
-    } else if target > *candidates.last().unwrap() {
-        candidates[0]
     } else {
-        wrapped_gte_recursive_step(candidates, target)
+        if let Some(result) = gte_recursive_step(candidates, target) {
+            result
+        } else {
+            candidates[0]
+        }
     }
 }
 
-fn wrapped_gte_recursive_step(candidates: &[Ordinal], target: Ordinal) -> Ordinal {
+fn gte(candidates: &[Ordinal], target: Ordinal) -> Option<Ordinal> {
+    if candidates.is_empty() {
+        Some(target)
+    } else if target > *candidates.last().unwrap() {
+        None
+    } else {
+        gte_recursive_step(candidates, target)
+    }
+}
+
+fn gte_recursive_step(candidates: &[Ordinal], target: Ordinal) -> Option<Ordinal> {
     assert!(!candidates.is_empty());
 
     let length = candidates.len();
 
     if length == 1 {
-        return candidates[0];
-    }
-
-    let half_length = (length - 1) / 2;
-    let middle_candidate = candidates[half_length];
-    if middle_candidate == target {
-        middle_candidate
-    } else if middle_candidate < target {
-        wrapped_gte_recursive_step(&candidates[half_length + 1..], target)
+        if candidates[0] >= target {
+            Some(candidates[0])
+        } else {
+            None
+        }
     } else {
-        wrapped_gte_recursive_step(&candidates[0..half_length + 1], target)
+        let half_length = (length - 1) / 2;
+        let middle_candidate = candidates[half_length];
+        if middle_candidate == target {
+            Some(middle_candidate)
+        } else if middle_candidate < target {
+            gte_recursive_step(&candidates[half_length + 1..], target)
+        } else {
+            gte_recursive_step(&candidates[0..half_length + 1], target)
+        }
     }
 }
 
@@ -169,56 +187,318 @@ pub fn days_in_month(month: Ordinal, year: Ordinal) -> Ordinal {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::super::CronSchedule;
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::super::CronSchedule;
+//     use super::*;
 
-    #[test]
-    fn test_find() {
-        assert_eq!(wrapped_gte(&[1], 3), 1);
-        assert_eq!(wrapped_gte(&[5], 3), 5);
-        assert_eq!(wrapped_gte(&[3], 3), 3);
-        assert_eq!(wrapped_gte(&[1, 2, 4], 3), 4);
-        assert_eq!(wrapped_gte(&[5, 7, 9], 3), 5);
-        assert_eq!(wrapped_gte(&[5, 7, 9], 11), 5);
+//     #[test]
+//     fn test_find() {
+//         assert_eq!(wrapped_gte(&[1], 3), 1);
+//         assert_eq!(wrapped_gte(&[5], 3), 5);
+//         assert_eq!(wrapped_gte(&[3], 3), 3);
+//         assert_eq!(wrapped_gte(&[1, 2, 4], 3), 4);
+//         assert_eq!(wrapped_gte(&[5, 7, 9], 3), 5);
+//         assert_eq!(wrapped_gte(&[5, 7, 9], 11), 5);
+//     }
+
+//     #[test]
+//     fn test_parse_list() -> Result<(), BeatError> {
+//         assert_eq!(parse_list("3", 2, 4)?, vec![3]);
+//         assert_eq!(parse_list("3-6/2", 2, 8)?, vec![3, 5]);
+//         assert_eq!(parse_list("*/3", 2, 8)?, vec![2, 5, 8]);
+//         assert_eq!(parse_list("*/3, 2, 7, 2-5/3", 2, 8)?, vec![2, 5, 7, 8]);
+//         assert!(parse_list(",", 2, 4).is_err());
+//         Ok(())
+//     }
+
+//     fn cron_schedule_eq(
+//         cron_schedule: &CronSchedule,
+//         minutes: &[Ordinal],
+//         hours: &[Ordinal],
+//         days_of_month: &[Ordinal],
+//         days_of_week: &[Ordinal],
+//         months: &[Ordinal],
+//     ) -> bool {
+//         cron_schedule.minutes == minutes
+//             && cron_schedule.hours == hours
+//             && cron_schedule.days_of_month == days_of_month
+//             && cron_schedule.days_of_week == days_of_week
+//             && cron_schedule.months == months
+//     }
+
+//     #[test]
+//     fn test_parse_from_string() -> Result<(), BeatError> {
+//         assert!(cron_schedule_eq(
+//             &CronSchedule::from_string("2 12 8 1 *")?,
+//             &vec![2],
+//             &vec![12],
+//             &vec![8],
+//             &vec![0, 1, 2, 3, 4, 5, 6],
+//             &vec![1]
+//         ));
+//         Ok(())
+//     }
+// }
+
+// trait TimeUnitField where Self: Sized {
+//     fn open_range(&self, start: Ordinal) -> TimeUnitFieldIterator;
+//     fn bounded_range(&self, start: Ordinal, stop: Ordinal) -> RangeInclusive<Ordinal>;
+//     fn gte(&self, target: Ordinal) -> Option<Ordinal>;
+//     fn inclusive_min(self) -> Ordinal;
+//     fn inclusive_max(self) -> Ordinal;
+// }
+
+#[derive(Debug)]
+pub enum Minutes {
+    All,
+    List(Vec<Ordinal>),
+}
+
+impl Minutes {
+    pub fn from_vec(vec: Vec<Ordinal>) -> Self {
+        if vec.len() == 60 {
+            Minutes::All
+        } else {
+            Minutes::List(vec)
+        }
+    }
+    pub fn open_range(&self, start: Ordinal) -> TimeUnitFieldIterator<'_> {
+        use Minutes::*;
+        match self {
+            All => TimeUnitFieldIterator::from_range(start, Minutes::inclusive_max()),
+            List(vec) => TimeUnitFieldIterator::from_vec(vec, start, Minutes::inclusive_max()),
+        }
+    }
+    pub fn gte(&self, target: Ordinal) -> Option<Ordinal> {
+        use Minutes::*;
+        match self {
+            All => {
+                if target <= 59 {
+                    Some(target)
+                } else {
+                    None
+                }
+            }
+            List(vec) => gte(&vec, target),
+        }
+    }
+    fn inclusive_min() -> Ordinal {
+        0
+    }
+    fn inclusive_max() -> Ordinal {
+        59
+    }
+}
+
+#[derive(Debug)]
+pub enum Hours {
+    All,
+    List(Vec<Ordinal>),
+}
+
+impl Hours {
+    pub fn from_vec(vec: Vec<Ordinal>) -> Self {
+        if vec.len() == 24 {
+            Hours::All
+        } else {
+            Hours::List(vec)
+        }
+    }
+    pub fn open_range(&self, start: Ordinal) -> TimeUnitFieldIterator<'_> {
+        use Hours::*;
+        match self {
+            All => TimeUnitFieldIterator::from_range(start, Hours::inclusive_max()),
+            List(vec) => TimeUnitFieldIterator::from_vec(vec, start, Hours::inclusive_max()),
+        }
+    }
+    pub fn gte(&self, target: Ordinal) -> Option<Ordinal> {
+        use Hours::*;
+        match self {
+            All => {
+                if target <= 23 {
+                    Some(target)
+                } else {
+                    None
+                }
+            }
+            List(vec) => gte(&vec, target),
+        }
+    }
+    fn inclusive_min() -> Ordinal {
+        0
+    }
+    fn inclusive_max() -> Ordinal {
+        23
+    }
+}
+
+#[derive(Debug)]
+pub enum DaysOfWeek {
+    All,
+    List(Vec<Ordinal>),
+}
+
+impl DaysOfWeek {
+    pub fn from_vec(vec: Vec<Ordinal>) -> Self {
+        if vec.len() == 7 {
+            DaysOfWeek::All
+        } else {
+            DaysOfWeek::List(vec)
+        }
+    }
+    pub fn contains(&self, target: Ordinal) -> bool {
+        use DaysOfWeek::*;
+        match self {
+            All => target <= 6,
+            List(vec) => vec.binary_search(&target).is_ok(),
+        }
+    }
+    fn inclusive_min() -> Ordinal {
+        0
+    }
+    fn inclusive_max() -> Ordinal {
+        6
+    }
+}
+
+#[derive(Debug)]
+pub enum DaysOfMonth {
+    All,
+    List(Vec<Ordinal>),
+}
+
+impl DaysOfMonth {
+    pub fn from_vec(vec: Vec<Ordinal>) -> Self {
+        if vec.len() == 31 {
+            DaysOfMonth::All
+        } else {
+            DaysOfMonth::List(vec)
+        }
+    }
+    pub fn bounded_range(&self, start: Ordinal, stop: Ordinal) -> TimeUnitFieldIterator<'_> {
+        use DaysOfMonth::*;
+        match self {
+            All => TimeUnitFieldIterator::from_range(start, stop),
+            List(vec) => TimeUnitFieldIterator::from_vec(vec, start, stop),
+        }
+    }
+    fn inclusive_min() -> Ordinal {
+        1
+    }
+    fn inclusive_max() -> Ordinal {
+        31
+    }
+}
+
+#[derive(Debug)]
+pub enum Months {
+    All,
+    List(Vec<Ordinal>),
+}
+
+impl Months {
+    pub fn from_vec(vec: Vec<Ordinal>) -> Self {
+        if vec.len() == 12 {
+            Months::All
+        } else {
+            Months::List(vec)
+        }
+    }
+    pub fn open_range(&self, start: Ordinal) -> TimeUnitFieldIterator<'_> {
+        use Months::*;
+        match self {
+            All => TimeUnitFieldIterator::from_range(start, self.inclusive_max()),
+            List(vec) => TimeUnitFieldIterator::from_vec(vec, start, self.inclusive_max()),
+        }
+    }
+    fn inclusive_min(&self) -> Ordinal {
+        1
+    }
+    fn inclusive_max(&self) -> Ordinal {
+        12
+    }
+}
+
+#[derive(Debug)]
+pub enum TimeUnitFieldIterator<'a> {
+    InclusiveRange {
+        current: Ordinal,
+        stop: Ordinal,
+    },
+    VecRange {
+        vec: &'a Vec<Ordinal>,
+        current: usize,
+        stop: usize,
+    },
+}
+
+impl<'a> TimeUnitFieldIterator<'a> {
+    fn from_range(start: Ordinal, stop: Ordinal) -> Self {
+        use TimeUnitFieldIterator::*;
+        InclusiveRange {
+            current: start,
+            stop,
+        }
     }
 
-    #[test]
-    fn test_parse_list() -> Result<(), BeatError> {
-        assert_eq!(parse_list("3", 2, 4)?, vec![3]);
-        assert_eq!(parse_list("3-6/2", 2, 8)?, vec![3, 5]);
-        assert_eq!(parse_list("*/3", 2, 8)?, vec![2, 5, 8]);
-        assert_eq!(parse_list("*/3, 2, 7, 2-5/3", 2, 8)?, vec![2, 5, 7, 8]);
-        assert!(parse_list(",", 2, 4).is_err());
-        Ok(())
+    fn from_vec(vec: &'a Vec<Ordinal>, lower_bound: Ordinal, upper_bound: Ordinal) -> Self {
+        use TimeUnitFieldIterator::*;
+        let mut vec_iter = vec.iter().enumerate().filter_map(|(i, x)| {
+            if *x >= lower_bound && *x <= upper_bound {
+                Some(i)
+            } else {
+                None
+            }
+        });
+        if let Some(start) = vec_iter.next() {
+            if let Some(stop) = vec_iter.last() {
+                VecRange {
+                    vec,
+                    current: start,
+                    stop,
+                }
+            } else {
+                VecRange {
+                    vec,
+                    current: start,
+                    stop: start,
+                }
+            }
+        } else {
+            VecRange {
+                vec,
+                current: 1,
+                stop: 0,
+            }
+        }
     }
+}
 
-    fn cron_schedule_eq(
-        cron_schedule: &CronSchedule,
-        minutes: &[Ordinal],
-        hours: &[Ordinal],
-        days_of_month: &[Ordinal],
-        days_of_week: &[Ordinal],
-        months: &[Ordinal],
-    ) -> bool {
-        cron_schedule.minutes == minutes
-            && cron_schedule.hours == hours
-            && cron_schedule.days_of_month == days_of_month
-            && cron_schedule.days_of_week == days_of_week
-            && cron_schedule.months == months
-    }
+impl Iterator for TimeUnitFieldIterator<'_> {
+    type Item = Ordinal;
 
-    #[test]
-    fn test_parse_from_string() -> Result<(), BeatError> {
-        assert!(cron_schedule_eq(
-            &CronSchedule::from_string("2 12 8 1 *")?,
-            &vec![2],
-            &vec![12],
-            &vec![8],
-            &vec![0, 1, 2, 3, 4, 5, 6],
-            &vec![1]
-        ));
-        Ok(())
+    fn next(&mut self) -> Option<Self::Item> {
+        use TimeUnitFieldIterator::*;
+        match self {
+            InclusiveRange { current, stop } => {
+                if current <= stop {
+                    let next = *current;
+                    *current += 1;
+                    Some(next)
+                } else {
+                    None
+                }
+            }
+            VecRange { vec, current, stop } => {
+                if current <= stop && *current < vec.len() {
+                    let next = *current;
+                    *current += 1;
+                    Some(vec[next])
+                } else {
+                    None
+                }
+            }
+        }
     }
 }

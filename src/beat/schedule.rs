@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 use crate::error::BeatError;
 
 mod cron;
-use cron::{Ordinal, SignedOrdinal};
+use cron::{DaysOfMonth, DaysOfWeek, Hours, Minutes, Months, Ordinal};
 
 /// The trait that all schedules implement.
 ///
@@ -41,19 +41,24 @@ impl Schedule for RegularSchedule {
     }
 }
 
+#[derive(Debug)]
 pub struct CronSchedule {
-    minutes: Vec<Ordinal>,
-    hours: Vec<Ordinal>,
-    days_of_month: Vec<Ordinal>,
-    days_of_week: Vec<Ordinal>,
-    months: Vec<Ordinal>,
+    minutes: Minutes,
+    hours: Hours,
+    days_of_month: DaysOfMonth,
+    days_of_week: DaysOfWeek,
+    months: Months,
 }
 
 impl Schedule for CronSchedule {
     fn next_call_at(&self, _last_run_at: Option<SystemTime>) -> Option<SystemTime> {
         let now = chrono::Utc::now(); // TODO support different time zones
-        let seconds_to_wait = self.seconds_to_next_call(now);
-        Some(SystemTime::now() + Duration::from_secs(seconds_to_wait as u64))
+        if let Some(next) = self.next(now) {
+            let duration = next - now;
+            Some(SystemTime::now() + duration.to_std().expect("Is this safe? TODO"))
+        } else {
+            None
+        }
     }
 }
 
@@ -73,28 +78,12 @@ impl CronSchedule {
 
         CronSchedule::validate(&minutes, &hours, &days_of_month, &days_of_week, &months)?;
 
-        if minutes.len() == 60 {
-            minutes = vec![];
-        }
-        if hours.len() == 24 {
-            hours = vec![];
-        }
-        if days_of_month.len() == 31 {
-            days_of_month = vec![];
-        }
-        if days_of_week.len() == 7 {
-            days_of_week = vec![];
-        }
-        if months.len() == 12 {
-            months = vec![];
-        }
-
         Ok(CronSchedule {
-            minutes,
-            hours,
-            days_of_month,
-            days_of_week,
-            months,
+            minutes: Minutes::from_vec(minutes),
+            hours: Hours::from_vec(hours),
+            days_of_month: DaysOfMonth::from_vec(days_of_month),
+            days_of_week: DaysOfWeek::from_vec(days_of_week),
+            months: Months::from_vec(months),
         })
     }
 
@@ -157,165 +146,70 @@ impl CronSchedule {
         Ok(())
     }
 
-    fn minutes_to_wait(&self, current_minute: Ordinal, carry: u32) -> (Ordinal, u32) {
-        let target_minute = current_minute + carry;
-        let next_minute = cron::wrapped_gte(&self.minutes, target_minute);
-        cron::subtract(next_minute, target_minute, 60)
-    }
-
-    fn hours_to_wait(&self, current_hour: Ordinal, carry: u32) -> (Ordinal, u32) {
-        let target_hour = current_hour + carry;
-        let next_hour = cron::wrapped_gte(&self.hours, target_hour);
-        dbg!(target_hour);
-        dbg!(next_hour);
-        cron::subtract(next_hour, target_hour, 24)
-    }
-
-    fn days_to_wait_by_day_of_week(
-        &self,
-        current_day_of_week: Ordinal,
-        carry: u32,
-        current_day_of_month: Ordinal,
-        days_in_current_month: Ordinal,
-    ) -> (Ordinal, u32) {
-        let target_day_of_week = current_day_of_week + carry;
-        let next_day_of_week = cron::wrapped_gte(&self.days_of_week, target_day_of_week);
-        let (days_to_wait, _) = cron::subtract(next_day_of_week, target_day_of_week, 7);
-        let carry = if current_day_of_month + days_to_wait > days_in_current_month {
-            1
-        } else {
-            0
-        };
-        (days_to_wait, carry)
-    }
-
-    fn days_to_wait_by_day_of_month(
-        &self,
-        current_day_of_month: Ordinal,
-        carry: u32,
-        current_month: u32,
-        current_year: u32,
-    ) -> (Ordinal, u32) {
-        let days_in_current_month = cron::days_in_month(current_month, current_year);
-        let target_day_of_month = current_day_of_month + carry;
-        let mut next_day_of_month = cron::wrapped_gte(&self.days_of_month, target_day_of_month);
-        if next_day_of_month > days_in_current_month {
-            if self.days_of_month.is_empty() {
-                next_day_of_month = 0;
-            } else {
-                next_day_of_month = self.days_of_month[0];
-            }
-        }
-        // Cannot use subtract because the base is not a constant
-        let difference = next_day_of_month as SignedOrdinal - target_day_of_month as SignedOrdinal;
-        if difference >= 0 {
-            (difference as Ordinal, 0)
-        } else {
-            let mut carry = 0;
-            let mut carried_difference = difference;
-            while carried_difference < 0 {
-                carry += 1;
-                carried_difference +=
-                    cron::days_in_month(current_month + carry, current_year) as SignedOrdinal;
-            }
-            (carried_difference as Ordinal, carry)
-        }
-    }
-
-    fn days_to_wait_by_month(
-        &self,
-        current_month: Ordinal,
-        carry: u32,
-        current_year: Ordinal,
-    ) -> Ordinal {
-        let target_month = current_month + carry;
-        let next_month = cron::wrapped_gte(&self.months, target_month);
-        let (months_to_wait, _) = cron::subtract(next_month, target_month, 12);
-
-        (0..months_to_wait)
-            .map(|i| {
-                let year = if current_month + i < 12 {
-                    current_year
-                } else {
-                    current_year + 1
-                };
-                cron::days_in_month(i % 12, year)
-            })
-            .sum()
-    }
-
-    fn seconds_to_next_call<Tz>(&self, now: chrono::DateTime<Tz>) -> u32
+    fn next<Tz>(&self, now: chrono::DateTime<Tz>) -> Option<chrono::DateTime<Tz>>
     where
         Tz: chrono::TimeZone,
     {
-        let mut seconds_to_wait = 0;
-        let mut carry = 0;
-
         use chrono::{Datelike, Timelike};
 
-        let current_second = now.second();
         let current_minute = now.minute();
         let current_hour = now.hour();
         let current_day_of_month = now.day();
-        let current_day_of_week = now.weekday().num_days_from_sunday();
         let current_month = now.month();
         let current_year = now.year() as Ordinal;
-        let days_in_current_month = cron::days_in_month(current_month, current_year);
 
-        if current_second > 0 {
-            seconds_to_wait += 60 - current_second;
-            carry = 1;
+        let mut overflow = false;
+        for year in current_year..cron::MAX_YEAR {
+            let month_start = if overflow { 1 } else { current_month };
+            for month in self.months.open_range(month_start) {
+                if month > current_month {
+                    overflow = true;
+                }
+                let day_of_month_start = if overflow { 1 } else { current_day_of_month };
+                let num_days_in_month = cron::days_in_month(month, year);
+                'day_loop: for day_of_month in self
+                    .days_of_month
+                    .bounded_range(day_of_month_start, num_days_in_month)
+                {
+                    if day_of_month > current_day_of_month {
+                        overflow = true;
+                    }
+                    let hour_target = if overflow { 0 } else { current_hour };
+                    for hour in self.hours.open_range(hour_target) {
+                        if hour > current_hour {
+                            overflow = true;
+                        }
+                        let minute_target = if overflow { 0 } else { current_minute + 1 };
+                        for minute in self.minutes.open_range(minute_target) {
+                            // Check that date is real (time zones are complicated...)
+                            let timezone = now.timezone();
+                            if let Some(candidate) = timezone
+                                .ymd(year as i32, month, day_of_month)
+                                .and_hms_opt(hour, minute, 0)
+                            {
+                                // Check that the day of week is correct
+                                if !self
+                                    .days_of_week
+                                    .contains(candidate.weekday().num_days_from_sunday())
+                                {
+                                    // It makes no sense trying different hours and
+                                    // minutes in the same day
+                                    continue 'day_loop;
+                                }
+
+                                return Some(candidate);
+                            }
+                        }
+                        overflow = true;
+                    }
+                    overflow = true;
+                }
+                overflow = true;
+            }
+            overflow = true;
         }
 
-        let (minutes_to_wait, carry) = self.minutes_to_wait(current_minute, carry);
-        dbg!("{}", minutes_to_wait);
-        seconds_to_wait += minutes_to_wait * 60;
-
-        let (hours_to_wait, carry) = self.hours_to_wait(current_hour, carry);
-        dbg!("{}", hours_to_wait);
-        seconds_to_wait += hours_to_wait * 3600;
-
-        let (days_to_wait, carry) = if self.days_of_month.is_empty() {
-            self.days_to_wait_by_day_of_week(
-                current_day_of_week,
-                carry,
-                current_day_of_month,
-                days_in_current_month,
-            )
-        } else if self.days_of_week.is_empty() {
-            self.days_to_wait_by_day_of_month(
-                current_day_of_month,
-                carry,
-                current_month,
-                current_year,
-            )
-        } else {
-            let (days_to_wait_by_week, carry_by_week) = self.days_to_wait_by_day_of_week(
-                current_day_of_week,
-                carry,
-                current_day_of_month,
-                days_in_current_month,
-            );
-            let (days_to_wait_by_month, carry_by_month) = self.days_to_wait_by_day_of_month(
-                current_day_of_month,
-                carry,
-                current_month,
-                current_year,
-            );
-            if days_to_wait_by_week >= days_to_wait_by_month {
-                (days_to_wait_by_week, carry_by_week)
-            } else {
-                (days_to_wait_by_month, carry_by_month)
-            }
-        };
-        dbg!("{}", days_to_wait);
-        seconds_to_wait += days_to_wait * 3600 * 24;
-
-        seconds_to_wait +=
-            self.days_to_wait_by_month(current_month, carry, current_year) * 3600 * 24;
-        dbg!("{}", self.days_to_wait_by_month(current_month, carry, current_year));
-
-        seconds_to_wait
+        None
     }
 }
 
@@ -324,29 +218,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cron() {
-        // let date =
-        //     chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-        //         .unwrap();
-        // let cron_schedule = CronSchedule::from_string("* * * * *").unwrap();
-        // assert_eq!(0, cron_schedule.seconds_to_next_call(date));
+    fn test_cron_next() {
+        let date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        let cron_schedule = CronSchedule::from_string("* * * * *").unwrap();
+        let expected_date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:31:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        assert_eq!(Some(expected_date), cron_schedule.next(date));
 
-        // let date =
-        //     chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-        //         .unwrap();
-        // let cron_schedule = CronSchedule::from_string("31 20 * * *").unwrap();
-        // assert_eq!(60, cron_schedule.seconds_to_next_call(date));
+        let date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        let cron_schedule = CronSchedule::from_string("31 20 * * *").unwrap();
+        let expected_date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:31:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        assert_eq!(Some(expected_date), cron_schedule.next(date));
 
-        // let date =
-        //     chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-        //         .unwrap();
-        // let cron_schedule = CronSchedule::from_string("31 14 4 11 *").unwrap();
-        // assert_eq!(1274460, cron_schedule.seconds_to_next_call(date));
+        let date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        let cron_schedule = CronSchedule::from_string("31 14 4 11 *").unwrap();
+        let expected_date =
+            chrono::DateTime::parse_from_str("2020-11-04 14:31:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        assert_eq!(Some(expected_date), cron_schedule.next(date));
 
         let date =
             chrono::DateTime::parse_from_str("2020-10-19 20:29:23 +0000", "%Y-%m-%d %H:%M:%S %z")
                 .unwrap();
         let cron_schedule = CronSchedule::from_string("*/5 9-18 1 * 6,0").unwrap();
-        assert_eq!(1274460, cron_schedule.seconds_to_next_call(date));
+        let expected_date =
+            chrono::DateTime::parse_from_str("2020-11-01 09:00:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        assert_eq!(Some(expected_date), cron_schedule.next(date));
+
+        let date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:29:23 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        let cron_schedule = CronSchedule::from_string("3 12 29-31 1-6 2-4").unwrap();
+        let expected_date =
+            chrono::DateTime::parse_from_str("2021-03-30 12:03:00 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        assert_eq!(Some(expected_date), cron_schedule.next(date));
+
+        let date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:29:23 +0000", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        let cron_schedule = CronSchedule::from_string("* * 30 2 *").unwrap();
+        assert_eq!(None, cron_schedule.next(date));
     }
 }
