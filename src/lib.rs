@@ -190,12 +190,6 @@ pub use codegen::task;
 pub mod export;
 
 #[cfg(feature = "codegen")]
-extern crate futures;
-
-#[cfg(feature = "codegen")]
-extern crate once_cell;
-
-#[cfg(feature = "codegen")]
 extern crate async_trait;
 
 #[cfg(feature = "codegen")]
