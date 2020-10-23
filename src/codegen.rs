@@ -11,7 +11,7 @@ macro_rules! __app_internal {
         $( $x:ident = $y:expr, )*
     ) => {{
         async fn _build_app(runtime: $crate::export::Arc<$crate::export::Runtime>) ->
-            Result<$crate::export::Arc<$crate::Celery::<$broker_type>>, $crate::error::CeleryError> {
+            $crate::export::Result<$crate::export::Arc<$crate::Celery::<$broker_type>>> {
 
             let broker_url = $broker_url;
 
@@ -49,7 +49,7 @@ macro_rules! __beat_internal {
         $( $x:ident = $y:expr, )*
     ) => {{
         async fn _build_beat(runtime: $crate::export::Arc<$crate::export::Runtime>) ->
-            Result<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>, $crate::error::CeleryError> {
+            $crate::export::Result<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
 
             let broker_url = $broker_url;
 
