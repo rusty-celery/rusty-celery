@@ -4,6 +4,8 @@ use anyhow::Result;
 use celery::beat::RegularSchedule;
 use celery::task::TaskResult;
 use env_logger::Env;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
 use tokio::time::Duration;
 
 const QUEUE_NAME: &str = "celery";
@@ -18,17 +20,15 @@ fn long_running_task(secs: Option<u64>) -> TaskResult<()> {
     unimplemented!()
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-
+async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
     // Build a `Beat` with a default scheduler backend.
     let mut beat = celery::beat!(
+        rt,
         broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         task_routes = [
             "*" => QUEUE_NAME,
         ],
-    );
+    ).await?;
 
     // Add scheduled tasks to the default `Beat` and start it.
     let add_schedule = RegularSchedule::new(Duration::from_secs(5));
@@ -39,5 +39,12 @@ async fn main() -> Result<()> {
 
     beat.start().await?;
 
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    let rt = Arc::new(Runtime::new()?);
+    rt.block_on(tokio_main(rt.clone()))?;
     Ok(())
 }

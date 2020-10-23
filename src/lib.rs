@@ -200,3 +200,6 @@ extern crate async_trait;
 
 #[cfg(feature = "codegen")]
 extern crate serde;
+
+#[cfg(feature = "codegen")]
+extern crate tokio;

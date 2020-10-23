@@ -10,6 +10,8 @@ use futures::{
     Stream,
 };
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 
 pub struct MockBrokerBuilder;
@@ -39,7 +41,11 @@ impl BrokerBuilder for MockBrokerBuilder {
     }
 
     #[allow(unused)]
-    async fn build(&self, connection_timeout: u32) -> Result<Self::Broker, BrokerError> {
+    async fn build(
+        &self,
+        runtime: Arc<Runtime>,
+        connection_timeout: u32,
+    ) -> Result<Self::Broker, BrokerError> {
         Ok(MockBroker::new())
     }
 }
@@ -115,7 +121,11 @@ impl Broker for MockBroker {
     }
 
     #[allow(unused)]
-    async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError> {
+    async fn reconnect(
+        &self,
+        runtime: Arc<Runtime>,
+        connection_timeout: u32,
+    ) -> Result<(), BrokerError> {
         Ok(())
     }
 }

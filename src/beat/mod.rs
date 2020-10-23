@@ -29,7 +29,9 @@ use crate::{
     task::{Signature, Task, TaskOptions},
 };
 use log::{debug, error, info};
+use std::sync::Arc;
 use std::time::SystemTime;
+use tokio::runtime::Runtime;
 use tokio::time::{self, Duration};
 
 mod scheduler;
@@ -171,7 +173,7 @@ where
     }
 
     /// Construct a `Beat` app with the current configuration.
-    pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, CeleryError> {
+    pub async fn build(self, runtime: Arc<Runtime>) -> Result<Beat<Bb::Broker, Sb>, CeleryError> {
         // Declare default queue to broker.
         let broker_builder = self
             .config
@@ -183,6 +185,7 @@ where
 
         let broker = build_and_connect(
             broker_builder,
+            runtime.clone(),
             self.config.broker_connection_timeout,
             if self.config.broker_connection_retry {
                 self.config.broker_connection_max_retries
@@ -206,6 +209,7 @@ where
             broker_connection_retry: self.config.broker_connection_retry,
             broker_connection_max_retries: self.config.broker_connection_max_retries,
             broker_connection_retry_delay: self.config.broker_connection_retry_delay,
+            runtime,
         })
     }
 }
@@ -227,6 +231,8 @@ pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
     broker_connection_retry_delay: u32,
+
+    runtime: Arc<Runtime>,
 }
 
 impl<Br> Beat<Br, LocalSchedulerBackend>
@@ -322,7 +328,7 @@ where
                 match self
                     .scheduler
                     .broker
-                    .reconnect(self.broker_connection_timeout)
+                    .reconnect(self.runtime.clone(), self.broker_connection_timeout)
                     .await
                 {
                     Err(err) => {
