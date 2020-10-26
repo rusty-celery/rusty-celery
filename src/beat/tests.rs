@@ -3,7 +3,6 @@
 ///
 /// Errors in the order of 1-2 milliseconds are expected, so checks
 /// are written to have a tolerance of at least 10 milliseconds.
-
 use super::*;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -141,7 +140,7 @@ async fn test_task_with_delayed_first_run() {
     // if it was not scheduled to run immediately. Hence here we check that
     // the task has been executed at least once.
     assert!(
-        tasks.len() > 0,
+        !tasks.is_empty(),
         "A task that was supposed to run at least once did not run."
     );
 }
