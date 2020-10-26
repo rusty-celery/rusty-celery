@@ -3,6 +3,7 @@
 ///
 /// Errors in the order of 1-2 milliseconds are expected, so checks
 /// are written to have a tolerance of at least 10 milliseconds.
+
 use super::*;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -22,29 +23,14 @@ use std::{
 };
 use tokio::time::{self, Duration};
 
+type SentMessage = (Message, String, SystemTime);
+
 #[tokio::test]
 async fn test_task_with_regular_schedule() {
-    // Create a dummy broker for this test.
+    // Create a dummy beat for this test.
     let sent_messages = Arc::new(Mutex::new(Vec::new()));
-    let dummy_broker = DummyBroker {
-        sent_messages: sent_messages.clone(),
-    };
-
-    // Configure a dummy queue for the tasks.
     let task_routes = vec![Rule::new("dummy_*", "dummy_queue").unwrap()];
-
-    let mut beat: Beat<DummyBroker, LocalSchedulerBackend> = Beat {
-        name: "dummy_beat".to_string(),
-        scheduler: Scheduler::new(dummy_broker),
-        scheduler_backend: LocalSchedulerBackend::new(),
-        task_routes,
-        default_queue: "celery".to_string(),
-        task_options: TaskOptions::default(),
-        broker_connection_timeout: 5,
-        broker_connection_retry: true,
-        broker_connection_max_retries: 5,
-        broker_connection_retry_delay: 5,
-    };
+    let mut beat = make_test_beat(sent_messages.clone(), task_routes);
 
     beat.schedule_task(
         Signature::<DummyTask>::new(()),
@@ -77,29 +63,13 @@ async fn test_task_with_regular_schedule() {
 
 #[tokio::test]
 async fn test_scheduling_two_tasks() {
-    // Create a dummy broker for this test.
+    // Create a dummy beat for this test.
     let sent_messages = Arc::new(Mutex::new(Vec::new()));
-    let dummy_broker = DummyBroker {
-        sent_messages: sent_messages.clone(),
-    };
-
-    // Configure dummy queues for the tasks.
     let task_routes = vec![
         Rule::new("dummy_task2", "dummy_queue2").unwrap(),
         Rule::new("dummy_*", "dummy_queue").unwrap(),
     ];
-    let mut beat: Beat<DummyBroker, LocalSchedulerBackend> = Beat {
-        name: "dummy_beat".to_string(),
-        scheduler: Scheduler::new(dummy_broker),
-        scheduler_backend: LocalSchedulerBackend::new(),
-        task_routes,
-        default_queue: "celery".to_string(),
-        task_options: TaskOptions::default(),
-        broker_connection_timeout: 5,
-        broker_connection_retry: true,
-        broker_connection_max_retries: 5,
-        broker_connection_retry_delay: 5,
-    };
+    let mut beat = make_test_beat(sent_messages.clone(), task_routes);
 
     beat.schedule_task(
         Signature::<DummyTask>::new(()),
@@ -139,6 +109,60 @@ async fn test_scheduling_two_tasks() {
     }
     for (_, queue, _) in task2 {
         assert_eq!("dummy_queue2", queue.as_str());
+    }
+}
+
+struct TenMillisSchedule {}
+
+impl Schedule for TenMillisSchedule {
+    fn next_call_at(&self, _last_run_at: Option<SystemTime>) -> Option<SystemTime> {
+        Some(SystemTime::now() + Duration::from_millis(10))
+    }
+}
+
+/// This is a regression test for https://github.com/rusty-celery/rusty-celery/issues/199
+#[tokio::test]
+async fn test_task_with_delayed_first_run() {
+    // Create a dummy beat for this test.
+    let sent_messages = Arc::new(Mutex::new(Vec::new()));
+    let task_routes = vec![Rule::new("*", "dummy_queue").unwrap()];
+    let mut beat = make_test_beat(sent_messages.clone(), task_routes);
+
+    // Schedule a task that will not execute immediately.
+    beat.schedule_task(Signature::<DummyTask>::new(()), TenMillisSchedule {});
+
+    let result = time::timeout(Duration::from_millis(50), beat.start()).await;
+
+    assert!(result.is_err()); // The beat should only stop because of the timeout
+
+    let tasks: Vec<_> = sent_messages.lock().unwrap().drain(..).collect();
+
+    // There a was a bug that caused the task to be dropped without being executed
+    // if it was not scheduled to run immediately. Hence here we check that
+    // the task has been executed at least once.
+    assert!(
+        tasks.len() > 0,
+        "A task that was supposed to run at least once did not run."
+    );
+}
+
+fn make_test_beat(
+    sent_messages: Arc<Mutex<Vec<SentMessage>>>,
+    task_routes: Vec<Rule>,
+) -> Beat<DummyBroker, LocalSchedulerBackend> {
+    let dummy_broker = DummyBroker { sent_messages };
+
+    Beat {
+        name: "dummy_beat".to_string(),
+        scheduler: Scheduler::new(dummy_broker),
+        scheduler_backend: LocalSchedulerBackend::new(),
+        task_routes,
+        default_queue: "celery".to_string(),
+        task_options: TaskOptions::default(),
+        broker_connection_timeout: 5,
+        broker_connection_retry: true,
+        broker_connection_max_retries: 5,
+        broker_connection_retry_delay: 5,
     }
 }
 
@@ -208,7 +232,7 @@ IMPLEMENTATION OF DUMMY BROKER
 /// with the correct queue and at the expected time.
 #[derive(Debug)]
 struct DummyBroker {
-    sent_messages: Arc<Mutex<Vec<(Message, String, SystemTime)>>>,
+    sent_messages: Arc<Mutex<Vec<SentMessage>>>,
 }
 
 #[async_trait]
