@@ -34,7 +34,7 @@ jobs:
         git diff --name-only $(git merge-base origin/master HEAD) | grep '^CHANGELOG.md$' && echo "Thanks for helping keep our CHANGELOG up-to-date!"
 
   format:
-    name: Check Formatting
+    name: Format
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -91,12 +91,51 @@ jobs:
         command: clippy
         args: --workspace --all-targets --all-features -- -D warnings
 
-  test:
-    name: Check Lib
+  build:
+    name: Build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
+        features: [codegen, extra_content_types]
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Set build variables
+      shell: bash
+      run: |
+        # We use these variables as part of the cache keys.
+        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
+        echo "WEEK_NUMBER=$(date +%U)" >> $GITHUB_ENV
+
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/registry
+        key: cargo registry ${{ github.job }} ${{ matrix.features }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.WEEK_NUMBER }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v2
+      with:
+        path: target
+        key: cargo build ${{ github.job }} ${{ matrix.features }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.WEEK_NUMBER }}
+
+    - name: Build
+      if: always()
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --workspace --no-default-features --features ${{ matrix.features }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
 
