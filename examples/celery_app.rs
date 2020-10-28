@@ -63,7 +63,7 @@ async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
 
     let my_app = celery::app!(
         runtime = rt,
-        broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [
             add,
             buggy_task,

@@ -1,5 +1,6 @@
 //! These tests should be compiled but not run.
 
+use celery::prelude::*;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -9,7 +10,7 @@ fn test_basic_use() {
     rt.block_on(async {
         let _app = celery::app!(
             runtime = rt.clone(),
-            broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+            broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
             tasks = [],
             task_routes = []
         );
@@ -22,7 +23,7 @@ fn test_basic_use_with_trailing_comma() {
     rt.block_on(async {
         let _app = celery::app!(
             runtime = rt.clone(),
-            broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+            broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
             tasks = [],
             task_routes = [],
         );
@@ -35,7 +36,7 @@ fn test_with_options() {
     rt.block_on(async {
         let _app = celery::app!(
             runtime = rt.clone(),
-            broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+            broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
             tasks = [],
             task_routes = [],
             task_time_limit = 2
@@ -49,7 +50,7 @@ fn test_with_options_and_trailing_comma() {
     rt.block_on(async {
         let _app = celery::app!(
             runtime = rt.clone(),
-            broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+            broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
             tasks = [],
             task_routes = [],
             task_time_limit = 2,

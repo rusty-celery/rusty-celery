@@ -138,14 +138,14 @@ macro_rules! __beat_internal {
 macro_rules! app {
     (
         runtime = $runtime:expr,
-        broker = AMQP { $broker_url:expr },
+        broker = $broker_type:ty { $broker_url:expr },
         tasks = [ $( $t:ty ),* $(,)? ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__app_internal!(
             $runtime,
-            $crate::broker::AMQPBroker { $broker_url },
+            $broker_type { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
