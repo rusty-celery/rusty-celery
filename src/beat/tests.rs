@@ -4,16 +4,12 @@
 /// Errors in the order of 1-2 milliseconds are expected, so checks
 /// are written to have a tolerance of at least 10 milliseconds.
 use super::*;
-use async_trait::async_trait;
-
 use crate::{
     broker::mock::*,
     task::{Request, TaskOptions, TaskResult},
 };
-use std::{
-    sync::Arc,
-    time::SystemTime,
-};
+use async_trait::async_trait;
+use std::{sync::Arc, time::SystemTime};
 use tokio::runtime::Runtime;
 use tokio::time::{self, Duration};
 
@@ -59,7 +55,7 @@ fn test_task_with_regular_schedule() {
             .await
             .drain()
             .collect();
-        tasks.sort_by(|a, b| a.1.2.cmp(&b.1.2));
+        tasks.sort_by(|a, b| (a.1).2.cmp(&(b.1).2));
 
         // Check that the tasks have been executed the correct number of times.
         assert_eq!(
@@ -74,8 +70,8 @@ fn test_task_with_regular_schedule() {
         }
 
         // Check that the tasks executed (approximately) on time.
-        assert!(tasks[0].1.2.duration_since(start_time).unwrap() < Duration::from_millis(10));
-        assert!(tasks[1].1.2.duration_since(start_time).unwrap() < Duration::from_millis(30));
+        assert!((tasks[0].1).2.duration_since(start_time).unwrap() < Duration::from_millis(10));
+        assert!((tasks[1].1).2.duration_since(start_time).unwrap() < Duration::from_millis(30));
     });
 }
 
@@ -126,7 +122,7 @@ fn test_scheduling_two_tasks() {
             .write()
             .await
             .drain()
-            .partition(|x| &x.1.0.headers.task == "dummy_task");
+            .partition(|x| &(x.1).0.headers.task == "dummy_task");
 
         // Check that the tasks have been executed the correct number of times.
         assert_eq!(
@@ -150,9 +146,61 @@ fn test_scheduling_two_tasks() {
     });
 }
 
-/* **************************
-IMPLEMENTATION OF DUMMY TASKS
-*************************** */
+struct TenMillisSchedule {}
+
+impl Schedule for TenMillisSchedule {
+    fn next_call_at(&self, _last_run_at: Option<SystemTime>) -> Option<SystemTime> {
+        Some(SystemTime::now() + Duration::from_millis(10))
+    }
+}
+
+/// This is a regression test for https://github.com/rusty-celery/rusty-celery/issues/199
+#[test]
+fn test_task_with_delayed_first_run() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        // Create a dummy beat for this test.
+        let dummy_broker = MockBroker::new();
+        let task_routes = vec![Rule::new("*", "dummy_queue").unwrap()];
+        let mut beat: Beat<MockBroker, LocalSchedulerBackend> = Beat {
+            name: "dummy_beat".to_string(),
+            scheduler: Scheduler::new(dummy_broker),
+            scheduler_backend: LocalSchedulerBackend::new(),
+            task_routes,
+            default_queue: "celery".to_string(),
+            task_options: TaskOptions::default(),
+            broker_connection_timeout: 5,
+            broker_connection_retry: true,
+            broker_connection_max_retries: 5,
+            broker_connection_retry_delay: 5,
+            runtime: rt.clone(),
+        };
+
+        // Schedule a task that will not execute immediately.
+        beat.schedule_task(Signature::<DummyTask>::new(()), TenMillisSchedule {});
+
+        let result = time::timeout(Duration::from_millis(50), beat.start()).await;
+
+        assert!(result.is_err()); // The beat should only stop because of the timeout
+
+        let tasks: Vec<_> = beat
+            .scheduler
+            .broker
+            .sent_tasks
+            .write()
+            .await
+            .drain()
+            .collect();
+
+        // There a was a bug that caused the task to be dropped without being executed
+        // if it was not scheduled to run immediately. Hence here we check that
+        // the task has been executed at least once.
+        assert!(
+            !tasks.is_empty(),
+            "A task that was supposed to run at least once did not run."
+        );
+    })
+}
 
 #[derive(Clone)]
 struct DummyTask {}
