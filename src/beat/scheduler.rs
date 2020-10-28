@@ -61,42 +61,50 @@ where
         &mut self.heap
     }
 
-    /// Tick once. This method checks if there is a scheduled task which is due
-    /// for execution and, if so, sends it to the broker.
-    /// It returns the time by which `tick` should be called again.
-    pub async fn tick(&mut self) -> Result<SystemTime, BeatError> {
-        let now = SystemTime::now();
-        let scheduled_task = self.heap.pop();
-
-        if let Some(mut scheduled_task) = scheduled_task {
-            if scheduled_task.next_call_at <= now {
-                let result = self.send_scheduled_task(&mut scheduled_task).await;
-
-                // Reschedule the task before checking if the task execution was successful.
-                // TODO: we may have more fine-grained logic here and reschedule the task
-                // only after examining the type of error.
-                if let Some(rescheduled_task) = scheduled_task.reschedule_task() {
-                    self.heap.push(rescheduled_task);
-                } else {
-                    debug!("A task is not scheduled to run anymore and will be dropped");
-                }
-
-                result?
-            }
-        }
-
+    /// Get the time when the next task should be executed.
+    fn next_task_time(&self, now: SystemTime) -> SystemTime {
         if let Some(scheduled_task) = self.heap.peek() {
             debug!(
                 "Next scheduled task is at {:?}",
                 scheduled_task.next_call_at
             );
-            Ok(scheduled_task.next_call_at)
+            scheduled_task.next_call_at
         } else {
             debug!(
                 "No scheduled tasks, sleeping for {:?}",
                 self.default_sleep_interval
             );
-            Ok(now + self.default_sleep_interval)
+            now + self.default_sleep_interval
+        }
+    }
+
+    /// Tick once. This method checks if there is a scheduled task which is due
+    /// for execution and, if so, sends it to the broker.
+    /// It returns the time by which `tick` should be called again.
+    pub async fn tick(&mut self) -> Result<SystemTime, BeatError> {
+        let now = SystemTime::now();
+        let next_task_time = self.next_task_time(now);
+
+        if next_task_time <= now {
+            let mut scheduled_task = self
+                .heap
+                .pop()
+                .expect("No scheduled tasks found even though there should be");
+            let result = self.send_scheduled_task(&mut scheduled_task).await;
+
+            // Reschedule the task before checking if the task execution was successful.
+            // TODO: we may have more fine-grained logic here and reschedule the task
+            // only after examining the type of error.
+            if let Some(rescheduled_task) = scheduled_task.reschedule_task() {
+                self.heap.push(rescheduled_task);
+            } else {
+                debug!("A task is not scheduled to run anymore and will be dropped");
+            }
+
+            result?;
+            Ok(self.next_task_time(now))
+        } else {
+            Ok(next_task_time)
         }
     }
 

@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Task ID now logged when a beat app sends a task.
 - Fixes to docs. Added a "Build Docs" job to GitHub Actions.
+- Fixed a Celery beat [issue](https://github.com/rusty-celery/rusty-celery/issues/199)
+  that caused a task to be dropped if its scheduled run was delayed
 
 ## v0.4.0-rc4 - 2020-09-16
 
