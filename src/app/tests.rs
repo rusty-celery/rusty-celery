@@ -4,21 +4,14 @@ use crate::protocol::MessageContentType;
 use crate::task::{Request, Signature, Task, TaskOptions, TaskResult};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
-use futures::executor::block_on;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::SystemTime;
+use tokio::runtime::Runtime;
 
-// Basic app with all defaults.
-static MOCK_BASIC_APP: Lazy<Celery<MockBroker>> = Lazy::new(|| block_on(build_basic_app()));
-
-// App with some custom configured options.
-static MOCK_CONFIGURED_APP: Lazy<Celery<MockBroker>> =
-    Lazy::new(|| block_on(build_configured_app()));
-
-async fn build_basic_app() -> Celery<MockBroker> {
+async fn build_basic_app(rt: Arc<Runtime>) -> Celery<MockBroker> {
     let celery = Celery::<MockBroker>::builder("mock-app", "mock://localhost:8000")
-        .build()
+        .build(rt)
         .await
         .unwrap();
     celery.register_task::<AddTask>().await.unwrap();
@@ -26,12 +19,12 @@ async fn build_basic_app() -> Celery<MockBroker> {
     celery
 }
 
-async fn build_configured_app() -> Celery<MockBroker> {
+async fn build_configured_app(rt: Arc<Runtime>) -> Celery<MockBroker> {
     let celery = Celery::<MockBroker>::builder("mock-app", "mock://localhost:8000")
         .task_time_limit(10)
         .task_max_retries(100)
         .task_content_type(MessageContentType::Yaml)
-        .build()
+        .build(rt)
         .await
         .unwrap();
     celery.register_task::<AddTask>().await.unwrap();
@@ -138,140 +131,182 @@ struct MultiplyParams {
 
 #[test]
 fn test_app_name() {
-    assert!(MOCK_BASIC_APP.name == "mock-app");
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        assert!(app.name == "mock-app");
+    });
 }
 
-#[tokio::test]
-async fn test_add_task_registered() {
-    assert!(MOCK_BASIC_APP
-        .task_trace_builders
-        .read()
-        .await
-        .contains_key("add"));
+#[test]
+fn test_add_task_registered() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        assert!(app.task_trace_builders.read().await.contains_key("add"));
+    });
 }
 
-#[tokio::test]
-async fn test_send_task() {
-    let result = MOCK_BASIC_APP.send_task(AddTask::new(1, 2)).await.unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(&message.headers.task == "add");
+#[test]
+fn test_send_task() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let result = app.send_task(AddTask::new(1, 2)).await.unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.task == "add");
+    });
 }
 
-#[tokio::test]
-async fn test_send_task_with_countdown() {
-    let result = MOCK_BASIC_APP
-        .send_task(AddTask::new(1, 2).with_countdown(2))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(&message.headers.eta.is_some());
+#[test]
+fn test_send_task_with_countdown() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let result = app
+            .send_task(AddTask::new(1, 2).with_countdown(2))
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.eta.is_some());
+    });
 }
 
-#[tokio::test]
-async fn test_send_task_with_eta() {
-    let result = MOCK_BASIC_APP
-        .send_task(AddTask::new(1, 2).with_eta(DateTime::<Utc>::from(SystemTime::now())))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(&message.headers.eta.is_some());
+#[test]
+fn test_send_task_with_eta() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let result = app
+            .send_task(AddTask::new(1, 2).with_eta(DateTime::<Utc>::from(SystemTime::now())))
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.eta.is_some());
+    });
 }
 
-#[tokio::test]
-async fn test_send_task_with_expires_in() {
-    let result = MOCK_BASIC_APP
-        .send_task(AddTask::new(1, 2).with_expires_in(10))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(&message.headers.expires.is_some());
+#[test]
+fn test_send_task_with_expires_in() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let result = app
+            .send_task(AddTask::new(1, 2).with_expires_in(10))
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.expires.is_some());
+    });
 }
 
-#[tokio::test]
-async fn test_send_task_with_expires() {
-    let dt = DateTime::<Utc>::from(SystemTime::now()) + Duration::seconds(10);
-    let result = MOCK_BASIC_APP
-        .send_task(AddTask::new(1, 2).with_expires(dt))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(&message.headers.expires.is_some());
+#[test]
+fn test_send_task_with_expires() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let dt = DateTime::<Utc>::from(SystemTime::now()) + Duration::seconds(10);
+        let result = app
+            .send_task(AddTask::new(1, 2).with_expires(dt))
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.expires.is_some());
+    });
 }
 
-#[tokio::test]
-async fn test_send_task_with_content_type() {
-    let result = MOCK_BASIC_APP
-        .send_task(AddTask::new(1, 2).with_content_type(MessageContentType::Yaml))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(&message.properties.content_type == "application/x-yaml");
+#[test]
+fn test_send_task_with_content_type() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let result = app
+            .send_task(AddTask::new(1, 2).with_content_type(MessageContentType::Yaml))
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.properties.content_type == "application/x-yaml");
+    });
 }
 
-#[tokio::test]
-async fn test_send_task_with_time_limit() {
-    let result = MOCK_BASIC_APP
-        .send_task(AddTask::new(1, 2).with_time_limit(5))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(message.headers.timelimit == (None, Some(5)));
+#[test]
+fn test_send_task_with_time_limit() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let result = app
+            .send_task(AddTask::new(1, 2).with_time_limit(5))
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.timelimit == (None, Some(5)));
+    });
 }
 
-#[tokio::test]
-async fn test_send_task_with_hard_time_limit() {
-    let result = MOCK_BASIC_APP
-        .send_task(AddTask::new(1, 2).with_hard_time_limit(5))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_BASIC_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(message.headers.timelimit == (Some(5), None));
+#[test]
+fn test_send_task_with_hard_time_limit() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_basic_app(rt.clone()).await;
+        let result = app
+            .send_task(AddTask::new(1, 2).with_hard_time_limit(5))
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.timelimit == (Some(5), None));
+    });
 }
 
-#[tokio::test]
-async fn test_configured_app_send_task_app_defaults() {
-    let result = MOCK_CONFIGURED_APP
-        .send_task(AddTask::new(1, 2))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_CONFIGURED_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(message.headers.timelimit == (None, Some(10)));
-    assert!(&message.properties.content_type == "application/x-yaml");
+#[test]
+fn test_configured_app_send_task_app_defaults() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_configured_app(rt.clone()).await;
+        let result = app.send_task(AddTask::new(1, 2)).await.unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.timelimit == (None, Some(10)));
+        assert!(message.properties.content_type == "application/x-yaml");
+    });
 }
 
-#[tokio::test]
-async fn test_configured_app_send_task_task_defaults() {
-    let result = MOCK_CONFIGURED_APP
-        .send_task(MultiplyTask::new(1, 2))
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_CONFIGURED_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(message.headers.timelimit == (Some(10), Some(5)));
-    assert!(&message.properties.content_type == "application/x-yaml");
+#[test]
+fn test_configured_app_send_task_task_defaults() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_configured_app(rt.clone()).await;
+        let result = app.send_task(MultiplyTask::new(1, 2)).await.unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.timelimit == (Some(10), Some(5)));
+        assert!(message.properties.content_type == "application/x-yaml");
+    });
 }
 
-#[tokio::test]
-async fn test_configured_app_send_task_request_overrides() {
-    let result = MOCK_CONFIGURED_APP
-        .send_task(
-            MultiplyTask::new(1, 2)
-                .with_time_limit(2)
-                .with_content_type(MessageContentType::Json),
-        )
-        .await
-        .unwrap();
-    let sent_tasks = MOCK_CONFIGURED_APP.broker.sent_tasks.read().await;
-    let message = sent_tasks.get(&result.task_id).unwrap();
-    assert!(message.headers.timelimit == (Some(10), Some(2)));
-    assert!(&message.properties.content_type == "application/json");
+#[test]
+fn test_configured_app_send_task_request_overrides() {
+    let rt = Arc::new(Runtime::new().unwrap());
+    rt.block_on(async {
+        let app = build_configured_app(rt.clone()).await;
+        let result = app
+            .send_task(
+                MultiplyTask::new(1, 2)
+                    .with_time_limit(2)
+                    .with_content_type(MessageContentType::Json),
+            )
+            .await
+            .unwrap();
+        let sent_tasks = app.broker.sent_tasks.read().await;
+        let message = &sent_tasks.get(&result.task_id).unwrap().0;
+        assert!(message.headers.timelimit == (Some(10), Some(2)));
+        assert!(message.properties.content_type == "application/json");
+    });
 }

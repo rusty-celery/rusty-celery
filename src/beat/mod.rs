@@ -221,8 +221,9 @@ where
 /// tasks through a customizable scheduler backend.
 pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     pub name: String,
-    scheduler: Scheduler<Br>,
-    scheduler_backend: Sb,
+    pub scheduler: Scheduler<Br>,
+    pub scheduler_backend: Sb,
+
     task_routes: Vec<Rule>,
     default_queue: String,
     task_options: TaskOptions,

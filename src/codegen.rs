@@ -44,8 +44,8 @@ macro_rules! __beat_internal {
     (
         $runtime:expr,
         $broker_type:ty { $broker_url:expr },
-        [ $( $pattern:expr => $queue:expr ),* ],
         $scheduler_backend_type:ty { $scheduler_backend:expr },
+        [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
         async fn _build_beat(runtime: $crate::export::Arc<$crate::export::Runtime>) ->
@@ -137,10 +137,10 @@ macro_rules! __beat_internal {
 #[macro_export]
 macro_rules! app {
     (
-        $runtime:expr,
-        $(broker =)? AMQP { $broker_url:expr },
-        $(tasks =)? [ $( $t:ty ),* $(,)? ],
-        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+        runtime = $runtime:expr,
+        broker = AMQP { $broker_url:expr },
+        tasks = [ $( $t:ty ),* $(,)? ],
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__app_internal!(
@@ -242,15 +242,30 @@ macro_rules! app {
 macro_rules! beat {
     (
         $runtime:expr,
-        $(broker =)? AMQP { $broker_url:expr },
-        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+        broker = AMQP { $broker_url:expr },
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
             $runtime,
             $crate::broker::AMQPBroker { $broker_url },
-            [ $( $pattern => $queue ),* ],
             $crate::beat::LocalSchedulerBackend { $crate::beat::LocalSchedulerBackend::new() },
+            [ $( $pattern => $queue ),* ],
+            $( $x = $y, )*
+        );
+    };
+    (
+        $runtime:expr,
+        broker = AMQP { $broker_url:expr },
+        scheduler_backend = $scheduler_backend_type:ty { $scheduler_backend:expr },
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+        $(, $x:ident = $y:expr )* $(,)?
+    ) => {
+        $crate::__beat_internal!(
+            $runtime,
+            $crate::broker::AMQPBroker { $broker_url },
+            $scheduler_backend_type { $scheduler_backend },
+            [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );
     };

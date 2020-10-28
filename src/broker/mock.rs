@@ -11,6 +11,7 @@ use futures::{
 };
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::SystemTime;
 use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 
@@ -52,7 +53,11 @@ impl BrokerBuilder for MockBrokerBuilder {
 
 #[derive(Default)]
 pub struct MockBroker {
-    pub sent_tasks: RwLock<HashMap<String, Message>>,
+    /// Holds a mapping of all sent tasks.
+    ///
+    /// The keys are the task IDs, and the values are tuples of the message object,
+    /// queue it was sent to, and time it was sent.
+    pub sent_tasks: RwLock<HashMap<String, (Message, String, SystemTime)>>,
 }
 
 impl MockBroker {
@@ -101,10 +106,10 @@ impl Broker for MockBroker {
 
     #[allow(unused)]
     async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
-        self.sent_tasks
-            .write()
-            .await
-            .insert(message.task_id().into(), message.clone());
+        self.sent_tasks.write().await.insert(
+            message.task_id().into(),
+            (message.clone(), queue.into(), SystemTime::now()),
+        );
         Ok(())
     }
 
