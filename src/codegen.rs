@@ -241,29 +241,29 @@ macro_rules! app {
 #[macro_export]
 macro_rules! beat {
     (
-        $runtime:expr,
-        broker = AMQP { $broker_url:expr },
+        runtime = $runtime:expr,
+        broker = $broker_type:ty { $broker_url:expr },
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
             $runtime,
-            $crate::broker::AMQPBroker { $broker_url },
+            $broker_type { $broker_url },
             $crate::beat::LocalSchedulerBackend { $crate::beat::LocalSchedulerBackend::new() },
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );
     };
     (
-        $runtime:expr,
-        broker = AMQP { $broker_url:expr },
+        runtime = $runtime:expr,
+        broker = $broker_type:ty { $broker_url:expr },
         scheduler_backend = $scheduler_backend_type:ty { $scheduler_backend:expr },
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
             $runtime,
-            $crate::broker::AMQPBroker { $broker_url },
+            $broker_type { $broker_url },
             $scheduler_backend_type { $scheduler_backend },
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*

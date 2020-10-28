@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use celery::beat::RegularSchedule;
+use celery::broker::AMQPBroker;
 use celery::task::TaskResult;
 use env_logger::Env;
 use std::sync::Arc;
@@ -23,8 +24,8 @@ fn long_running_task(secs: Option<u64>) -> TaskResult<()> {
 async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
     // Build a `Beat` with a default scheduler backend.
     let mut beat = celery::beat!(
-        rt,
-        broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        runtime = rt,
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         task_routes = [
             "*" => QUEUE_NAME,
         ],
