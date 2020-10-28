@@ -18,54 +18,79 @@
 //! macro and register your tasks with it:
 //!
 //! ```rust,no_run
+//! # use anyhow::Result;
+//! # use celery::prelude::*;
+//! # use std::sync::Arc;
+//! # use tokio::runtime::Runtime;
 //! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
+//! # fn main() -> Result<()> {
+//! # let rt = Arc::new(Runtime::new().unwrap());
+//! # rt.block_on(async {
 //! let my_app = celery::app!(
-//!     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+//!     runtime = rt.clone(),
+//!     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //!     tasks = [add],
 //!     task_routes = [],
-//! );
+//! ).await?;
+//! # Ok(())
+//! # })
+//! # }
 //! ```
 //!
 //! The [`Celery`] app can be used as either a producer or consumer (worker). To send tasks to a
 //! queue for a worker to consume, use the [`Celery::send_task`] method:
 //!
 //! ```rust,no_run
+//! # use anyhow::Result;
+//! # use celery::prelude::*;
+//! # use std::sync::Arc;
+//! # use tokio::runtime::Runtime;
 //! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
-//! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # fn main() -> Result<()> {
+//! # let rt = Arc::new(Runtime::new().unwrap());
+//! # rt.block_on(async {
 //! # let my_app = celery::app!(
-//! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+//! #     runtime = rt.clone(),
+//! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
-//! # );
+//! # ).await?;
 //! my_app.send_task(add::new(1, 2)).await?;
-//! #   Ok(())
+//! # Ok(())
+//! # })
 //! # }
 //! ```
 //!
-//! And to act as worker and consume tasks sent to a queue by a producer, use the
+//! And to act as a worker to consume tasks sent to a queue by a producer, use the
 //! [`Celery::consume`] method:
 //!
 //! ```rust,no_run
+//! # use anyhow::Result;
+//! # use celery::prelude::*;
+//! # use std::sync::Arc;
+//! # use tokio::runtime::Runtime;
 //! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
-//! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # fn main() -> Result<()> {
+//! # let rt = Arc::new(Runtime::new().unwrap());
+//! # rt.block_on(async {
 //! # let my_app = celery::app!(
-//! #     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+//! #     runtime = rt.clone(),
+//! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
-//! # );
+//! # ).await?;
 //! my_app.consume().await?;
 //! # Ok(())
+//! # })
 //! # }
 //! ```
 

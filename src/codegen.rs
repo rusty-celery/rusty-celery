@@ -72,7 +72,8 @@ macro_rules! __beat_internal {
 
 /// A macro for creating a [`Celery`](struct.Celery.html) app.
 ///
-/// At a minimum the `app!` macro requires these 3 arguments (in order):
+/// At a minimum the `app!` macro requires these 4 arguments (in order):
+/// - `runtime`: a `tokio` async runtime, `Arc<tokio::runtime::Runtime>`,
 /// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
 /// - `tasks`: a list of tasks to register, and
 /// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
@@ -107,6 +108,9 @@ macro_rules! __beat_internal {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
+/// # use anyhow::Result;
+/// # use std::sync::Arc;
+/// # use tokio::runtime::Runtime;
 /// use celery::prelude::*;
 ///
 /// #[celery::task]
@@ -114,24 +118,38 @@ macro_rules! __beat_internal {
 ///     Ok(x + y)
 /// }
 ///
-/// # fn main() {
+/// # fn main() -> Result<()> {
+/// # let rt = Arc::new(Runtime::new()?);
+/// # rt.block_on(async {
 /// let app = celery::app!(
-///     AMQP { std::env::var("AMQP_ADDR").unwrap() },
-///     [ add ],
-///     [ "*" => "celery" ],
-/// );
+///     runtime = rt.clone(),
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [ add ],
+///     task_routes = [ "*" => "celery" ],
+/// ).await?;
+/// # Ok(())
+/// # })
 /// # }
 /// ```
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// # fn main() {
+/// # use anyhow::Result;
+/// # use std::sync::Arc;
+/// # use tokio::runtime::Runtime;
+/// # use celery::prelude::*;
+/// # fn main() -> Result<()> {
+/// # let rt = Arc::new(Runtime::new().unwrap());
+/// # rt.block_on(async {
 /// let app = celery::app!(
-///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     runtime = rt.clone(),
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     tasks = [],
 ///     task_routes = [],
 ///     task_time_limit = 2
-/// );
+/// ).await?;
+/// # Ok(())
+/// # })
 /// # }
 /// ```
 #[macro_export]
@@ -156,7 +174,8 @@ macro_rules! app {
 // TODO add support for scheduling tasks here.
 /// A macro for creating a [`Beat`](beat/struct.Beat.html) app.
 ///
-/// At a minimum the `beat!` macro requires these 2 arguments (in order):
+/// At a minimum the `beat!` macro requires these 3 arguments (in order):
+/// - `runtime`: a `tokio` async runtime, `Arc<tokio::runtime::Runtime>`,
 /// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
 /// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
 ///
@@ -164,7 +183,7 @@ macro_rules! app {
 ///
 /// # Custom scheduler backend
 ///
-/// A custom scheduler backend can be given as third argument (with or without using the keyword `scheduler_backend`).
+/// A custom scheduler backend can be given as the second argument.
 /// If not given, the default [`LocalSchedulerBackend`](struct.LocalSchedulerBackend.html) will be used.
 ///
 /// # Optional parameters
@@ -188,11 +207,20 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// # fn main() {
+/// # use anyhow::Result;
+/// # use celery::prelude::*;
+/// # use std::sync::Arc;
+/// # use tokio::runtime::Runtime;
+/// # fn main() -> Result<()> {
+/// # let rt = Arc::new(Runtime::new().unwrap());
+/// # rt.block_on(async {
 /// let beat = celery::beat!(
-///     AMQP { std::env::var("AMQP_ADDR").unwrap() },
-///     [ "*" => "celery" ],
-/// );
+///     runtime = rt.clone(),
+///     broker = AMQPBroker{ std::env::var("AMQP_ADDR").unwrap() },
+///     task_routes = [ "*" => "celery" ],
+/// ).await?;
+/// # Ok(())
+/// # })
 /// # }
 /// ```
 ///
@@ -200,12 +228,21 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// # fn main() {
+/// # use anyhow::Result;
+/// # use celery::prelude::*;
+/// # use std::sync::Arc;
+/// # use tokio::runtime::Runtime;
+/// # fn main() -> Result<()> {
+/// # let rt = Arc::new(Runtime::new().unwrap());
+/// # rt.block_on(async {
 /// let beat = celery::beat!(
-///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     runtime = rt.clone(),
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     task_routes = [],
 ///     default_queue = "beat_queue"
-/// );
+/// ).await?;
+/// # Ok(())
+/// # })
 /// # }
 /// ```
 ///
@@ -213,7 +250,11 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// use celery::{beat::ScheduledTask, beat::SchedulerBackend, error::BeatError};
+/// # use anyhow::Result;
+/// # use std::sync::Arc;
+/// # use tokio::runtime::Runtime;
+/// use celery::prelude::*;
+/// use celery::beat::*;
 /// use std::collections::BinaryHeap;
 ///
 /// struct CustomSchedulerBackend {}
@@ -228,14 +269,19 @@ macro_rules! app {
 ///     }
 /// }
 ///
-/// # fn main() {
+/// # fn main() -> Result<()> {
+/// # let rt = Arc::new(Runtime::new().unwrap());
+/// # rt.block_on(async {
 /// let beat = celery::beat!(
-///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     runtime = rt.clone(),
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+///     scheduler_backend = CustomSchedulerBackend { CustomSchedulerBackend {} },
 ///     task_routes = [
 ///         "*" => "beat_queue",
 ///     ],
-///     scheduler_backend = { CustomSchedulerBackend {} }
-/// );
+/// ).await?;
+/// # Ok(())
+/// # })
 /// # }
 /// ```
 #[macro_export]
