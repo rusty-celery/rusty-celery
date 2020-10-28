@@ -109,6 +109,13 @@ jobs:
         command: test
         args: --no-run --test codegen app_codegen
 
+    - name: Compile beat codegen tests
+      if: always()
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --no-run --test codegen beat_codegen
+
   docs:
     name: Build Docs
     runs-on: ubuntu-latest

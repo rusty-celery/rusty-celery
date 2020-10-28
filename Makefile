@@ -23,6 +23,7 @@ test :
 	@cargo test --workspace --doc
 	@cargo test --test codegen task_codegen
 	@cargo test --no-run --test codegen app_codegen
+	@cargo test --no-run --test codegen beat_codegen
 
 .PHONY : broker-amqp-test
 broker-amqp-test :
