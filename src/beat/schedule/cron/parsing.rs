@@ -42,7 +42,7 @@ enum ParsedElement {
         lower: Ordinal,
         upper: Ordinal,
         step: Ordinal,
-    },
+    }, // inclusive
 }
 
 pub fn parse_longhand<T: TimeUnitField>(s: &str) -> Result<Vec<Ordinal>, CronScheduleError> {

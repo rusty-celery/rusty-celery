@@ -37,10 +37,15 @@ impl CronSchedule {
         mut months: Vec<Ordinal>,
     ) -> Result<CronSchedule, CronScheduleError> {
         minutes.sort_unstable();
+        minutes.dedup();
         hours.sort_unstable();
+        hours.dedup();
         month_days.sort_unstable();
+        month_days.dedup();
         week_days.sort_unstable();
+        week_days.dedup();
         months.sort_unstable();
+        months.dedup();
 
         CronSchedule::validate(&minutes, &hours, &month_days, &week_days, &months)?;
 
@@ -127,41 +132,84 @@ impl CronSchedule {
         week_days: &[Ordinal],
         months: &[Ordinal],
     ) -> Result<(), CronScheduleError> {
-        // TODO add checks for repeated values
-
         if minutes.is_empty() {
-            return Err(CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("Minutes were not set".to_string()));
         }
-        if *minutes.last().unwrap() > 59 {
-            return Err(CronScheduleError("TODO".to_string()));
+        if *minutes.first().unwrap() < Minutes::inclusive_min() {
+            return Err(CronScheduleError(format!(
+                "Minutes cannot be less than {}",
+                Minutes::inclusive_min()
+            )));
+        }
+        if *minutes.last().unwrap() > Minutes::inclusive_max() {
+            return Err(CronScheduleError(format!(
+                "Minutes cannot be more than {}",
+                Minutes::inclusive_max()
+            )));
         }
 
         if hours.is_empty() {
-            return Err(CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("Hours were not set".to_string()));
         }
-        if *hours.last().unwrap() > 23 {
-            return Err(CronScheduleError("TODO".to_string()));
+        if *hours.first().unwrap() < Hours::inclusive_min() {
+            return Err(CronScheduleError(format!(
+                "Hours cannot be less than {}",
+                Hours::inclusive_min()
+            )));
+        }
+        if *hours.last().unwrap() > Hours::inclusive_max() {
+            return Err(CronScheduleError(format!(
+                "Hours cannot be more than {}",
+                Hours::inclusive_max()
+            )));
         }
 
         if month_days.is_empty() {
-            return Err(CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("Month days were not set".to_string()));
         }
-        if month_days[0] < 1 || *month_days.last().unwrap() > 31 {
-            return Err(CronScheduleError("TODO".to_string()));
+        if *month_days.first().unwrap() < MonthDays::inclusive_min() {
+            return Err(CronScheduleError(format!(
+                "Month days cannot be less than {}",
+                MonthDays::inclusive_min()
+            )));
+        }
+        if *month_days.last().unwrap() > MonthDays::inclusive_max() {
+            return Err(CronScheduleError(format!(
+                "Month days cannot be more than {}",
+                MonthDays::inclusive_max()
+            )));
         }
 
         if week_days.is_empty() {
-            return Err(CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("Week days were not set".to_string()));
         }
-        if *week_days.last().unwrap() > 6 {
-            return Err(CronScheduleError("TODO".to_string()));
+        if *week_days.first().unwrap() < WeekDays::inclusive_min() {
+            return Err(CronScheduleError(format!(
+                "Week days cannot be less than {}",
+                WeekDays::inclusive_min()
+            )));
+        }
+        if *week_days.last().unwrap() > WeekDays::inclusive_max() {
+            return Err(CronScheduleError(format!(
+                "Week days cannot be more than {}",
+                WeekDays::inclusive_max()
+            )));
         }
 
         if months.is_empty() {
-            return Err(CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("Months were not set".to_string()));
         }
-        if months[0] < 1 || *months.last().unwrap() > 12 {
-            return Err(CronScheduleError("TODO".to_string()));
+        if *months.first().unwrap() < Months::inclusive_min() {
+            return Err(CronScheduleError(format!(
+                "Months cannot be less than {}",
+                Months::inclusive_min()
+            )));
+        }
+        if *months.last().unwrap() > Months::inclusive_max() {
+            return Err(CronScheduleError(format!(
+                "Months cannot be more than {}",
+                Months::inclusive_max()
+            )));
         }
 
         Ok(())
