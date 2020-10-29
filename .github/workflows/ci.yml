@@ -320,7 +320,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: [format, lint, test, broker_amqp_test]
+    needs: [format, lint, build, test, docs, broker_amqp_test]
     runs-on: ubuntu-latest
     # Only run on main repo releases .
     if: github.repository == 'rusty-celery/rusty-celery' && github.event_name == 'release'

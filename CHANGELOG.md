@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- ⚠️ Breaking change ⚠️ To accomodate the new version of `tokio` (v0.3) as well as custom `Broker`s,
+  we've had to make several breaking changes to the way `Celery` and `Beat` apps are built.
+
+  For one, the `celery::app!` and `celery::beat!` macros now require the first argument to be an `Arc<tokio::runtime::Runtime>`.
+
+  Unfortunately this means that you can no longer use the `#[tokio::main]` macro. Instead, you'll have
+  to manually create a runtime, pass it to `celery::app!` after cloning it, and then call `.block_on()` directly.
+
+  Another breaking change is that you must supply the actual `Broker` type.
+  Previously, you could write something like `broker = AMQP { "amqp://my-broker-url" }`,
+  but now you have to write it like `broker = celery::broker::AMQPBroker { "amqp://my-broker-url" }`.
+
+  And lastly, the `celery::app!` and `celery::beat!` macros now return a future, so you must call `.await?`
+  so get the actual app objects.
+
+  For a concrete example of these changes, previously you would create your app like this:
+
+
+  ```rust
+  async fn main() -> anyhow::Result<()> {
+      let app = celery::app!(
+          broker = AMQP { "amqp://my-broker-url" },
+          tasks = [add],
+          task_routes = ["*" => "celery"],
+      );
+
+      // ...
+
+      Ok(())
+  }
+  ```
+
+  Whereas now that would look like this:
+
+  ```rust
+  fn main() -> anyhow::Result<()> {
+      let rt = std::sync::Arc::new(tokio::runtime::Runtime::new()?);
+
+      rt.block_on(async {
+          let app = celery::app!(
+              runtime = rt.clone(),
+              broker = celery::broker::AMQPBroker { "amqp://my-broker-url" },
+              tasks = [add],
+              task_routes = ["*" => "celery"],
+          ).await?;
+
+          // ...
+
+          Ok(())
+      })
+  }
+  ```
+
+- Celery apps no longer need to have static lifetimes. To remove this constraint, we changed
+  `Celery::consume` to take `&Arc<Self>` instead of a static reference to `self`.
 - Now using `tokio-amqp` internally with `lapin`.
 - Drop explicit dependency on amq-protocol
 
