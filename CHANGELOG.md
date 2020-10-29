@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   For one, the `celery::app!` and `celery::beat!` macros now require the first argument to be an `Arc<tokio::runtime::Runtime>`.
 
   Unfortunately this means that you can no longer use the `#[tokio::main]` macro. Instead, you'll have
-  to manually create a runtime, pass it to `celery::app!` after cloning it, and then call `.block_on()` directly.
+  to manually create a runtime, pass it to `celery::app!` or `celery::beat!` after cloning it, and then call `.block_on()` directly.
 
   Another breaking change is that you must supply the actual `Broker` type.
   Previously, you could write something like `broker = AMQP { "amqp://my-broker-url" }`,
