@@ -1,9 +1,16 @@
-use super::Ordinal;
+use super::{CronParsingError, Ordinal};
 
 #[derive(Debug)]
 pub enum Minutes {
     All,
     List(Vec<Ordinal>),
+}
+
+pub trait TimeUnitField {
+    fn name() -> &'static str;
+    fn inclusive_min() -> Ordinal;
+    fn inclusive_max() -> Ordinal;
+    fn ordinal_from_string(s: &str) -> Result<Ordinal, CronParsingError>;
 }
 
 impl Minutes {
@@ -21,11 +28,20 @@ impl Minutes {
             List(vec) => TimeUnitFieldIterator::from_vec(vec, start, Minutes::inclusive_max()),
         }
     }
+}
+
+impl TimeUnitField for Minutes {
+    fn name() -> &'static str {
+        "minutes"
+    }
     fn inclusive_min() -> Ordinal {
         0
     }
     fn inclusive_max() -> Ordinal {
         59
+    }
+    fn ordinal_from_string(_s: &str) -> Result<Ordinal, CronParsingError> {
+        Err(CronParsingError)
     }
 }
 
@@ -50,11 +66,20 @@ impl Hours {
             List(vec) => TimeUnitFieldIterator::from_vec(vec, start, Hours::inclusive_max()),
         }
     }
+}
+
+impl TimeUnitField for Hours {
+    fn name() -> &'static str {
+        "hours"
+    }
     fn inclusive_min() -> Ordinal {
         0
     }
     fn inclusive_max() -> Ordinal {
         23
+    }
+    fn ordinal_from_string(_s: &str) -> Result<Ordinal, CronParsingError> {
+        Err(CronParsingError)
     }
 }
 
@@ -79,11 +104,30 @@ impl WeekDays {
             List(vec) => vec.binary_search(&target).is_ok(),
         }
     }
+}
+
+impl TimeUnitField for WeekDays {
+    fn name() -> &'static str {
+        "week days"
+    }
     fn inclusive_min() -> Ordinal {
         0
     }
     fn inclusive_max() -> Ordinal {
         6
+    }
+    fn ordinal_from_string(s: &str) -> Result<Ordinal, CronParsingError> {
+        let result = match s.to_lowercase().as_str() {
+            "sun" => 0,
+            "mon" => 1,
+            "tue" => 2,
+            "wed" => 3,
+            "thu" => 4,
+            "fri" => 5,
+            "sat" => 6,
+            _ => return Err(CronParsingError),
+        };
+        Ok(result)
     }
 }
 
@@ -108,11 +152,20 @@ impl MonthDays {
             List(vec) => TimeUnitFieldIterator::from_vec(vec, start, stop),
         }
     }
+}
+
+impl TimeUnitField for MonthDays {
+    fn name() -> &'static str {
+        "month days"
+    }
     fn inclusive_min() -> Ordinal {
         1
     }
     fn inclusive_max() -> Ordinal {
         31
+    }
+    fn ordinal_from_string(_s: &str) -> Result<Ordinal, CronParsingError> {
+        Err(CronParsingError)
     }
 }
 
@@ -133,15 +186,39 @@ impl Months {
     pub fn open_range(&self, start: Ordinal) -> TimeUnitFieldIterator<'_> {
         use Months::*;
         match self {
-            All => TimeUnitFieldIterator::from_range(start, self.inclusive_max()),
-            List(vec) => TimeUnitFieldIterator::from_vec(vec, start, self.inclusive_max()),
+            All => TimeUnitFieldIterator::from_range(start, Months::inclusive_max()),
+            List(vec) => TimeUnitFieldIterator::from_vec(vec, start, Months::inclusive_max()),
         }
     }
-    fn inclusive_min(&self) -> Ordinal {
+}
+
+impl TimeUnitField for Months {
+    fn name() -> &'static str {
+        "months"
+    }
+    fn inclusive_min() -> Ordinal {
         1
     }
-    fn inclusive_max(&self) -> Ordinal {
+    fn inclusive_max() -> Ordinal {
         12
+    }
+    fn ordinal_from_string(s: &str) -> Result<Ordinal, CronParsingError> {
+        let result = match s.to_lowercase().as_str() {
+            "jan" => 1,
+            "feb" => 2,
+            "mar" => 3,
+            "apr" => 4,
+            "may" => 5,
+            "jun" => 6,
+            "jul" => 7,
+            "aug" => 8,
+            "sep" => 9,
+            "oct" => 10,
+            "nov" => 11,
+            "dec" => 12,
+            _ => return Err(CronParsingError),
+        };
+        Ok(result)
     }
 }
 
@@ -152,7 +229,7 @@ pub enum TimeUnitFieldIterator<'a> {
         stop: Ordinal,
     },
     VecRange {
-        vec: &'a Vec<Ordinal>,
+        vec: &'a [Ordinal],
         current: usize,
         stop: usize,
     },
@@ -167,7 +244,7 @@ impl<'a> TimeUnitFieldIterator<'a> {
         }
     }
 
-    fn from_vec(vec: &'a Vec<Ordinal>, lower_bound: Ordinal, upper_bound: Ordinal) -> Self {
+    fn from_vec(vec: &'a [Ordinal], lower_bound: Ordinal, upper_bound: Ordinal) -> Self {
         use TimeUnitFieldIterator::*;
         let mut vec_iter = vec.iter().enumerate().filter_map(|(i, x)| {
             if *x >= lower_bound && *x <= upper_bound {

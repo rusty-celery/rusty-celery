@@ -1,14 +1,14 @@
 use std::time::SystemTime;
 
 use super::Schedule;
-use crate::error::BeatError;
+use crate::error::CronScheduleError;
 
 mod parsing;
 mod time_units;
-use parsing::parse_list;
-use time_units::{Hours, Minutes, MonthDays, Months, WeekDays};
+use parsing::{parse_longhand, parse_shorthand, CronParsingError, Shorthand};
+use time_units::{Hours, Minutes, MonthDays, Months, TimeUnitField, WeekDays};
 
-pub const MAX_YEAR: Ordinal = 2100; // TODO is this OK?
+pub const MAX_YEAR: Ordinal = 2100;
 
 type Ordinal = u32;
 
@@ -35,7 +35,7 @@ impl CronSchedule {
         mut month_days: Vec<Ordinal>,
         mut week_days: Vec<Ordinal>,
         mut months: Vec<Ordinal>,
-    ) -> Result<CronSchedule, BeatError> {
+    ) -> Result<CronSchedule, CronScheduleError> {
         minutes.sort_unstable();
         hours.sort_unstable();
         month_days.sort_unstable();
@@ -53,16 +53,71 @@ impl CronSchedule {
         })
     }
 
-    pub fn from_string(schedule: &str) -> Result<CronSchedule, BeatError> {
-        let components: Vec<_> = schedule.split(' ').collect();
-        assert_eq!(components.len(), 5);
-        let minutes = parse_list(components[0], 0, 59)?;
-        let hours = parse_list(components[1], 0, 23)?;
-        let month_days = parse_list(components[2], 1, 31)?;
-        let months = parse_list(components[3], 1, 12)?;
-        let week_days = parse_list(components[4], 0, 6)?;
+    pub fn from_string(schedule: &str) -> Result<CronSchedule, CronScheduleError> {
+        if schedule.starts_with('@') {
+            Self::from_shorthand(schedule)
+        } else {
+            Self::from_longhand(schedule)
+        }
+    }
 
-        CronSchedule::new(minutes, hours, month_days, week_days, months)
+    fn from_shorthand(schedule: &str) -> Result<CronSchedule, CronScheduleError> {
+        use Shorthand::*;
+        match parse_shorthand(schedule)? {
+            Yearly => Ok(CronSchedule {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::List(vec![1]),
+                months: Months::List(vec![1]),
+                week_days: WeekDays::All,
+            }),
+            Monthly => Ok(CronSchedule {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::List(vec![1]),
+                months: Months::All,
+                week_days: WeekDays::All,
+            }),
+            Weekly => Ok(CronSchedule {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::All,
+                months: Months::All,
+                week_days: WeekDays::List(vec![1]),
+            }),
+            Daily => Ok(CronSchedule {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::All,
+                months: Months::All,
+                week_days: WeekDays::All,
+            }),
+            Hourly => Ok(CronSchedule {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::All,
+                month_days: MonthDays::All,
+                months: Months::All,
+                week_days: WeekDays::All,
+            }),
+        }
+    }
+
+    fn from_longhand(schedule: &str) -> Result<CronSchedule, CronScheduleError> {
+        let components: Vec<_> = schedule.split_whitespace().collect();
+        if components.len() != 5 {
+            Err(CronScheduleError(format!(
+                "'{}' is not a valid cron schedule: invalid number of elements",
+                schedule
+            )))
+        } else {
+            let minutes = parse_longhand::<Minutes>(components[0])?;
+            let hours = parse_longhand::<Hours>(components[1])?;
+            let month_days = parse_longhand::<MonthDays>(components[2])?;
+            let months = parse_longhand::<Months>(components[3])?;
+            let week_days = parse_longhand::<WeekDays>(components[4])?;
+
+            CronSchedule::new(minutes, hours, month_days, week_days, months)
+        }
     }
 
     fn validate(
@@ -71,42 +126,42 @@ impl CronSchedule {
         month_days: &[Ordinal],
         week_days: &[Ordinal],
         months: &[Ordinal],
-    ) -> Result<(), BeatError> {
+    ) -> Result<(), CronScheduleError> {
         // TODO add checks for repeated values
 
         if minutes.is_empty() {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
         if *minutes.last().unwrap() > 59 {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
 
         if hours.is_empty() {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
         if *hours.last().unwrap() > 23 {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
 
         if month_days.is_empty() {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
         if month_days[0] < 1 || *month_days.last().unwrap() > 31 {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
 
         if week_days.is_empty() {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
         if *week_days.last().unwrap() > 6 {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
 
         if months.is_empty() {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
         if months[0] < 1 || *months.last().unwrap() > 12 {
-            return Err(BeatError::CronScheduleError("TODO".to_string()));
+            return Err(CronScheduleError("TODO".to_string()));
         }
 
         Ok(())
@@ -256,5 +311,98 @@ mod tests {
                 .unwrap();
         let cron_schedule = CronSchedule::from_string("* * 30 2 *").unwrap();
         assert_eq!(None, cron_schedule.next(date));
+    }
+
+    fn cron_schedule_equal(
+        schedule: &CronSchedule,
+        minutes: &[Ordinal],
+        hours: &[Ordinal],
+        month_days: &[Ordinal],
+        week_days: &[Ordinal],
+        months: &[Ordinal],
+    ) -> bool {
+        let minutes_equal = match &schedule.minutes {
+            Minutes::All => minutes == (1..=60).collect::<Vec<_>>(),
+            Minutes::List(vec) => &minutes == vec,
+        };
+        let hours_equal = match &schedule.hours {
+            Hours::All => hours == (0..=23).collect::<Vec<_>>(),
+            Hours::List(vec) => &hours == vec,
+        };
+        let month_days_equal = match &schedule.month_days {
+            MonthDays::All => month_days == (1..=31).collect::<Vec<_>>(),
+            MonthDays::List(vec) => &month_days == vec,
+        };
+        let months_equal = match &schedule.months {
+            Months::All => months == (1..=12).collect::<Vec<_>>(),
+            Months::List(vec) => &months == vec,
+        };
+        let week_days_equal = match &schedule.week_days {
+            WeekDays::All => week_days == (0..=6).collect::<Vec<_>>(),
+            WeekDays::List(vec) => &week_days == vec,
+        };
+
+        minutes_equal && hours_equal && month_days_equal && months_equal && week_days_equal
+    }
+
+    #[test]
+    fn test_from_string() -> Result<(), CronScheduleError> {
+        let schedule = CronSchedule::from_string("2 12 8 1 *")?;
+        assert!(cron_schedule_equal(
+            &schedule,
+            &[2],
+            &[12],
+            &[8],
+            &(0..=6).collect::<Vec<_>>(),
+            &[1]
+        ));
+
+        let schedule = CronSchedule::from_string("@yearly")?;
+        assert!(cron_schedule_equal(
+            &schedule,
+            &[0],
+            &[0],
+            &[1],
+            &(0..=6).collect::<Vec<_>>(),
+            &[1]
+        ));
+        let schedule = CronSchedule::from_string("@monthly")?;
+        assert!(cron_schedule_equal(
+            &schedule,
+            &[0],
+            &[0],
+            &[1],
+            &(0..=6).collect::<Vec<_>>(),
+            &(1..=12).collect::<Vec<_>>()
+        ));
+        let schedule = CronSchedule::from_string("@weekly")?;
+        assert!(cron_schedule_equal(
+            &schedule,
+            &[0],
+            &[0],
+            &(1..=31).collect::<Vec<_>>(),
+            &[1],
+            &(1..=12).collect::<Vec<_>>()
+        ));
+        let schedule = CronSchedule::from_string("@daily")?;
+        assert!(cron_schedule_equal(
+            &schedule,
+            &[0],
+            &[0],
+            &(1..=31).collect::<Vec<_>>(),
+            &(0..=6).collect::<Vec<_>>(),
+            &(1..=12).collect::<Vec<_>>()
+        ));
+        let schedule = CronSchedule::from_string("@hourly")?;
+        assert!(cron_schedule_equal(
+            &schedule,
+            &[0],
+            &(0..=23).collect::<Vec<_>>(),
+            &(1..=31).collect::<Vec<_>>(),
+            &(0..=6).collect::<Vec<_>>(),
+            &(1..=12).collect::<Vec<_>>()
+        ));
+
+        Ok(())
     }
 }

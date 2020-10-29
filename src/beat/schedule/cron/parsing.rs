@@ -1,16 +1,30 @@
 use std::collections::HashSet;
-use thiserror::Error;
 
-use super::Ordinal;
-use crate::error::BeatError;
+use super::{Ordinal, TimeUnitField};
+use crate::error::CronScheduleError;
 
-#[derive(Error, Debug)]
-#[error("Error")]
-struct CronParsingError;
+pub struct CronParsingError;
 
-impl From<std::num::ParseIntError> for CronParsingError {
-    fn from(_p: std::num::ParseIntError) -> CronParsingError {
-        CronParsingError
+pub enum Shorthand {
+    Yearly,
+    Monthly,
+    Weekly,
+    Daily,
+    Hourly,
+}
+
+pub fn parse_shorthand(s: &str) -> Result<Shorthand, CronScheduleError> {
+    use Shorthand::*;
+    match s.to_lowercase().as_str() {
+        "@yearly" => Ok(Yearly),
+        "@monthly" => Ok(Monthly),
+        "@weekly" => Ok(Weekly),
+        "@daily" => Ok(Daily),
+        "@hourly" => Ok(Hourly),
+        _ => Err(CronScheduleError(format!(
+            "'{}' is not a valid shorthand for a cron schedule",
+            s
+        ))),
     }
 }
 
@@ -31,18 +45,19 @@ enum ParsedElement {
     },
 }
 
-pub fn parse_list(
-    s: &str,
-    lower_bound: Ordinal,
-    upper_bound: Ordinal,
-) -> Result<Vec<Ordinal>, BeatError> {
-    let without_whitespace: String = s.chars().filter(|c| !c.is_whitespace()).collect();
+pub fn parse_longhand<T: TimeUnitField>(s: &str) -> Result<Vec<Ordinal>, CronScheduleError> {
+    let lower_bound = T::inclusive_min();
+    let upper_bound = T::inclusive_max();
     let mut result = HashSet::new();
-    for element in without_whitespace.split(',') {
-        let parsed_element = parse_element_with_step(element);
+
+    for element in s.split(',') {
+        let parsed_element = parse_element_with_step::<T>(element);
         use ParsedElement::*;
         match parsed_element {
-            Err(_) => return Err(BeatError::CronScheduleError(s.to_string())),
+            Err(_) => {
+                let error_message = format!("'{}' is an invalid value for {}", s, T::name());
+                return Err(CronScheduleError(error_message));
+            }
             Ok(Star) => {
                 for i in lower_bound..=upper_bound {
                     result.insert(i);
@@ -69,102 +84,65 @@ pub fn parse_list(
         }
     }
 
-    let mut result: Vec<_> = result.iter().map(|n| *n).collect();
+    let mut result: Vec<_> = result.iter().copied().collect();
     result.sort_unstable();
     Ok(result)
 }
 
-fn parse_element(s: &str) -> Result<ParsedElement, CronParsingError> {
+fn parse_element_with_step<T: TimeUnitField>(s: &str) -> Result<ParsedElement, CronParsingError> {
+    use ParsedElement::*;
+    if let Some(i) = s.find('/') {
+        let element_without_step = parse_element::<T>(&s[0..i])?;
+        let step = s[i + 1..].parse().map_err(|_| CronParsingError)?;
+        match element_without_step {
+            Star => Ok(StarWithStep { step }),
+            Number(_) => Err(CronParsingError),
+            Range { lower, upper } => Ok(RangeWithStep { lower, upper, step }),
+            _ => panic!("parse_element returned an incorrect enum variant..."),
+        }
+    } else {
+        parse_element::<T>(s)
+    }
+}
+
+fn parse_element<T: TimeUnitField>(s: &str) -> Result<ParsedElement, CronParsingError> {
     use ParsedElement::*;
 
     if s == "*" {
         Ok(Star)
+    } else if let Some(i) = s.find('-') {
+        let lower = parse_ordinal::<T>(&s[0..i])?;
+        let upper = parse_ordinal::<T>(&s[i + 1..])?;
+        Ok(Range { lower, upper })
     } else {
-        if let Some(i) = s.find('-') {
-            let lower = s[0..i].parse()?;
-            let upper = s[i + 1..].parse()?;
-            Ok(Range { lower, upper })
-        } else {
-            let number = s.parse()?;
-            Ok(Number(number))
-        }
+        let number = parse_ordinal::<T>(s)?;
+        Ok(Number(number))
     }
 }
 
-fn parse_element_with_step(s: &str) -> Result<ParsedElement, CronParsingError> {
-    use ParsedElement::*;
-    if let Some(i) = s.find('/') {
-        let element_without_step = parse_element(&s[0..i])?;
-        let step = s[i + 1..].parse().map_err(|_| CronParsingError)?;
-        match element_without_step {
-            Star => Ok(StarWithStep { step }),
-            Number(_) => panic!(),
-            Range { lower, upper } => Ok(RangeWithStep { lower, upper, step }),
-            _ => panic!(),
-        }
+fn parse_ordinal<T: TimeUnitField>(s: &str) -> Result<Ordinal, CronParsingError> {
+    if let Ok(ordinal) = s.parse() {
+        Ok(ordinal)
     } else {
-        parse_element(s)
+        T::ordinal_from_string(s)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::{CronSchedule, Hours, Minutes, MonthDays, Months, WeekDays};
+    use super::super::{Hours, Minutes, Months};
     use super::*;
 
     #[test]
-    fn test_parse_list() -> Result<(), BeatError> {
-        assert_eq!(parse_list("3", 2, 4)?, vec![3]);
-        assert_eq!(parse_list("3-6/2", 2, 8)?, vec![3, 5]);
-        assert_eq!(parse_list("*/3", 2, 8)?, vec![2, 5, 8]);
-        assert_eq!(parse_list("*/3, 2, 7, 2-5/3", 2, 8)?, vec![2, 5, 7, 8]);
-        assert!(parse_list(",", 2, 4).is_err());
-        Ok(())
-    }
-
-    fn cron_schedule_equal(
-        schedule: &CronSchedule,
-        minutes: &[Ordinal],
-        hours: &[Ordinal],
-        month_days: &[Ordinal],
-        week_days: &[Ordinal],
-        months: &[Ordinal],
-    ) -> bool {
-        let minutes_equal = match &schedule.minutes {
-            Minutes::All => minutes == *&(1..=60).collect::<Vec<_>>(),
-            Minutes::List(vec) => &minutes == vec,
-        };
-        let hours_equal = match &schedule.hours {
-            Hours::All => hours == *&(0..=23).collect::<Vec<_>>(),
-            Hours::List(vec) => &hours == vec,
-        };
-        let month_days_equal = match &schedule.month_days {
-            MonthDays::All => month_days == *&(1..=31).collect::<Vec<_>>(),
-            MonthDays::List(vec) => &month_days == vec,
-        };
-        let months_equal = match &schedule.months {
-            Months::All => months == *&(1..=12).collect::<Vec<_>>(),
-            Months::List(vec) => &months == vec,
-        };
-        let week_days_equal = match &schedule.week_days {
-            WeekDays::All => week_days == *&(0..=6).collect::<Vec<_>>(),
-            WeekDays::List(vec) => &week_days == vec,
-        };
-
-        minutes_equal && hours_equal && month_days_equal && months_equal && week_days_equal
-    }
-
-    #[test]
-    fn test_parse_from_string() -> Result<(), BeatError> {
-        let schedule = CronSchedule::from_string("2 12 8 1 *")?;
-        assert!(cron_schedule_equal(
-            &schedule,
-            &vec![2],
-            &vec![12],
-            &vec![8],
-            &vec![0, 1, 2, 3, 4, 5, 6],
-            &vec![1]
-        ));
+    fn test_parse() -> Result<(), CronScheduleError> {
+        assert_eq!(parse_longhand::<Minutes>("3")?, vec![3]);
+        assert_eq!(parse_longhand::<Minutes>("3-6/2")?, vec![3, 5]);
+        assert_eq!(parse_longhand::<Months>("*/3")?, vec![1, 4, 7, 10]);
+        assert_eq!(
+            parse_longhand::<Hours>("*/3,2,7,2-5/3")?,
+            vec![0, 2, 3, 5, 6, 7, 9, 12, 15, 18, 21]
+        );
+        assert!(parse_longhand::<Minutes>(",").is_err());
         Ok(())
     }
 }
