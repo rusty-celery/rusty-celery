@@ -1,3 +1,4 @@
+use chrono::{offset::Utc, TimeZone};
 use std::time::SystemTime;
 
 use super::Schedule;
@@ -13,29 +14,56 @@ pub const MAX_YEAR: Ordinal = 2100;
 type Ordinal = u32;
 
 #[derive(Debug)]
-pub struct CronSchedule {
+pub struct CronSchedule<Z>
+where
+    Z: TimeZone,
+{
     minutes: Minutes,
     hours: Hours,
     month_days: MonthDays,
     week_days: WeekDays,
     months: Months,
+    time_zone: Z,
 }
 
-impl Schedule for CronSchedule {
+impl<Z> Schedule for CronSchedule<Z>
+where
+    Z: TimeZone,
+{
     fn next_call_at(&self, _last_run_at: Option<SystemTime>) -> Option<SystemTime> {
-        let now = chrono::Utc::now(); // TODO support different time zones
+        let now = self.time_zone.from_utc_datetime(&Utc::now().naive_utc());
         self.next(now).map(SystemTime::from)
     }
 }
 
-impl CronSchedule {
+impl CronSchedule<Utc> {
     pub fn new(
+        minutes: Vec<Ordinal>,
+        hours: Vec<Ordinal>,
+        month_days: Vec<Ordinal>,
+        week_days: Vec<Ordinal>,
+        months: Vec<Ordinal>,
+    ) -> Result<Self, CronScheduleError> {
+        Self::new_with_time_zone(minutes, hours, month_days, week_days, months, Utc)
+    }
+
+    pub fn from_string(schedule: &str) -> Result<Self, CronScheduleError> {
+        Self::from_string_with_time_zone(schedule, Utc)
+    }
+}
+
+impl<Z> CronSchedule<Z>
+where
+    Z: TimeZone,
+{
+    pub fn new_with_time_zone(
         mut minutes: Vec<Ordinal>,
         mut hours: Vec<Ordinal>,
         mut month_days: Vec<Ordinal>,
         mut week_days: Vec<Ordinal>,
         mut months: Vec<Ordinal>,
-    ) -> Result<CronSchedule, CronScheduleError> {
+        time_zone: Z,
+    ) -> Result<Self, CronScheduleError> {
         minutes.sort_unstable();
         minutes.dedup();
         hours.sort_unstable();
@@ -47,81 +75,26 @@ impl CronSchedule {
         months.sort_unstable();
         months.dedup();
 
-        CronSchedule::validate(&minutes, &hours, &month_days, &week_days, &months)?;
+        Self::validate(&minutes, &hours, &month_days, &week_days, &months)?;
 
-        Ok(CronSchedule {
+        Ok(Self {
             minutes: Minutes::from_vec(minutes),
             hours: Hours::from_vec(hours),
             month_days: MonthDays::from_vec(month_days),
             week_days: WeekDays::from_vec(week_days),
             months: Months::from_vec(months),
+            time_zone,
         })
     }
 
-    pub fn from_string(schedule: &str) -> Result<CronSchedule, CronScheduleError> {
+    pub fn from_string_with_time_zone(
+        schedule: &str,
+        time_zone: Z,
+    ) -> Result<Self, CronScheduleError> {
         if schedule.starts_with('@') {
-            Self::from_shorthand(schedule)
+            Self::from_shorthand(schedule, time_zone)
         } else {
-            Self::from_longhand(schedule)
-        }
-    }
-
-    fn from_shorthand(schedule: &str) -> Result<CronSchedule, CronScheduleError> {
-        use Shorthand::*;
-        match parse_shorthand(schedule)? {
-            Yearly => Ok(CronSchedule {
-                minutes: Minutes::List(vec![0]),
-                hours: Hours::List(vec![0]),
-                month_days: MonthDays::List(vec![1]),
-                months: Months::List(vec![1]),
-                week_days: WeekDays::All,
-            }),
-            Monthly => Ok(CronSchedule {
-                minutes: Minutes::List(vec![0]),
-                hours: Hours::List(vec![0]),
-                month_days: MonthDays::List(vec![1]),
-                months: Months::All,
-                week_days: WeekDays::All,
-            }),
-            Weekly => Ok(CronSchedule {
-                minutes: Minutes::List(vec![0]),
-                hours: Hours::List(vec![0]),
-                month_days: MonthDays::All,
-                months: Months::All,
-                week_days: WeekDays::List(vec![1]),
-            }),
-            Daily => Ok(CronSchedule {
-                minutes: Minutes::List(vec![0]),
-                hours: Hours::List(vec![0]),
-                month_days: MonthDays::All,
-                months: Months::All,
-                week_days: WeekDays::All,
-            }),
-            Hourly => Ok(CronSchedule {
-                minutes: Minutes::List(vec![0]),
-                hours: Hours::All,
-                month_days: MonthDays::All,
-                months: Months::All,
-                week_days: WeekDays::All,
-            }),
-        }
-    }
-
-    fn from_longhand(schedule: &str) -> Result<CronSchedule, CronScheduleError> {
-        let components: Vec<_> = schedule.split_whitespace().collect();
-        if components.len() != 5 {
-            Err(CronScheduleError(format!(
-                "'{}' is not a valid cron schedule: invalid number of elements",
-                schedule
-            )))
-        } else {
-            let minutes = parse_longhand::<Minutes>(components[0])?;
-            let hours = parse_longhand::<Hours>(components[1])?;
-            let month_days = parse_longhand::<MonthDays>(components[2])?;
-            let months = parse_longhand::<Months>(components[3])?;
-            let week_days = parse_longhand::<WeekDays>(components[4])?;
-
-            CronSchedule::new(minutes, hours, month_days, week_days, months)
+            Self::from_longhand(schedule, time_zone)
         }
     }
 
@@ -215,6 +188,72 @@ impl CronSchedule {
         Ok(())
     }
 
+    fn from_shorthand(schedule: &str, time_zone: Z) -> Result<Self, CronScheduleError> {
+        use Shorthand::*;
+        match parse_shorthand(schedule)? {
+            Yearly => Ok(Self {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::List(vec![1]),
+                months: Months::List(vec![1]),
+                week_days: WeekDays::All,
+                time_zone,
+            }),
+            Monthly => Ok(Self {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::List(vec![1]),
+                months: Months::All,
+                week_days: WeekDays::All,
+                time_zone,
+            }),
+            Weekly => Ok(Self {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::All,
+                months: Months::All,
+                week_days: WeekDays::List(vec![1]),
+                time_zone,
+            }),
+            Daily => Ok(Self {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::List(vec![0]),
+                month_days: MonthDays::All,
+                months: Months::All,
+                week_days: WeekDays::All,
+                time_zone,
+            }),
+            Hourly => Ok(Self {
+                minutes: Minutes::List(vec![0]),
+                hours: Hours::All,
+                month_days: MonthDays::All,
+                months: Months::All,
+                week_days: WeekDays::All,
+                time_zone,
+            }),
+        }
+    }
+
+    fn from_longhand(schedule: &str, time_zone: Z) -> Result<Self, CronScheduleError> {
+        let components: Vec<_> = schedule.split_whitespace().collect();
+        if components.len() != 5 {
+            Err(CronScheduleError(format!(
+                "'{}' is not a valid cron schedule: invalid number of elements",
+                schedule
+            )))
+        } else {
+            let minutes = parse_longhand::<Minutes>(components[0])?;
+            let hours = parse_longhand::<Hours>(components[1])?;
+            let month_days = parse_longhand::<MonthDays>(components[2])?;
+            let months = parse_longhand::<Months>(components[3])?;
+            let week_days = parse_longhand::<WeekDays>(components[4])?;
+
+            CronSchedule::new_with_time_zone(
+                minutes, hours, month_days, week_days, months, time_zone,
+            )
+        }
+    }
+
     fn next<Tz>(&self, now: chrono::DateTime<Tz>) -> Option<chrono::DateTime<Tz>>
     where
         Tz: chrono::TimeZone,
@@ -306,63 +345,63 @@ fn days_in_month(month: Ordinal, year: Ordinal) -> Ordinal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{DateTime, NaiveDateTime};
+
+    fn make_utc_date(s: &str) -> DateTime<Utc> {
+        DateTime::<Utc>::from_utc(
+            NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S %z").unwrap(),
+            Utc,
+        )
+    }
 
     #[test]
     fn test_cron_next() {
-        let date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let date = make_utc_date("2020-10-19 20:30:00 +0000");
         let cron_schedule = CronSchedule::from_string("* * * * *").unwrap();
-        let expected_date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:31:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let expected_date = make_utc_date("2020-10-19 20:31:00 +0000");
         assert_eq!(Some(expected_date), cron_schedule.next(date));
 
-        let date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let date = make_utc_date("2020-10-19 20:30:00 +0000");
         let cron_schedule = CronSchedule::from_string("31 20 * * *").unwrap();
-        let expected_date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:31:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let expected_date = make_utc_date("2020-10-19 20:31:00 +0000");
         assert_eq!(Some(expected_date), cron_schedule.next(date));
 
-        let date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:30:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let date = make_utc_date("2020-10-19 20:30:00 +0000");
         let cron_schedule = CronSchedule::from_string("31 14 4 11 *").unwrap();
-        let expected_date =
-            chrono::DateTime::parse_from_str("2020-11-04 14:31:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let expected_date = make_utc_date("2020-11-04 14:31:00 +0000");
         assert_eq!(Some(expected_date), cron_schedule.next(date));
 
-        let date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:29:23 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let date = make_utc_date("2020-10-19 20:29:23 +0000");
         let cron_schedule = CronSchedule::from_string("*/5 9-18 1 * 6,0").unwrap();
-        let expected_date =
-            chrono::DateTime::parse_from_str("2020-11-01 09:00:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let expected_date = make_utc_date("2020-11-01 09:00:00 +0000");
         assert_eq!(Some(expected_date), cron_schedule.next(date));
 
-        let date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:29:23 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let date = make_utc_date("2020-10-19 20:29:23 +0000");
         let cron_schedule = CronSchedule::from_string("3 12 29-31 1-6 2-4").unwrap();
-        let expected_date =
-            chrono::DateTime::parse_from_str("2021-03-30 12:03:00 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let expected_date = make_utc_date("2021-03-30 12:03:00 +0000");
         assert_eq!(Some(expected_date), cron_schedule.next(date));
 
-        let date =
-            chrono::DateTime::parse_from_str("2020-10-19 20:29:23 +0000", "%Y-%m-%d %H:%M:%S %z")
-                .unwrap();
+        let date = make_utc_date("2020-10-19 20:29:23 +0000");
         let cron_schedule = CronSchedule::from_string("* * 30 2 *").unwrap();
         assert_eq!(None, cron_schedule.next(date));
     }
 
-    fn cron_schedule_equal(
-        schedule: &CronSchedule,
+    #[test]
+    fn test_cron_next_with_date_time() {
+        let date =
+            chrono::DateTime::parse_from_str("2020-10-19 20:29:23 +0112", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        let time_zone = chrono::offset::FixedOffset::east(3600 + 600 + 120);
+        let cron_schedule =
+            CronSchedule::from_string_with_time_zone("3 12 29-31 1-6 2-4", time_zone).unwrap();
+        let expected_date =
+            chrono::DateTime::parse_from_str("2021-03-30 12:03:00 +0112", "%Y-%m-%d %H:%M:%S %z")
+                .unwrap();
+        assert_eq!(Some(expected_date), cron_schedule.next(date));
+    }
+
+    fn cron_schedule_equal<Z: TimeZone>(
+        schedule: &CronSchedule<Z>,
         minutes: &[Ordinal],
         hours: &[Ordinal],
         month_days: &[Ordinal],
