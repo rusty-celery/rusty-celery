@@ -1,3 +1,11 @@
+//! This module contains the definition of the time units used by cron schedules.
+//!
+//! Each unit has a range of valid values and some of them have a string
+//! representation which can be used instead of numbers (for instance, months).
+//!
+//! Internally, a time unit is a vector of integers. To use less space,
+//! we use an enum variant (and no vector) to indicate the full range of valid values.
+
 use super::{CronParsingError, Ordinal};
 
 #[derive(Debug)]
