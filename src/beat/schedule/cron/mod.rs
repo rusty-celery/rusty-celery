@@ -19,7 +19,7 @@ pub const MAX_YEAR: Ordinal = 2100;
 /// The type used to represent a temporal element (minutes, hours...).
 type Ordinal = u32;
 
-/// A schedule that can be used to execute tasks using Celery
+/// A schedule that can be used to execute tasks using Celery's
 /// [crontab](https://docs.celeryproject.org/en/stable/reference/celery.schedules.html#celery.schedules.crontab)
 /// syntax.
 ///
