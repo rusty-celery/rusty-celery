@@ -51,7 +51,7 @@ rmp-serde = "0.14"
 rmpv = { version = "0.4.5", features = ["with-serde"] }
 serde_yaml = "0.8"
 serde-pickle = "0.6"
-env_logger = "0.7"
+env_logger = "0.8"
 anyhow = "1.0"
 structopt = "0.3"
 

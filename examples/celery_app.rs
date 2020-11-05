@@ -58,7 +58,7 @@ enum CeleryOpt {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let opt = CeleryOpt::from_args();
     let my_app = celery::app!(
         broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
