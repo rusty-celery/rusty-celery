@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added more tests to the `app` module.
 - Added a `prelude` module.
 - Added support for YAML, MsgPack, and Pickle content types, behind the `extra_content_types` feature flag.
+- Added the `CronSchedule` struct to support Celery's
+  [crontab](https://docs.celeryproject.org/en/stable/reference/celery.schedules.html#celery.schedules.crontab)
+  schedules.
 
 ### Changed
 

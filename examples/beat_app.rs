@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use anyhow::Result;
-use celery::beat::RegularSchedule;
+use celery::beat::{CronSchedule, RegularSchedule};
 use celery::task::TaskResult;
 use env_logger::Env;
 use tokio::time::Duration;
@@ -34,7 +34,8 @@ async fn main() -> Result<()> {
     let add_schedule = RegularSchedule::new(Duration::from_secs(5));
     beat.schedule_task(add::new(1, 2), add_schedule);
 
-    let long_running_schedule = RegularSchedule::new(Duration::from_secs(10));
+    // The long running task will run every two minutes.
+    let long_running_schedule = CronSchedule::from_string("*/2 * * * *")?;
     beat.schedule_task(long_running_task::new(Some(1)), long_running_schedule);
 
     beat.start().await?;
