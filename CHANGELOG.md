@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Added the `CronSchedule` struct to support Celery's
+  [crontab](https://docs.celeryproject.org/en/stable/reference/celery.schedules.html#celery.schedules.crontab)
+  schedules.
+
 ### Changed
 
 - ⚠️ **BREAKING CHANGE** ⚠️
