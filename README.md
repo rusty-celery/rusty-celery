@@ -37,7 +37,7 @@ If you already know the basics of Rust but are new to Celery, check out the [Rus
 Define tasks by decorating functions with the [`task`](https://docs.rs/celery/*/celery/attr.task.html) attribute.
 
 ```rust
-use celery::TaskResult;
+use celery::prelude::*;
 
 #[celery::task]
 fn add(x: i32, y: i32) -> TaskResult<i32> {
@@ -50,12 +50,12 @@ and register your tasks with it:
 
 ```rust
 let my_app = celery::app!(
-    broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+    broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
     tasks = [add],
     task_routes = [
         "*" => "celery",
     ],
-);
+).await?;
 ```
 
 Then send tasks to a queue with

@@ -33,12 +33,9 @@ jobs:
         # file with notes on your contribution.
         git diff --name-only $(git merge-base origin/master HEAD) | grep '^CHANGELOG.md$' && echo "Thanks for helping keep our CHANGELOG up-to-date!"
 
-  test:
-    name: Check Lib
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+  format:
+    name: Format
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
 
@@ -46,7 +43,26 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-        components: rustfmt, clippy
+        components: rustfmt
+        override: true
+
+    - name: Check formatting
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: -- --check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        components: clippy
         override: true
 
     - name: Set build variables
@@ -68,18 +84,85 @@ jobs:
         path: target
         key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.WEEK_NUMBER }}
 
-    - name: Lint with rustfmt
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: -- --check
-
     - name: Lint with clippy
       if: always()
       uses: actions-rs/cargo@v1
       with:
         command: clippy
         args: --workspace --all-targets --all-features -- -D warnings
+
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        features: [codegen, extra_content_types]
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Set build variables
+      shell: bash
+      run: |
+        # We use these variables as part of the cache keys.
+        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
+        echo "WEEK_NUMBER=$(date +%U)" >> $GITHUB_ENV
+
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/registry
+        key: cargo registry ${{ github.job }} ${{ matrix.features }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.WEEK_NUMBER }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v2
+      with:
+        path: target
+        key: cargo build ${{ github.job }} ${{ matrix.features }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.WEEK_NUMBER }}
+
+    - name: Build
+      if: always()
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --workspace --no-default-features --features ${{ matrix.features }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Set build variables
+      shell: bash
+      run: |
+        # We use these variables as part of the cache keys.
+        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
+        echo "WEEK_NUMBER=$(date +%U)" >> $GITHUB_ENV
+
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/registry
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.WEEK_NUMBER }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v2
+      with:
+        path: target
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.WEEK_NUMBER }}
 
     - name: Run unit tests
       if: always()
@@ -108,6 +191,13 @@ jobs:
       with:
         command: test
         args: --no-run --test codegen app_codegen
+
+    - name: Compile beat codegen tests
+      if: always()
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --no-run --test codegen beat_codegen
 
   docs:
     name: Build Docs
@@ -230,7 +320,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: [test, broker_amqp_test]
+    needs: [format, lint, build, test, docs, broker_amqp_test]
     runs-on: ubuntu-latest
     # Only run on main repo releases .
     if: github.repository == 'rusty-celery/rusty-celery' && github.event_name == 'release'

@@ -4,6 +4,7 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
+use std::sync::Arc;
 use tokio::select;
 
 #[cfg(unix)]
@@ -266,7 +267,7 @@ pub struct Celery<B: Broker> {
 
 impl<B> Celery<B>
 where
-    B: Broker,
+    B: Broker + 'static,
 {
     /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
     pub fn builder(name: &str, broker_url: &str) -> CeleryBuilder<B::Builder> {
@@ -468,7 +469,11 @@ where
     }
 
     /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
-    async fn handle_delivery(&self, delivery: B::Delivery, event_tx: UnboundedSender<TaskEvent>) {
+    async fn handle_delivery(
+        self: Arc<Self>,
+        delivery: B::Delivery,
+        event_tx: UnboundedSender<TaskEvent>,
+    ) {
         if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
             error!("{}", e);
         }
@@ -478,23 +483,17 @@ where
     pub async fn close(&self) -> Result<(), CeleryError> {
         Ok(self.broker.close().await?)
     }
-}
 
-// These methods require the app to have a static lifetime since they involve spawning
-// tasks that keep references to `self`.
-impl<B> Celery<B>
-where
-    B: Broker + 'static,
-{
     /// Consume tasks from the default queue.
-    pub async fn consume(&'static self) -> Result<(), CeleryError> {
-        Ok(self.consume_from(&[&self.default_queue]).await?)
+    pub async fn consume(self: &Arc<Self>) -> Result<(), CeleryError> {
+        let queues = &[&self.default_queue.clone()[..]];
+        Ok(Self::consume_from(self, queues).await?)
     }
 
     /// Consume tasks from any number of queues.
-    pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+    pub async fn consume_from(self: &Arc<Self>, queues: &[&str]) -> Result<(), CeleryError> {
         loop {
-            let result = self._consume_from(queues).await;
+            let result = self.clone()._consume_from(queues).await;
             if !self.broker_connection_retry {
                 return result;
             }
@@ -517,7 +516,7 @@ where
             let mut reconnect_successful: bool = false;
             for _ in 0..self.broker_connection_max_retries {
                 info!("Trying to re-establish connection with broker");
-                time::delay_for(Duration::from_secs(
+                time::sleep(Duration::from_secs(
                     self.broker_connection_retry_delay as u64,
                 ))
                 .await;
@@ -544,7 +543,7 @@ where
     }
 
     #[allow(clippy::cognitive_complexity)]
-    async fn _consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+    async fn _consume_from(self: Arc<Self>, queues: &[&str]) -> Result<(), CeleryError> {
         if queues.is_empty() {
             return Err(CeleryError::NoQueueToConsume);
         }
@@ -599,7 +598,7 @@ where
                             Ok(delivery) => {
                                 let task_event_tx = task_event_tx.clone();
                                 debug!("Received delivery from {}: {:?}", queue, delivery);
-                                tokio::spawn(self.handle_delivery(delivery, task_event_tx));
+                                tokio::spawn(self.clone().handle_delivery(delivery, task_event_tx));
                             }
                             Err(e) => {
                                 error!("Deliver failed: {}", e);

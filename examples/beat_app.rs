@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use celery::beat::{CronSchedule, RegularSchedule};
+use celery::broker::AMQPBroker;
 use celery::task::TaskResult;
 use env_logger::Env;
 use tokio::time::Duration;
@@ -24,11 +25,11 @@ async fn main() -> Result<()> {
 
     // Build a `Beat` with a default scheduler backend.
     let mut beat = celery::beat!(
-        broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         task_routes = [
             "*" => QUEUE_NAME,
         ],
-    );
+    ).await?;
 
     // Add scheduled tasks to the default `Beat` and start it.
     let add_schedule = RegularSchedule::new(Duration::from_secs(5));

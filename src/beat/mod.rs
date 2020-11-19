@@ -217,8 +217,9 @@ where
 /// tasks through a customizable scheduler backend.
 pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     pub name: String,
-    scheduler: Scheduler<Br>,
-    scheduler_backend: Sb,
+    pub scheduler: Scheduler<Br>,
+    pub scheduler_backend: Sb,
+
     task_routes: Vec<Rule>,
     default_queue: String,
     task_options: TaskOptions,
@@ -314,7 +315,7 @@ where
             let mut reconnect_successful: bool = false;
             for _ in 0..self.broker_connection_max_retries {
                 info!("Trying to re-establish connection with broker");
-                time::delay_for(Duration::from_secs(
+                time::sleep(Duration::from_secs(
                     self.broker_connection_retry_delay as u64,
                 ))
                 .await;
@@ -360,7 +361,7 @@ where
                     "Unexpected error when unwrapping a SystemTime comparison that is not supposed to fail",
                 );
                 debug!("Now sleeping for {:?}", sleep_interval);
-                time::delay_for(sleep_interval).await;
+                time::sleep(sleep_interval).await;
             }
         }
     }

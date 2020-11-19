@@ -471,7 +471,7 @@ impl TryDeserializeMessage for Delivery {
             .properties
             .headers()
             .as_ref()
-            .ok_or_else(|| ProtocolError::MissingHeaders)?;
+            .ok_or(ProtocolError::MissingHeaders)?;
         Ok(Message {
             properties: MessageProperties {
                 correlation_id: self

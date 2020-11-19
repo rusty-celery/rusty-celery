@@ -141,7 +141,7 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
                         "Failed to establish connection with broker, trying again in {}s...",
                         connection_retry_delay
                     );
-                    time::delay_for(Duration::from_secs(connection_retry_delay as u64)).await;
+                    time::sleep(Duration::from_secs(connection_retry_delay as u64)).await;
                     continue;
                 }
                 return Err(err);

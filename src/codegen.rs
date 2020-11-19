@@ -9,33 +9,31 @@ macro_rules! __app_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        static CELERY_APP: $crate::export::OnceCell<$crate::Celery<$broker_type>> =
-            $crate::export::OnceCell::new();
-        CELERY_APP.get_or_init(|| {
-            async fn _build_app() -> $crate::Celery::<$broker_type> {
-                let broker_url = $broker_url;
+        async fn _build_app() ->
+            $crate::export::Result<$crate::export::Arc<$crate::Celery::<$broker_type>>> {
 
-                let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
+            let broker_url = $broker_url;
 
-                $(
-                    builder = builder.$x($y);
-                )*
+            let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
 
-                $(
-                    builder = builder.task_route($pattern, $queue);
-                )*
+            $(
+                builder = builder.$x($y);
+            )*
 
-                let celery: $crate::Celery<$broker_type> = builder.build().await.unwrap();
+            $(
+                builder = builder.task_route($pattern, $queue);
+            )*
 
-                $(
-                    celery.register_task::<$t>().await.unwrap();
-                )*
+            let celery: $crate::Celery<$broker_type> = builder.build().await?;
 
-                celery
-            }
+            $(
+                celery.register_task::<$t>().await?;
+            )*
 
-            $crate::export::block_on(_build_app())
-        })
+            Ok($crate::export::Arc::new(celery))
+        }
+
+        _build_app()
     }};
 }
 
@@ -44,23 +42,29 @@ macro_rules! __app_internal {
 macro_rules! __beat_internal {
     (
         $broker_type:ty { $broker_url:expr },
+        $scheduler_backend_type:ty { $scheduler_backend:expr },
         [ $( $pattern:expr => $queue:expr ),* ],
-        $scheduler_backend:expr,
         $( $x:ident = $y:expr, )*
     ) => {{
-        let broker_url = $broker_url;
+        async fn _build_beat() ->
+            $crate::export::Result<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
 
-        let mut builder = $crate::beat::Beat::<$broker_type, _>::custom_builder("beat", &broker_url, $scheduler_backend);
+            let broker_url = $broker_url;
 
-        $(
-            builder = builder.$x($y);
-        )*
+            let mut builder = $crate::beat::Beat::<$broker_type, $scheduler_backend_type>::custom_builder("beat", &broker_url, $scheduler_backend);
 
-        $(
-            builder = builder.task_route($pattern, $queue);
-        )*
+            $(
+                builder = builder.$x($y);
+            )*
 
-        $crate::export::block_on(builder.build()).unwrap()
+            $(
+                builder = builder.task_route($pattern, $queue);
+            )*
+
+            Ok(builder.build().await?)
+        }
+
+        _build_beat()
     }};
 }
 
@@ -70,8 +74,6 @@ macro_rules! __beat_internal {
 /// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
 /// - `tasks`: a list of tasks to register, and
 /// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
-///
-/// These arguments can be given with or without their keywords.
 ///
 /// # Optional parameters
 ///
@@ -101,6 +103,7 @@ macro_rules! __beat_internal {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
+/// # use anyhow::Result;
 /// use celery::prelude::*;
 ///
 /// #[celery::task]
@@ -108,36 +111,42 @@ macro_rules! __beat_internal {
 ///     Ok(x + y)
 /// }
 ///
-/// # fn main() {
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let app = celery::app!(
-///     AMQP { std::env::var("AMQP_ADDR").unwrap() },
-///     [ add ],
-///     [ "*" => "celery" ],
-/// );
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [ add ],
+///     task_routes = [ "*" => "celery" ],
+/// ).await?;
+/// # Ok(())
 /// # }
 /// ```
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// # fn main() {
+/// # use anyhow::Result;
+/// # use celery::prelude::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let app = celery::app!(
-///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     tasks = [],
 ///     task_routes = [],
 ///     task_time_limit = 2
-/// );
+/// ).await?;
+/// # Ok(())
 /// # }
 /// ```
 #[macro_export]
 macro_rules! app {
     (
-        $(broker =)? AMQP { $broker_url:expr },
-        $(tasks =)? [ $( $t:ty ),* $(,)? ],
-        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+        broker = $broker_type:ty { $broker_url:expr },
+        tasks = [ $( $t:ty ),* $(,)? ],
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__app_internal!(
-            $crate::broker::AMQPBroker { $broker_url },
+            $broker_type { $broker_url },
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
@@ -152,11 +161,9 @@ macro_rules! app {
 /// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
 /// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
 ///
-/// These arguments can be given with or without their keywords.
-///
 /// # Custom scheduler backend
 ///
-/// A custom scheduler backend can be given as third argument (with or without using the keyword `scheduler_backend`).
+/// A custom scheduler backend can be given as the second argument.
 /// If not given, the default [`LocalSchedulerBackend`](struct.LocalSchedulerBackend.html) will be used.
 ///
 /// # Optional parameters
@@ -180,11 +187,15 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// # fn main() {
+/// # use anyhow::Result;
+/// # use celery::prelude::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let beat = celery::beat!(
-///     AMQP { std::env::var("AMQP_ADDR").unwrap() },
-///     [ "*" => "celery" ],
-/// );
+///     broker = AMQPBroker{ std::env::var("AMQP_ADDR").unwrap() },
+///     task_routes = [ "*" => "celery" ],
+/// ).await?;
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -192,12 +203,16 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// # fn main() {
+/// # use anyhow::Result;
+/// # use celery::prelude::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let beat = celery::beat!(
-///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     task_routes = [],
 ///     default_queue = "beat_queue"
-/// );
+/// ).await?;
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -205,7 +220,9 @@ macro_rules! app {
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate celery;
-/// use celery::{beat::ScheduledTask, beat::SchedulerBackend, error::BeatError};
+/// # use anyhow::Result;
+/// use celery::prelude::*;
+/// use celery::beat::*;
 /// use std::collections::BinaryHeap;
 ///
 /// struct CustomSchedulerBackend {}
@@ -220,40 +237,42 @@ macro_rules! app {
 ///     }
 /// }
 ///
-/// # fn main() {
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let beat = celery::beat!(
-///     broker = AMQP { std::env::var("AMQP_ADDR").unwrap() },
+///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+///     scheduler_backend = CustomSchedulerBackend { CustomSchedulerBackend {} },
 ///     task_routes = [
 ///         "*" => "beat_queue",
 ///     ],
-///     scheduler_backend = { CustomSchedulerBackend {} }
-/// );
+/// ).await?;
+/// # Ok(())
 /// # }
 /// ```
 #[macro_export]
 macro_rules! beat {
     (
-        $(broker =)? AMQP { $broker_url:expr },
-        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
-        $(scheduler_backend =)? { $scheduler_backend:expr }
+        broker = $broker_type:ty { $broker_url:expr },
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
-            $crate::broker::AMQPBroker { $broker_url },
+            $broker_type { $broker_url },
+            $crate::beat::LocalSchedulerBackend { $crate::beat::LocalSchedulerBackend::new() },
             [ $( $pattern => $queue ),* ],
-            $scheduler_backend,
             $( $x = $y, )*
         );
     };
     (
-        $(broker =)? AMQP { $broker_url:expr },
-        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+        broker = $broker_type:ty { $broker_url:expr },
+        scheduler_backend = $scheduler_backend_type:ty { $scheduler_backend:expr },
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
-            $crate::broker::AMQPBroker { $broker_url },
+            $broker_type { $broker_url },
+            $scheduler_backend_type { $scheduler_backend },
             [ $( $pattern => $queue ),* ],
-            $crate::beat::LocalSchedulerBackend::new(),
             $( $x = $y, )*
         );
     };
