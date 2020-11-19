@@ -20,23 +20,18 @@
 //! ```rust,no_run
 //! # use anyhow::Result;
 //! # use celery::prelude::*;
-//! # use std::sync::Arc;
-//! # use tokio::runtime::Runtime;
 //! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
-//! # fn main() -> Result<()> {
-//! # let rt = Arc::new(Runtime::new().unwrap());
-//! # rt.block_on(async {
+//! # #[tokio::main]
+//! # async fn main() -> Result<()> {
 //! let my_app = celery::app!(
-//!     runtime = rt.clone(),
 //!     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //!     tasks = [add],
 //!     task_routes = [],
 //! ).await?;
 //! # Ok(())
-//! # })
 //! # }
 //! ```
 //!
@@ -46,24 +41,19 @@
 //! ```rust,no_run
 //! # use anyhow::Result;
 //! # use celery::prelude::*;
-//! # use std::sync::Arc;
-//! # use tokio::runtime::Runtime;
 //! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
-//! # fn main() -> Result<()> {
-//! # let rt = Arc::new(Runtime::new().unwrap());
-//! # rt.block_on(async {
+//! # #[tokio::main]
+//! # async fn main() -> Result<()> {
 //! # let my_app = celery::app!(
-//! #     runtime = rt.clone(),
 //! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
 //! # ).await?;
 //! my_app.send_task(add::new(1, 2)).await?;
 //! # Ok(())
-//! # })
 //! # }
 //! ```
 //!
@@ -73,24 +63,19 @@
 //! ```rust,no_run
 //! # use anyhow::Result;
 //! # use celery::prelude::*;
-//! # use std::sync::Arc;
-//! # use tokio::runtime::Runtime;
 //! # #[celery::task]
 //! # fn add(x: i32, y: i32) -> celery::task::TaskResult<i32> {
 //! #     Ok(x + y)
 //! # }
-//! # fn main() -> Result<()> {
-//! # let rt = Arc::new(Runtime::new().unwrap());
-//! # rt.block_on(async {
+//! # #[tokio::main]
+//! # async fn main() -> Result<()> {
 //! # let my_app = celery::app!(
-//! #     runtime = rt.clone(),
 //! #     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 //! #     tasks = [add],
 //! #     task_routes = [],
 //! # ).await?;
 //! my_app.consume().await?;
 //! # Ok(())
-//! # })
 //! # }
 //! ```
 

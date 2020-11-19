@@ -9,25 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- ⚠️ Breaking change ⚠️ To accomodate the new version of `tokio` (v0.3) as well as custom `Broker`s,
-  we've had to make several breaking changes to the way `Celery` and `Beat` apps are built.
+- ⚠️ **BREAKING CHANGE** ⚠️
 
-  For one, the `celery::app!` and `celery::beat!` macros now require the first argument to be an `Arc<tokio::runtime::Runtime>`.
+  To improve the `app!` and `beat!` macros and accomodate custom `Broker`s and `SchedulerBackend`s,
+  we've had to make breaking changes to the way these macros are invoked.
 
-  Unfortunately this means that you can no longer use the `#[tokio::main]` macro. Instead, you'll have
-  to manually create a runtime, pass it to `celery::app!` or `celery::beat!` after cloning it, and then call `.block_on()` directly.
+  The biggest change is that the macros now return a future of `Result<Celery>` or `Result<Beat>`.
+  This means you must now call `.await?` on the return value of the macro.
 
-  Another breaking change is that you must supply the actual `Broker` type.
+  The other change is that you must now supply the actual `Broker` type.
   Previously, you could write something like `broker = AMQP { "amqp://my-broker-url" }`,
   but now you have to write it like `broker = celery::broker::AMQPBroker { "amqp://my-broker-url" }`.
 
-  And lastly, the `celery::app!` and `celery::beat!` macros now return a future, so you must call `.await?`
-  so get the actual app objects.
-
-  For a concrete example of these changes, previously you would create your app like this:
+  For a concrete example of these changes, the old way looked like this:
 
 
   ```rust
+  #[tokio::main]
   async fn main() -> anyhow::Result<()> {
       let app = celery::app!(
           broker = AMQP { "amqp://my-broker-url" },
@@ -41,24 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   }
   ```
 
-  Whereas now that would look like this:
+  Whereas now that will look like this:
 
   ```rust
-  fn main() -> anyhow::Result<()> {
-      let rt = std::sync::Arc::new(tokio::runtime::Runtime::new()?);
+  #[tokio::main]
+  async fn main() -> anyhow::Result<()> {
+      let app = celery::app!(
+          broker = celery::broker::AMQPBroker { "amqp://my-broker-url" },
+          tasks = [add],
+          task_routes = ["*" => "celery"],
+      ).await?;
 
-      rt.block_on(async {
-          let app = celery::app!(
-              runtime = rt.clone(),
-              broker = celery::broker::AMQPBroker { "amqp://my-broker-url" },
-              tasks = [add],
-              task_routes = ["*" => "celery"],
-          ).await?;
+      // ...
 
-          // ...
-
-          Ok(())
-      })
+      Ok(())
   }
   ```
 

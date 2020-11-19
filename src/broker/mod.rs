@@ -5,8 +5,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
 use log::error;
-use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tokio::time::{self, Duration};
 
 use crate::error::{BrokerError, CeleryError};
@@ -82,11 +80,7 @@ pub trait Broker: Send + Sync + Sized {
     async fn close(&self) -> Result<(), BrokerError>;
 
     /// Try reconnecting in the event of some sort of connection error.
-    async fn reconnect(
-        &self,
-        runtime: Arc<Runtime>,
-        connection_timeout: u32,
-    ) -> Result<(), BrokerError>;
+    async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError>;
 }
 
 /// A [`BrokerBuilder`] is used to create a type of broker with a custom configuration.
@@ -107,11 +101,7 @@ pub trait BrokerBuilder {
     fn heartbeat(self, heartbeat: Option<u16>) -> Self;
 
     /// Construct the `Broker` with the given configuration.
-    async fn build(
-        &self,
-        runtime: Arc<Runtime>,
-        connection_timeout: u32,
-    ) -> Result<Self::Broker, BrokerError>;
+    async fn build(&self, connection_timeout: u32) -> Result<Self::Broker, BrokerError>;
 }
 
 // TODO: this function consumes the broker_builder, which results in a not so ergonomic API.
@@ -136,7 +126,6 @@ pub(crate) fn configure_task_routes<Bb: BrokerBuilder>(
 /// and initialize the connection.
 pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
     broker_builder: Bb,
-    runtime: Arc<Runtime>,
     connection_timeout: u32,
     connection_max_retries: u32,
     connection_retry_delay: u32,
@@ -144,10 +133,7 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
     let mut broker: Option<Bb::Broker> = None;
 
     for _ in 0..connection_max_retries {
-        match broker_builder
-            .build(runtime.clone(), connection_timeout)
-            .await
-        {
+        match broker_builder.build(connection_timeout).await {
             Err(err) => {
                 if err.is_connection_error() {
                     error!("{}", err);

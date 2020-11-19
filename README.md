@@ -50,7 +50,6 @@ and register your tasks with it:
 
 ```rust
 let my_app = celery::app!(
-    runtime = rt.clone(),
     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
     tasks = [add],
     task_routes = [

@@ -7,9 +7,7 @@ use celery::task::{Request, Signature, Task, TaskOptions};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::Mutex;
-use tokio::runtime::Runtime;
 use tokio::time::{self, Duration};
 
 static SUCCESSES: Lazy<Mutex<HashMap<String, Result<i32, TaskError>>>> =
@@ -65,9 +63,9 @@ impl Task for add {
     }
 }
 
-async fn _test_amqp_broker(rt: Arc<Runtime>) {
+#[tokio::test]
+async fn test_amqp_broker() {
     let my_app = celery::app!(
-        runtime = rt.clone(),
         broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [add],
         task_routes = [
@@ -92,7 +90,7 @@ async fn _test_amqp_broker(rt: Arc<Runtime>) {
 
     // Try closing connection and then reconnecting.
     my_app.broker.close().await.unwrap();
-    my_app.broker.reconnect(rt, 5).await.unwrap();
+    my_app.broker.reconnect(5).await.unwrap();
 
     // Send another task to the queue.
     let send_result = my_app.send_task(add::new(2, 2)).await;
@@ -111,10 +109,4 @@ async fn _test_amqp_broker(rt: Arc<Runtime>) {
     assert_eq!(successes[&task_id_1].as_ref().unwrap(), &3);
     assert!(successes[&task_id_2].is_ok());
     assert_eq!(successes[&task_id_2].as_ref().unwrap(), &4);
-}
-
-#[test]
-fn test_amqp_broker() {
-    let rt = Arc::new(Runtime::new().unwrap());
-    rt.block_on(_test_amqp_broker(rt.clone()));
 }

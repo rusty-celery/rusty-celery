@@ -4,9 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use celery::prelude::*;
 use env_logger::Env;
-use std::sync::Arc;
 use structopt::StructOpt;
-use tokio::runtime::Runtime;
 use tokio::time::{self, Duration};
 
 // This generates the task struct and impl with the name set to the function name "add"
@@ -58,11 +56,13 @@ enum CeleryOpt {
     },
 }
 
-async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+
     let opt = CeleryOpt::from_args();
 
     let my_app = celery::app!(
-        runtime = rt,
         broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [
             add,
@@ -119,12 +119,5 @@ async fn tokio_main(rt: Arc<Runtime>) -> Result<()> {
 
     my_app.close().await?;
 
-    Ok(())
-}
-
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    let rt = Arc::new(Runtime::new()?);
-    rt.block_on(tokio_main(rt.clone()))?;
     Ok(())
 }

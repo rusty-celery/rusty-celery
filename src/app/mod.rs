@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tokio::select;
 
 #[cfg(unix)]
@@ -197,7 +196,7 @@ where
     }
 
     /// Construct a [`Celery`] app with the current configuration.
-    pub async fn build(self, runtime: Arc<Runtime>) -> Result<Celery<Bb::Broker>, CeleryError> {
+    pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
         // Declare default queue to broker.
         let broker_builder = self
             .config
@@ -209,7 +208,6 @@ where
 
         let broker = build_and_connect(
             broker_builder,
-            runtime.clone(),
             self.config.broker_connection_timeout,
             if self.config.broker_connection_retry {
                 self.config.broker_connection_max_retries
@@ -232,7 +230,6 @@ where
             broker_connection_retry: self.config.broker_connection_retry,
             broker_connection_max_retries: self.config.broker_connection_max_retries,
             broker_connection_retry_delay: self.config.broker_connection_retry_delay,
-            runtime,
         })
     }
 }
@@ -266,8 +263,6 @@ pub struct Celery<B: Broker> {
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
     broker_connection_retry_delay: u32,
-
-    runtime: Arc<Runtime>,
 }
 
 impl<B> Celery<B>
@@ -526,11 +521,7 @@ where
                 ))
                 .await;
 
-                match self
-                    .broker
-                    .reconnect(self.runtime.clone(), self.broker_connection_timeout)
-                    .await
-                {
+                match self.broker.reconnect(self.broker_connection_timeout).await {
                     Err(err) => {
                         if err.is_connection_error() {
                             continue;

@@ -12,8 +12,6 @@ use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tokio::sync::{Mutex, RwLock};
 use tokio_amqp::LapinTokioExt;
 
@@ -78,21 +76,15 @@ impl BrokerBuilder for AMQPBrokerBuilder {
     }
 
     /// Build an `AMQPBroker`.
-    async fn build(
-        &self,
-        runtime: Arc<Runtime>,
-        connection_timeout: u32,
-    ) -> Result<AMQPBroker, BrokerError> {
+    async fn build(&self, connection_timeout: u32) -> Result<AMQPBroker, BrokerError> {
         let mut uri = AMQPUri::from_str(&self.config.broker_url)
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
         uri.query.connection_timeout = Some((connection_timeout as u64) * 1000);
 
-        let conn = Connection::connect_uri(
-            uri.clone(),
-            ConnectionProperties::default().with_tokio(runtime),
-        )
-        .await?;
+        let conn =
+            Connection::connect_uri(uri.clone(), ConnectionProperties::default().with_tokio())
+                .await?;
         let consume_channel = conn.create_channel().await?;
         let produce_channel = conn.create_channel().await?;
 
@@ -335,11 +327,7 @@ impl Broker for AMQPBroker {
     }
 
     /// Try reconnecting in the event of some sort of connection error.
-    async fn reconnect(
-        &self,
-        runtime: Arc<Runtime>,
-        connection_timeout: u32,
-    ) -> Result<(), BrokerError> {
+    async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError> {
         let mut conn = self.conn.lock().await;
         if !conn.status().connected() {
             debug!("Attempting to reconnect to broker");
@@ -348,8 +336,7 @@ impl Broker for AMQPBroker {
             let mut uri = self.uri.clone();
             uri.query.connection_timeout = Some(connection_timeout as u64);
             *conn =
-                Connection::connect_uri(uri, ConnectionProperties::default().with_tokio(runtime))
-                    .await?;
+                Connection::connect_uri(uri, ConnectionProperties::default().with_tokio()).await?;
 
             let mut consume_channel = self.consume_channel.write().await;
             let mut produce_channel = self.produce_channel.lock().await;
