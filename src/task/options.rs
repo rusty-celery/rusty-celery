@@ -116,16 +116,14 @@ pub struct TaskOptions {
 impl TaskOptions {
     /// Update the fields in `self` with the fields in `other`.
     pub(crate) fn update(&mut self, other: &TaskOptions) {
-        self.time_limit = self.time_limit.or_else(|| other.time_limit);
-        self.hard_time_limit = self.hard_time_limit.or_else(|| other.hard_time_limit);
-        self.max_retries = self.max_retries.or_else(|| other.max_retries);
-        self.min_retry_delay = self.min_retry_delay.or_else(|| other.min_retry_delay);
-        self.max_retry_delay = self.max_retry_delay.or_else(|| other.max_retry_delay);
-        self.retry_for_unexpected = self
-            .retry_for_unexpected
-            .or_else(|| other.retry_for_unexpected);
-        self.acks_late = self.acks_late.or_else(|| other.acks_late);
-        self.content_type = self.content_type.or_else(|| other.content_type);
+        self.time_limit = self.time_limit.or(other.time_limit);
+        self.hard_time_limit = self.hard_time_limit.or(other.hard_time_limit);
+        self.max_retries = self.max_retries.or(other.max_retries);
+        self.min_retry_delay = self.min_retry_delay.or(other.min_retry_delay);
+        self.max_retry_delay = self.max_retry_delay.or(other.max_retry_delay);
+        self.retry_for_unexpected = self.retry_for_unexpected.or(other.retry_for_unexpected);
+        self.acks_late = self.acks_late.or(other.acks_late);
+        self.content_type = self.content_type.or(other.content_type);
     }
 
     /// Override the fields in `other` with the fields in `self`.
