@@ -1,5 +1,5 @@
 #![allow(clippy::unit_arg)]
-/// NOTE: The tests in this module are time-sensitive.
+/// NOTE: Some tests in this module are time-sensitive.
 ///
 /// Errors in the order of 1-2 milliseconds are expected, so checks
 /// are written to have a tolerance of at least 10 milliseconds.
@@ -9,9 +9,14 @@ use crate::{
     task::{Request, TaskOptions, TaskResult},
 };
 use async_trait::async_trait;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::SystemTime;
 use tokio::time::{self, Duration};
 
+/// We test that a task is sent to the correct queue and executed
+/// the correct amount of times. We also check that executions are
+/// reasonably on time.
 #[tokio::test]
 async fn test_task_with_regular_schedule() {
     // Create a dummy broker for this test.
@@ -31,6 +36,7 @@ async fn test_task_with_regular_schedule() {
         broker_connection_retry: true,
         broker_connection_max_retries: 5,
         broker_connection_retry_delay: 5,
+        max_sleep_duration: None,
     };
 
     beat.schedule_task(
@@ -70,6 +76,8 @@ async fn test_task_with_regular_schedule() {
     assert!((tasks[1].1).2.duration_since(start_time).unwrap() < Duration::from_millis(30));
 }
 
+/// We test that two different tasks are executed the correct amount of times
+/// and that they are sent to the correct queues.
 #[tokio::test]
 async fn test_scheduling_two_tasks() {
     // Create a dummy broker for this test.
@@ -91,6 +99,7 @@ async fn test_scheduling_two_tasks() {
         broker_connection_retry: true,
         broker_connection_max_retries: 5,
         broker_connection_retry_delay: 5,
+        max_sleep_duration: None,
     };
 
     beat.schedule_task(
@@ -162,6 +171,7 @@ async fn test_task_with_delayed_first_run() {
         broker_connection_retry: true,
         broker_connection_max_retries: 5,
         broker_connection_retry_delay: 5,
+        max_sleep_duration: None,
     };
 
     // Schedule a task that will not execute immediately.
@@ -188,6 +198,71 @@ async fn test_task_with_delayed_first_run() {
         "A task that was supposed to run at least once did not run."
     );
 }
+
+/// The beat always ticks once when started and then ticks again depending on when
+/// the next task to execute is and depending on the value of max_sleep_duration.
+///
+/// We are going to test that the beat ticks at least twice during the test execution,
+/// even if there are no scheduled tasks and the default sleep time (currently fixed to
+/// 500 milliseconds) for the scheduler is longer than the timeout.
+#[tokio::test]
+async fn test_beat_max_sleep_duration() {
+    let max_sleep_duration = Duration::from_millis(1);
+    let test_timeout = Duration::from_millis(20);
+    let num_sync_calls = Rc::new(RefCell::new(0));
+
+    // Define a dummy SchedulerBackend that we need to check that sync is called
+    // even if there is no task which is ready to be sent.
+    struct DummySchedulerBackend {
+        num_sync_calls: Rc<RefCell<usize>>,
+    }
+
+    impl SchedulerBackend for DummySchedulerBackend {
+        fn should_sync(&self) -> bool {
+            true
+        }
+
+        fn sync(
+            &mut self,
+            _scheduled_tasks: &mut std::collections::BinaryHeap<ScheduledTask>,
+        ) -> Result<(), BeatError> {
+            *self.num_sync_calls.borrow_mut() += 1;
+            Ok(())
+        }
+    }
+
+    // Create a dummy beat for this test.
+    let dummy_broker = MockBroker::new();
+    let mut beat: Beat<MockBroker, DummySchedulerBackend> = Beat {
+        name: "dummy_beat".to_string(),
+        scheduler: Scheduler::new(dummy_broker),
+        scheduler_backend: DummySchedulerBackend {
+            num_sync_calls: Rc::clone(&num_sync_calls),
+        },
+        task_routes: vec![],
+        default_queue: "celery".to_string(),
+        task_options: TaskOptions::default(),
+        broker_connection_timeout: 5,
+        broker_connection_retry: true,
+        broker_connection_max_retries: 5,
+        broker_connection_retry_delay: 5,
+        max_sleep_duration: Some(max_sleep_duration),
+    };
+
+    let result = time::timeout(test_timeout, beat.start()).await;
+
+    assert!(result.is_err()); // The beat should only stop because of the timeout
+
+    // Check that sync has been called as expected.
+    use std::ops::Deref;
+    assert!(*num_sync_calls.borrow().deref() >= 2);
+}
+
+////// IMPLEMENTATION OF DUMMY TASKS THAT CAN BE USED BY TESTS //////
+/*
+ * These tasks are not supposed to run, but can be sent to a dummy broker
+ * to check that they are scheduled for execution.
+ */
 
 #[derive(Clone)]
 struct DummyTask {}
