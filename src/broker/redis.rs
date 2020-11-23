@@ -143,7 +143,7 @@ impl Channel {
         mut self,
         send_waker: Option<(Sender<Waker>, Waker)>,
     ) -> Result<Delivery, BrokerError> {
-        if let Some((mut sender, waker)) = send_waker {
+        if let Some((sender, waker)) = send_waker {
             sender.send(waker).await.unwrap();
             futures::pending!();
         }
@@ -153,7 +153,7 @@ impl Channel {
                 .query_async(&mut self.connection)
                 .await;
             match rez {
-                Ok(None) => tokio::time::delay_for(tokio::time::Duration::from_millis(1000)).await,
+                Ok(None) => tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await,
                 Ok(Some(rez)) => {
                     let delivery: Delivery = serde_json::from_str(&rez[..])?;
                     debug!(
@@ -382,7 +382,7 @@ impl Broker for RedisBroker {
                             .store(old_prefetch_count, Ordering::SeqCst);
                         return Ok(());
                     } else {
-                        tokio::time::delay_for(tokio::time::Duration::from_secs(
+                        tokio::time::sleep(tokio::time::Duration::from_secs(
                             connection_timeout as u64,
                         ))
                         .await;
@@ -391,7 +391,7 @@ impl Broker for RedisBroker {
                 }
                 Err(e) => {
                     if !timeed_out {
-                        tokio::time::delay_for(tokio::time::Duration::from_secs(
+                        tokio::time::sleep(tokio::time::Duration::from_secs(
                             connection_timeout as u64,
                         ))
                         .await;
