@@ -4,8 +4,9 @@ use chrono::{DateTime, Utc};
 
 /// Wraps the parameters and execution options for a single task invocation.
 ///
-/// When you define a task through the [attribute macro](../attr.task.html), calling
-/// `T::new(...)` with the arguments that your task function take will create a `Signature<T>`.
+/// When you define a task through the [`task`](macro@crate::task) attribute macro, calling
+/// `T::new(...)` with the arguments that your task function take will create a
+/// [`Signature<T>`](Signature).
 ///
 /// # Examples
 ///

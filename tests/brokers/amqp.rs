@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
-use celery::broker::Broker;
+use celery::broker::{AMQPBroker, Broker};
 use celery::error::TaskError;
 use celery::task::{Request, Signature, Task, TaskOptions};
 use once_cell::sync::Lazy;
@@ -66,14 +66,14 @@ impl Task for add {
 #[tokio::test]
 async fn test_amqp_broker() {
     let my_app = celery::app!(
-        broker = AMQP { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [add],
         task_routes = [
             "add" => "celery",
             "backend.*" => "backend",
             "ml.*" => "ml"
         ],
-    );
+    ).await.unwrap();
 
     // Send task to queue.
     let send_result = my_app.send_task(add::new(1, 2)).await;

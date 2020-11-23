@@ -26,7 +26,7 @@ struct Config {
     heartbeat: Option<u16>,
 }
 
-/// Builds an AMQP broker with a custom configuration.
+/// Builds an [`AMQPBroker`] with a custom configuration.
 pub struct AMQPBrokerBuilder {
     config: Config,
 }
@@ -471,7 +471,7 @@ impl TryDeserializeMessage for Delivery {
             .properties
             .headers()
             .as_ref()
-            .ok_or_else(|| ProtocolError::MissingHeaders)?;
+            .ok_or(ProtocolError::MissingHeaders)?;
         Ok(Message {
             properties: MessageProperties {
                 correlation_id: self

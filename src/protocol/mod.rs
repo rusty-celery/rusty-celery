@@ -1,9 +1,8 @@
 //! Defines the Celery protocol.
 //!
-//! The top part of the protocol is the [`Message` struct](struct.Message.html), which builds on
-//! top of the protocol for a broker. This is why a broker's [delivery
-//! type](../broker/trait.Broker.html#associatedtype.Delivery) must implement
-//! [`TryCreateMessage`](trait.TryCreateMessage.html).
+//! The top part of the protocol is the [`Message`] struct, which builds on
+//! top of the protocol for a broker. This is why a broker's [`Delivery`](crate::broker::Broker::Delivery)
+//! type must implement [`TryCreateMessage`].
 
 use chrono::{DateTime, Duration, Utc};
 use log::{debug, warn};
@@ -151,10 +150,10 @@ where
     }
 }
 
-/// A `Message` is the core of the Celery protocol and is built on top of a `Broker`'s protocol.
+/// A [`Message`] is the core of the Celery protocol and is built on top of a [`Broker`](crate::broker::Broker)'s protocol.
 /// Every message corresponds to a task.
 ///
-/// Note that the `raw_body` field is the serialized form of a [`MessageBody`](struct.MessageBody.html)
+/// Note that the [`raw_body`](Message::raw_body) field is the serialized form of a [`MessageBody`]
 /// so that a worker can read the meta data of a message without having to deserialize the body
 /// first.
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -165,7 +164,7 @@ pub struct Message {
     /// Message headers contain additional meta data pertaining to the Celery protocol.
     pub headers: MessageHeaders,
 
-    /// A serialized [`MessageBody`](struct.MessageBody.html).
+    /// A serialized [`MessageBody`].
     pub raw_body: Vec<u8>,
 }
 
@@ -392,7 +391,7 @@ where
 {
     type Error = ProtocolError;
 
-    /// Get a new `MessageBuilder` from a task signature.
+    /// Get a new [`MessageBuilder`] from a task signature.
     fn try_from(mut task_sig: Signature<T>) -> Result<Self, Self::Error> {
         // Create random correlation id.
         let mut buffer = Uuid::encode_buffer();
@@ -444,8 +443,9 @@ where
     }
 }
 
-/// A trait for attempting to create a `Message` from `self`. This will be implemented
-/// by types that can act like message "factories", like for instance the `Signature` type.
+/// A trait for attempting to create a [`Message`] from `self`. This will be implemented
+/// by types that can act like message "factories", like for instance the
+/// [`Signature`](crate::task::Signature) type.
 pub trait TryCreateMessage {
     fn try_create_message(&self) -> Result<Message, ProtocolError>;
 }
@@ -455,14 +455,14 @@ where
     T: Task + Clone,
 {
     /// Creating a message from a signature without consuming the signature requires cloning it.
-    /// For one-shot conversions, directly use `Message::try_from` instead.
+    /// For one-shot conversions, directly use [`Message::try_from`] instead.
     fn try_create_message(&self) -> Result<Message, ProtocolError> {
         Message::try_from(self.clone())
     }
 }
 
-/// A trait for attempting to deserialize a `Message` from `self`. This is required to be implemented
-/// on a broker's `Delivery` type.
+/// A trait for attempting to deserialize a [`Message`] from `self`. This is required to be implemented
+/// on a broker's [`Delivery`](crate::broker::Broker::Delivery) type.
 pub trait TryDeserializeMessage {
     fn try_deserialize_message(&self) -> Result<Message, ProtocolError>;
 }
@@ -470,7 +470,7 @@ pub trait TryDeserializeMessage {
 /// Message meta data pertaining to the broker.
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct MessageProperties {
-    /// A unique ID associated with the task, usually the same as `MessageHeaders::id`.
+    /// A unique ID associated with the task, usually the same as [`MessageHeaders::id`].
     pub correlation_id: String,
 
     /// The MIME type of the body.

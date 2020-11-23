@@ -1,4 +1,4 @@
-//! The broker is an integral part of a `Celery` app. It provides the transport for messages that
+//! The broker is an integral part of a [`Celery`](crate::Celery) app. It provides the transport for messages that
 //! encode tasks.
 
 use async_trait::async_trait;
@@ -21,7 +21,7 @@ pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
 #[cfg(test)]
 pub mod mock;
 
-/// A message `Broker` is used as the transport for producing or consuming tasks.
+/// A message [`Broker`] is used as the transport for producing or consuming tasks.
 #[async_trait]
 pub trait Broker: Send + Sync + Sized {
     /// The builder type used to create the broker with a custom configuration.
@@ -33,7 +33,7 @@ pub trait Broker: Send + Sync + Sized {
     /// The error type of an unsuccessful delivery.
     type DeliveryError: std::fmt::Display + Send + Sync;
 
-    /// The stream type that the `Celery` app will consume deliveries from.
+    /// The stream type that the [`Celery`](crate::Celery) app will consume deliveries from.
     type DeliveryStream: Stream<Item = Result<Self::Delivery, Self::DeliveryError>>;
 
     /// Returns a builder for creating a broker with a custom configuration.
@@ -86,7 +86,7 @@ pub trait Broker: Send + Sync + Sized {
     async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError>;
 }
 
-/// A `BrokerBuilder` is used to create a type of broker with a custom configuration.
+/// A [`BrokerBuilder`] is used to create a type of broker with a custom configuration.
 #[async_trait]
 pub trait BrokerBuilder {
     type Broker: Broker;
@@ -144,7 +144,7 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
                         "Failed to establish connection with broker, trying again in {}s...",
                         connection_retry_delay
                     );
-                    time::delay_for(Duration::from_secs(connection_retry_delay as u64)).await;
+                    time::sleep(Duration::from_secs(connection_retry_delay as u64)).await;
                     continue;
                 }
                 return Err(err);

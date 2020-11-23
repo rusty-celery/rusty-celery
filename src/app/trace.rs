@@ -72,7 +72,7 @@ where
                 let duration = Duration::from_secs(secs as u64);
                 time::timeout(duration, self.task.run(self.task.request().params.clone()))
                     .await
-                    .unwrap_or_else(|_| Err(TaskError::TimeoutError))
+                    .unwrap_or(Err(TaskError::TimeoutError))
             }
             None => self.task.run(self.task.request().params.clone()).await,
         };
@@ -186,7 +186,7 @@ where
 
     async fn wait(&self) {
         if let Some(countdown) = self.task.request().countdown() {
-            time::delay_for(countdown).await;
+            time::sleep(countdown).await;
         }
     }
 

@@ -4,6 +4,7 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
+use std::sync::Arc;
 use tokio::select;
 
 #[cfg(unix)]
@@ -39,7 +40,7 @@ where
     task_routes: Vec<(String, String)>,
 }
 
-/// Used to create a `Celery` app with a custom configuration.
+/// Used to create a [`Celery`] app with a custom configuration.
 pub struct CeleryBuilder<Bb>
 where
     Bb: BrokerBuilder,
@@ -51,7 +52,7 @@ impl<Bb> CeleryBuilder<Bb>
 where
     Bb: BrokerBuilder,
 {
-    /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
+    /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
     pub fn new(name: &str, broker_url: &str) -> Self {
         Self {
             config: Config {
@@ -76,7 +77,7 @@ where
         }
     }
 
-    /// Set the node name of the app. Defaults to "{name}@{sys hostname}".
+    /// Set the node name of the app. Defaults to `"{name}@{sys hostname}"`.
     ///
     /// *This field should probably be named "nodename" to avoid confusion with the
     /// system hostname, but we're trying to be consistent with Python Celery.*
@@ -109,15 +110,13 @@ where
         self
     }
 
-    /// Set an app-level time limit for tasks (see
-    /// [`TaskOption::time_limit`](task/struct.TaskOptions.html#structfield.time_limit)).
+    /// Set an app-level time limit for tasks (see [`TaskOptions::time_limit`]).
     pub fn task_time_limit(mut self, task_time_limit: u32) -> Self {
         self.config.task_options.time_limit = Some(task_time_limit);
         self
     }
 
-    /// Set an app-level hard time limit for tasks (see
-    /// [`TaskOption::hard_time_limit`](task/struct.TaskOptions.html#structfield.hard_time_limit)).
+    /// Set an app-level hard time limit for tasks (see [`TaskOptions::hard_time_limit`]).
     ///
     /// *Note that this is really only for compatability with Python workers*.
     /// `time_limit` and `hard_time_limit` are treated the same by Rust workers, and if both
@@ -127,43 +126,39 @@ where
         self
     }
 
-    /// Set an app-level maximum number of retries for tasks (see
-    /// [`TaskOption::max_retries`](task/struct.TaskOptions.html#structfield.max_retries)).
+    /// Set an app-level maximum number of retries for tasks (see [`TaskOptions::max_retries`]).
     pub fn task_max_retries(mut self, task_max_retries: u32) -> Self {
         self.config.task_options.max_retries = Some(task_max_retries);
         self
     }
 
-    /// Set an app-level minimum retry delay for tasks (see
-    /// [`TaskOption::min_retry_delay`](task/struct.TaskOptions.html#structfield.min_retry_delay)).
+    /// Set an app-level minimum retry delay for tasks (see [`TaskOptions::min_retry_delay`]).
     pub fn task_min_retry_delay(mut self, task_min_retry_delay: u32) -> Self {
         self.config.task_options.min_retry_delay = Some(task_min_retry_delay);
         self
     }
 
-    /// Set an app-level maximum retry delay for tasks (see
-    /// [`TaskOption::max_retry_delay`](task/struct.TaskOptions.html#structfield.max_retry_delay)).
+    /// Set an app-level maximum retry delay for tasks (see [`TaskOptions::max_retry_delay`]).
     pub fn task_max_retry_delay(mut self, task_max_retry_delay: u32) -> Self {
         self.config.task_options.max_retry_delay = Some(task_max_retry_delay);
         self
     }
 
     /// Set whether by default `UnexpectedError`s should be retried for (see
-    /// [`TaskOption::retry_for_unexpected`](task/struct.TaskOptions.html#structfield.retry_for_unexpected)).
+    /// [`TaskOptions::retry_for_unexpected`]).
     pub fn task_retry_for_unexpected(mut self, retry_for_unexpected: bool) -> Self {
         self.config.task_options.retry_for_unexpected = Some(retry_for_unexpected);
         self
     }
 
     /// Set whether by default a task is acknowledged before or after execution (see
-    /// [`TaskOption::acks_late`](task/struct.TaskOptions.html#structfield.acks_late)).
+    /// [`TaskOptions::acks_late`]).
     pub fn acks_late(mut self, acks_late: bool) -> Self {
         self.config.task_options.acks_late = Some(acks_late);
         self
     }
 
-    /// Set default serialization format a task will have (see
-    /// [`TaskOption::content_type`](task/struct.TaskOptions.html#structfield.content_type)).
+    /// Set default serialization format a task will have (see [`TaskOptions::content_type`]).
     pub fn task_content_type(mut self, content_type: MessageContentType) -> Self {
         self.config.task_options.content_type = Some(content_type);
         self
@@ -200,7 +195,7 @@ where
         self
     }
 
-    /// Construct a `Celery` app with the current configuration.
+    /// Construct a [`Celery`] app with the current configuration.
     pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
         // Declare default queue to broker.
         let broker_builder = self
@@ -239,8 +234,8 @@ where
     }
 }
 
-/// A `Celery` app is used to produce or consume tasks asynchronously. This is the struct that is
-/// created with the [`app`](macro.app.html) macro.
+/// A [`Celery`] app is used to produce or consume tasks asynchronously. This is the struct that is
+/// created with the [`app!`] macro.
 pub struct Celery<B: Broker> {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
@@ -272,9 +267,9 @@ pub struct Celery<B: Broker> {
 
 impl<B> Celery<B>
 where
-    B: Broker,
+    B: Broker + 'static,
 {
-    /// Get a `CeleryBuilder` for creating a `Celery` app with a custom configuration.
+    /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
     pub fn builder(name: &str, broker_url: &str) -> CeleryBuilder<B::Builder> {
         CeleryBuilder::<B::Builder>::new(name, broker_url)
     }
@@ -282,29 +277,26 @@ where
     /// Print a pretty ASCII art logo and configuration settings.
     ///
     /// This is useful and fun to print from a worker application right after
-    /// the Celery app is initialized.
+    /// the [`Celery`] app is initialized.
     pub async fn display_pretty(&self) {
         // Cool ASCII logo with hostname.
         let banner = format!(
             r#"
-       ___     ___
-     .i .-'   `-. i.      ,------.                 ,--.
-   .'   `/     \'  _`.    |  .--. ',--.,--. ,---.,-'  '-.,--. ,--.
-   |,-../ o   o \.' `|    |  '--'.'|  ||  |(  .-''-.  .-' \  '  /
-(| |   /  _\ /_  \   | |) |  |\  \ '  ''  '.-'  `) |  |    \   '
- \\\  (_.'.'"`.`._)  ///  `,-----.' `----,--.---'  `--'  .-'  /
-  \\`._(..:   :..)_.'//   '  .--./ ,---. |  | ,---. ,--.--.,--. ,--.
-   \`.__\ .:-:. /__.'/    |  |    | .-. :|  || .-. :|  .--' \  '  /
-    `-i-->.___.<--i-'     '  '--'\\   --.|  |\   --.|  |     \   '
-    .'.-'/.=^=.\`-.`.      `-----' `----'`--' `----'`--'   .-'  /
-   /.'  //     \\  `.\                                     `---'
-   ||  ||       ||  ||     {}
-   \)  ||       ||  (/
-       \)       (/
+  _________________          >_<
+ /  ______________ \         | |
+/  /              \_\  ,---. | | ,---. ,--.--.,--. ,--.
+| /   .<      >.      | .-. :| || .-. :|  .--' \  '  /
+| |   (        )      \   --.| |\   --.|  |     \   /
+| |    --o--o--        `----'`-' `----'`--'   .-'  /
+| |  _/        \_   __                         `--'
+| | / \________/ \ / /
+| \    |      |   / /
+ \ \_____________/ /    {}
+  \_______________/
 "#,
             self.hostname
         );
-        println!("{}", banner.green());
+        println!("{}", banner.truecolor(255, 102, 0));
 
         // Broker.
         println!("{}", "[broker]".bold());
@@ -319,7 +311,7 @@ where
         println!();
     }
 
-    /// Send a task to a remote worker. Returns an `AsyncResult` with the task ID of the task
+    /// Send a task to a remote worker. Returns an [`AsyncResult`] with the task ID of the task
     /// if it was successfully sent.
     pub async fn send_task<T: Task>(
         &self,
@@ -477,7 +469,11 @@ where
     }
 
     /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
-    async fn handle_delivery(&self, delivery: B::Delivery, event_tx: UnboundedSender<TaskEvent>) {
+    async fn handle_delivery(
+        self: Arc<Self>,
+        delivery: B::Delivery,
+        event_tx: UnboundedSender<TaskEvent>,
+    ) {
         if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
             error!("{}", e);
         }
@@ -487,23 +483,17 @@ where
     pub async fn close(&self) -> Result<(), CeleryError> {
         Ok(self.broker.close().await?)
     }
-}
 
-// These methods require the app to have a static lifetime since they involve spawning
-// tasks that keep references to `self`.
-impl<B> Celery<B>
-where
-    B: Broker + 'static,
-{
     /// Consume tasks from the default queue.
-    pub async fn consume(&'static self) -> Result<(), CeleryError> {
-        Ok(self.consume_from(&[&self.default_queue]).await?)
+    pub async fn consume(self: &Arc<Self>) -> Result<(), CeleryError> {
+        let queues = &[&self.default_queue.clone()[..]];
+        Ok(Self::consume_from(self, queues).await?)
     }
 
     /// Consume tasks from any number of queues.
-    pub async fn consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+    pub async fn consume_from(self: &Arc<Self>, queues: &[&str]) -> Result<(), CeleryError> {
         loop {
-            let result = self._consume_from(queues).await;
+            let result = self.clone()._consume_from(queues).await;
             if !self.broker_connection_retry {
                 return result;
             }
@@ -526,7 +516,7 @@ where
             let mut reconnect_successful: bool = false;
             for _ in 0..self.broker_connection_max_retries {
                 info!("Trying to re-establish connection with broker");
-                time::delay_for(Duration::from_secs(
+                time::sleep(Duration::from_secs(
                     self.broker_connection_retry_delay as u64,
                 ))
                 .await;
@@ -553,7 +543,7 @@ where
     }
 
     #[allow(clippy::cognitive_complexity)]
-    async fn _consume_from(&'static self, queues: &[&str]) -> Result<(), CeleryError> {
+    async fn _consume_from(self: Arc<Self>, queues: &[&str]) -> Result<(), CeleryError> {
         if queues.is_empty() {
             return Err(CeleryError::NoQueueToConsume);
         }
@@ -608,7 +598,7 @@ where
                             Ok(delivery) => {
                                 let task_event_tx = task_event_tx.clone();
                                 debug!("Received delivery from {}: {:?}", queue, delivery);
-                                tokio::spawn(self.handle_delivery(delivery, task_event_tx));
+                                tokio::spawn(self.clone().handle_delivery(delivery, task_event_tx));
                             }
                             Err(e) => {
                                 error!("Deliver failed: {}", e);

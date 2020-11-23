@@ -51,6 +51,11 @@ pub enum BeatError {
     ProtocolError(#[from] ProtocolError),
 }
 
+/// Error that can occur while creating a cron schedule.
+#[derive(Error, Debug)]
+#[error("invalid cron schedule: {0}")]
+pub struct CronScheduleError(pub String);
+
 /// Errors that can occur at the task level.
 #[derive(Error, Debug)]
 pub enum TaskError {
