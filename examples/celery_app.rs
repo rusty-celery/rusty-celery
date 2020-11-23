@@ -1,5 +1,6 @@
 #![allow(non_upper_case_globals)]
 
+use celery::broker::RedisBroker;
 use anyhow::Result;
 use async_trait::async_trait;
 use celery::prelude::*;
@@ -63,7 +64,8 @@ async fn main() -> Result<()> {
     let opt = CeleryOpt::from_args();
 
     let my_app = celery::app!(
-        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        broker = RedisBroker { std::env::var("Redis_ADDR").unwrap_or_else(|_| "redis://127.0.0.1:6379/".into()) },
+        // broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [
             add,
             buggy_task,
