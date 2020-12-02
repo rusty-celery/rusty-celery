@@ -100,8 +100,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             uri,
             conn: Mutex::new(conn),
             consume_channel: RwLock::new(consume_channel),
-            produce_channel: Mutex::new(produce_channel),
-            consume_channel_write_lock: Mutex::new(0),
+            produce_channel: RwLock::new(produce_channel),
             queues: RwLock::new(queues),
             queue_declare_options: self.config.queues.clone(),
             prefetch_count: Mutex::new(self.config.prefetch_count),
@@ -127,18 +126,8 @@ pub struct AMQPBroker {
 
     /// Channel to produce messages from.
     ///
-    /// We wrap it in a Mutex not only for interior mutability, but also to avoid
-    /// race conditions when writing to the channel.
-    produce_channel: Mutex<Channel>,
-
-    /// Like the `produce_channel`, we have to be careful to avoid race conditions
-    /// when writing to the `consume_channel`, like when ack-ing or setting the
-    /// `prefetch_count` (these have to be done through the same channel that consumes
-    /// the messages). But we can't try to acquire a write lock on the `consume_channel`
-    /// itself since the worker that is consuming would always own a read lock, and so we'd
-    /// never be able to acquire a write lock for anything else. Hence we use this dummy
-    /// Mutex that we only try to acquire when writing.
-    consume_channel_write_lock: Mutex<u8>,
+    /// This is only wrapped in RwLock for interior mutability.
+    produce_channel: RwLock<Channel>,
 
     /// Mapping of queue name to Queue struct.
     ///
@@ -155,7 +144,6 @@ pub struct AMQPBroker {
 impl AMQPBroker {
     async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), BrokerError> {
         debug!("Setting prefetch count to {}", prefetch_count);
-        let _lock = self.consume_channel_write_lock.lock().await;
         self.consume_channel
             .read()
             .await
@@ -213,11 +201,9 @@ impl Broker for AMQPBroker {
     }
 
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
-        let _lock = self.consume_channel_write_lock.lock().await;
-        self.consume_channel
-            .read()
-            .await
-            .basic_ack(delivery.1.delivery_tag, BasicAckOptions::default())
+        delivery
+            .1
+            .ack(BasicAckOptions::default())
             .await
             .map_err(|e| e.into())
     }
@@ -251,7 +237,7 @@ impl Broker for AMQPBroker {
 
         let properties = delivery.1.properties.clone().with_headers(headers);
         self.produce_channel
-            .lock()
+            .read()
             .await
             .basic_publish(
                 "",
@@ -269,7 +255,7 @@ impl Broker for AMQPBroker {
         let properties = message.delivery_properties();
         debug!("Sending AMQP message with: {:?}", properties);
         self.produce_channel
-            .lock()
+            .read()
             .await
             .basic_publish(
                 "",
@@ -317,7 +303,6 @@ impl Broker for AMQPBroker {
     async fn close(&self) -> Result<(), BrokerError> {
         // 320 reply-code = "connection-forced", operator intervened.
         // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
-        let _lock = self.consume_channel_write_lock.lock().await;
         let conn = self.conn.lock().await;
         if conn.status().connected() {
             debug!("Closing connection...");
@@ -331,15 +316,13 @@ impl Broker for AMQPBroker {
         let mut conn = self.conn.lock().await;
         if !conn.status().connected() {
             debug!("Attempting to reconnect to broker");
-            let _consume_write_lock = self.consume_channel_write_lock.lock().await;
-
             let mut uri = self.uri.clone();
             uri.query.connection_timeout = Some(connection_timeout as u64);
             *conn =
                 Connection::connect_uri(uri, ConnectionProperties::default().with_tokio()).await?;
 
             let mut consume_channel = self.consume_channel.write().await;
-            let mut produce_channel = self.produce_channel.lock().await;
+            let mut produce_channel = self.produce_channel.write().await;
             let mut queues = self.queues.write().await;
 
             *consume_channel = conn.create_channel().await?;
@@ -576,62 +559,63 @@ fn amqp_value_to_u32(v: &AMQPValue) -> Option<u32> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use lapin::types::ShortString;
-//     use std::time::SystemTime;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lapin::types::ShortString;
+    use std::time::SystemTime;
 
-//     #[test]
-//     /// Tests conversion between Message -> Delivery -> Message.
-//     fn test_conversion() {
-//         let now = DateTime::<Utc>::from(SystemTime::now());
+    #[test]
+    /// Tests conversion between Message -> Delivery -> Message.
+    fn test_conversion() {
+        let now = DateTime::<Utc>::from(SystemTime::now());
 
-//         // HACK: round this to milliseconds because that will happen during conversion
-//         // from message -> delivery.
-//         let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, false);
-//         let now = DateTime::<Utc>::from(DateTime::parse_from_rfc3339(&now_str).unwrap());
+        // HACK: round this to milliseconds because that will happen during conversion
+        // from message -> delivery.
+        let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, false);
+        let now = DateTime::<Utc>::from(DateTime::parse_from_rfc3339(&now_str).unwrap());
 
-//         let message = Message {
-//             properties: MessageProperties {
-//                 correlation_id: "aaa".into(),
-//                 content_type: "application/json".into(),
-//                 content_encoding: "utf-8".into(),
-//                 reply_to: Some("bbb".into()),
-//             },
-//             headers: MessageHeaders {
-//                 id: "aaa".into(),
-//                 task: "add".into(),
-//                 lang: Some("rust".into()),
-//                 root_id: Some("aaa".into()),
-//                 parent_id: Some("000".into()),
-//                 group: Some("A".into()),
-//                 meth: Some("method_name".into()),
-//                 shadow: Some("add-these".into()),
-//                 eta: Some(now),
-//                 expires: Some(now),
-//                 retries: Some(1),
-//                 timelimit: (Some(30), Some(60)),
-//                 argsrepr: Some("(1)".into()),
-//                 kwargsrepr: Some("{'y': 2}".into()),
-//                 origin: Some("gen123@piper".into()),
-//             },
-//             raw_body: vec![],
-//         };
+        let message = Message {
+            properties: MessageProperties {
+                correlation_id: "aaa".into(),
+                content_type: "application/json".into(),
+                content_encoding: "utf-8".into(),
+                reply_to: Some("bbb".into()),
+            },
+            headers: MessageHeaders {
+                id: "aaa".into(),
+                task: "add".into(),
+                lang: Some("rust".into()),
+                root_id: Some("aaa".into()),
+                parent_id: Some("000".into()),
+                group: Some("A".into()),
+                meth: Some("method_name".into()),
+                shadow: Some("add-these".into()),
+                eta: Some(now),
+                expires: Some(now),
+                retries: Some(1),
+                timelimit: (Some(30), Some(60)),
+                argsrepr: Some("(1)".into()),
+                kwargsrepr: Some("{'y': 2}".into()),
+                origin: Some("gen123@piper".into()),
+            },
+            raw_body: vec![],
+        };
 
-//         let delivery = Delivery {
-//             delivery_tag: 0,
-//             exchange: ShortString::from(""),
-//             routing_key: ShortString::from("celery"),
-//             redelivered: false,
-//             properties: message.delivery_properties(),
-//             data: vec![],
-//         };
+        let delivery = Delivery {
+            delivery_tag: 0,
+            exchange: ShortString::from(""),
+            routing_key: ShortString::from("celery"),
+            redelivered: false,
+            properties: message.delivery_properties(),
+            data: vec![],
+            acker: Default::default(),
+        };
 
-//         let message2 = delivery.try_deserialize_message();
-//         assert!(message2.is_ok());
+        let message2 = delivery.try_deserialize_message();
+        assert!(message2.is_ok());
 
-//         let message2 = message2.unwrap();
-//         assert_eq!(message, message2);
-//     }
-// }
+        let message2 = message2.unwrap();
+        assert_eq!(message, message2);
+    }
+}
