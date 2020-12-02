@@ -626,6 +626,7 @@ mod tests {
             redelivered: false,
             properties: message.delivery_properties(),
             data: vec![],
+            acker: Default::default(),
         };
 
         let message2 = delivery.try_deserialize_message();
