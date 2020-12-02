@@ -100,7 +100,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             uri,
             conn: Mutex::new(conn),
             consume_channel: RwLock::new(consume_channel),
-            produce_channel: Mutex::new(produce_channel),
+            produce_channel: RwLock::new(produce_channel),
             queues: RwLock::new(queues),
             queue_declare_options: self.config.queues.clone(),
             prefetch_count: Mutex::new(self.config.prefetch_count),
@@ -126,9 +126,8 @@ pub struct AMQPBroker {
 
     /// Channel to produce messages from.
     ///
-    /// We wrap it in a Mutex not only for interior mutability, but also to avoid
-    /// race conditions when writing to the channel.
-    produce_channel: Mutex<Channel>,
+    /// This is only wrapped in RwLock for interior mutability.
+    produce_channel: RwLock<Channel>,
 
     /// Mapping of queue name to Queue struct.
     ///
@@ -238,7 +237,7 @@ impl Broker for AMQPBroker {
 
         let properties = delivery.1.properties.clone().with_headers(headers);
         self.produce_channel
-            .lock()
+            .read()
             .await
             .basic_publish(
                 "",
@@ -256,7 +255,7 @@ impl Broker for AMQPBroker {
         let properties = message.delivery_properties();
         debug!("Sending AMQP message with: {:?}", properties);
         self.produce_channel
-            .lock()
+            .read()
             .await
             .basic_publish(
                 "",
@@ -323,7 +322,7 @@ impl Broker for AMQPBroker {
                 Connection::connect_uri(uri, ConnectionProperties::default().with_tokio()).await?;
 
             let mut consume_channel = self.consume_channel.write().await;
-            let mut produce_channel = self.produce_channel.lock().await;
+            let mut produce_channel = self.produce_channel.write().await;
             let mut queues = self.queues.write().await;
 
             *consume_channel = conn.create_channel().await?;
