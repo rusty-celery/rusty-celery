@@ -213,11 +213,9 @@ impl Broker for AMQPBroker {
     }
 
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
-        let _lock = self.consume_channel_write_lock.lock().await;
-        self.consume_channel
-            .read()
-            .await
-            .basic_ack(delivery.1.delivery_tag, BasicAckOptions::default())
+        delivery
+            .1
+            .ack(BasicAckOptions::default())
             .await
             .map_err(|e| e.into())
     }
