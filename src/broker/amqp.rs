@@ -101,7 +101,6 @@ impl BrokerBuilder for AMQPBrokerBuilder {
             conn: Mutex::new(conn),
             consume_channel: RwLock::new(consume_channel),
             produce_channel: Mutex::new(produce_channel),
-            consume_channel_write_lock: Mutex::new(0),
             queues: RwLock::new(queues),
             queue_declare_options: self.config.queues.clone(),
             prefetch_count: Mutex::new(self.config.prefetch_count),
@@ -131,15 +130,6 @@ pub struct AMQPBroker {
     /// race conditions when writing to the channel.
     produce_channel: Mutex<Channel>,
 
-    /// Like the `produce_channel`, we have to be careful to avoid race conditions
-    /// when writing to the `consume_channel`, like when ack-ing or setting the
-    /// `prefetch_count` (these have to be done through the same channel that consumes
-    /// the messages). But we can't try to acquire a write lock on the `consume_channel`
-    /// itself since the worker that is consuming would always own a read lock, and so we'd
-    /// never be able to acquire a write lock for anything else. Hence we use this dummy
-    /// Mutex that we only try to acquire when writing.
-    consume_channel_write_lock: Mutex<u8>,
-
     /// Mapping of queue name to Queue struct.
     ///
     /// This is only wrapped in RwLock for interior mutability.
@@ -155,7 +145,6 @@ pub struct AMQPBroker {
 impl AMQPBroker {
     async fn set_prefetch_count(&self, prefetch_count: u16) -> Result<(), BrokerError> {
         debug!("Setting prefetch count to {}", prefetch_count);
-        let _lock = self.consume_channel_write_lock.lock().await;
         self.consume_channel
             .read()
             .await
@@ -315,7 +304,6 @@ impl Broker for AMQPBroker {
     async fn close(&self) -> Result<(), BrokerError> {
         // 320 reply-code = "connection-forced", operator intervened.
         // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
-        let _lock = self.consume_channel_write_lock.lock().await;
         let conn = self.conn.lock().await;
         if conn.status().connected() {
             debug!("Closing connection...");
@@ -329,8 +317,6 @@ impl Broker for AMQPBroker {
         let mut conn = self.conn.lock().await;
         if !conn.status().connected() {
             debug!("Attempting to reconnect to broker");
-            let _consume_write_lock = self.consume_channel_write_lock.lock().await;
-
             let mut uri = self.uri.clone();
             uri.query.connection_timeout = Some(connection_timeout as u64);
             *conn =
