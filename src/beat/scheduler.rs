@@ -4,6 +4,8 @@ use log::{debug, info};
 use std::collections::BinaryHeap;
 use std::time::{Duration, SystemTime};
 
+const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_millis(500);
+
 /// A [`Scheduler`] is in charge of executing scheduled tasks when they are due.
 ///
 /// It is somehow similar to a future, in the sense that by itself it does nothing,
@@ -26,7 +28,7 @@ where
     pub fn new(broker: B) -> Scheduler<B> {
         Scheduler {
             heap: BinaryHeap::new(),
-            default_sleep_interval: Duration::from_millis(500),
+            default_sleep_interval: DEFAULT_SLEEP_INTERVAL,
             broker,
         }
     }
