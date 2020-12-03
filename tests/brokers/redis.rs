@@ -96,6 +96,9 @@ async fn test_redis_broker() -> Result<()> {
     // Try closing connection and then reconnecting.
     println!("Close broker");
     my_app.broker.close().await.unwrap();
+    // Assert connection actually closed.
+    let res = my_app.send_task(add::new(1, 2)).await;
+    assert!(res.is_err());
     println!("reconnect");
     my_app.broker.reconnect(5).await.unwrap();
 

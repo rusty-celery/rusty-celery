@@ -347,6 +347,8 @@ impl Broker for RedisBroker {
 
     /// Clone all channels and connection.
     async fn close(&self) -> Result<(), BrokerError> {
+        let mut conn = self.manager.clone();
+        redis::cmd("QUIT").query_async(&mut conn).await?;
         Ok(())
     }
 
