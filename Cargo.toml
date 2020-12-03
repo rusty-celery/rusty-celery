@@ -45,7 +45,11 @@ colored = "2"
 once_cell = { version = "1.3.1" }
 globset = "0.4"
 hostname = "0.3.0"
-redis = { version = "0.17.0", features=["connection-manager"] }
+
+[dependencies.redis]
+git = "https://github.com/mitsuhiko/redis-rs.git"
+rev="8088a59"
+features=["connection-manager", "tokio-comp"]
 
 [dev-dependencies]
 rmp-serde = "0.14"
