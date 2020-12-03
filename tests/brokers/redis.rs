@@ -1,5 +1,6 @@
 #![allow(non_upper_case_globals)]
-
+use anyhow::Result;
+use celery::broker::RedisBroker;
 use async_trait::async_trait;
 use celery::broker::Broker;
 use celery::error::TaskError;
@@ -9,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::time::{self, Duration};
+
 
 static SUCCESSES: Lazy<Mutex<HashMap<String, Result<i32, TaskError>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -64,11 +66,11 @@ impl Task for add {
 }
 
 #[tokio::test]
-async fn test_redis_broker() {
+async fn test_redis_broker() -> Result<()> {
     println!("Starting broker");
     // -------- this hangs ---------
     let my_app = celery::app!(
-        broker = Redis { "redis://127.0.0.1:6379" },
+        broker = RedisBroker { std::env::var("REDIS_ADDR").unwrap_or_else(|_| "redis://127.0.0.1:6379/".into()) },
         tasks = [add],
         task_routes = [
             "add" => "celery",
@@ -76,60 +78,61 @@ async fn test_redis_broker() {
             "ml.*" => "ml"
         ],
         prefetch_count = 2
-    );
+    ).await?;
     println!("Initialized broker");
     // ---------------------xxx------------------------
     // -------------- this does NOT hang ----------------
-    tokio::spawn(async {
-        let my_app = celery::app!(
-            broker = Redis { "redis://127.0.0.1:6379" },
-            tasks = [add],
-            task_routes = [
-                "add" => "celery",
-                "backend.*" => "backend",
-                "ml.*" => "ml"
-            ],
-            prefetch_count = 2
-        );
-        println!("Initialized broker");
-    });
+    // tokio::spawn(async {
+    //     let my_app = celery::app!(
+    //         broker = Redis { "redis://127.0.0.1:6379" },
+    //         tasks = [add],
+    //         task_routes = [
+    //             "add" => "celery",
+    //             "backend.*" => "backend",
+    //             "ml.*" => "ml"
+    //         ],
+    //         prefetch_count = 2
+    //     );
+    //     println!("Initialized broker");
+    // });
     // ---------------------xxx------------------------
     // Send task to queue.
-    // let send_result = my_app.send_task(add::new(1, 2)).await;
-    // assert!(send_result.is_ok());
-    // println!("Sent task");
-    // let task_id_1 = send_result.unwrap().task_id;
+    let send_result = my_app.send_task(add::new(1, 2)).await;
+    assert!(send_result.is_ok());
+    println!("Sent task");
+    let task_id_1 = send_result.unwrap().task_id;
 
-    // // Consume task from queue. We wrap this in `time::timeout(...)` because otherwise
-    // // `consume` will keep waiting for more tasks indefinitely.
-    // println!("Awaiting result");
-    // let result = time::timeout(Duration::from_secs(1), my_app.consume()).await;
+    // Consume task from queue. We wrap this in `time::timeout(...)` because otherwise
+    // `consume` will keep waiting for more tasks indefinitely.
+    println!("Awaiting result");
+    let result = time::timeout(Duration::from_secs(1), my_app.consume()).await;
 
-    // // `result` should be a timeout error, otherwise `consume` ended early which means
-    // // there must have been an error there.
-    // assert!(result.is_err());
+    // `result` should be a timeout error, otherwise `consume` ended early which means
+    // there must have been an error there.
+    assert!(result.is_err());
 
-    // // Try closing connection and then reconnecting.
-    // println!("Close broker");
-    // my_app.broker.close().await.unwrap();
-    // println!("reconnect");
-    // my_app.broker.reconnect(5).await.unwrap();
+    // Try closing connection and then reconnecting.
+    println!("Close broker");
+    my_app.broker.close().await.unwrap();
+    println!("reconnect");
+    my_app.broker.reconnect(5).await.unwrap();
 
-    // // Send another task to the queue.
-    // let send_result = my_app.send_task(add::new(2, 2)).await;
-    // assert!(send_result.is_ok());
-    // let task_id_2 = send_result.unwrap().task_id;
+    // Send another task to the queue.
+    let send_result = my_app.send_task(add::new(2, 2)).await;
+    assert!(send_result.is_ok());
+    let task_id_2 = send_result.unwrap().task_id;
 
-    // // Consume again.
-    // let result = time::timeout(Duration::from_secs(1), my_app.consume()).await;
-    // assert!(result.is_err());
+    // Consume again.
+    let result = time::timeout(Duration::from_secs(1), my_app.consume()).await;
+    assert!(result.is_err());
 
-    // let successes = SUCCESSES.lock().unwrap();
+    let successes = SUCCESSES.lock().unwrap();
 
-    // // Check that each "add" task succeeded.
-    // assert!(!successes.is_empty());
-    // assert!(successes[&task_id_1].is_ok());
-    // assert_eq!(successes[&task_id_1].as_ref().unwrap(), &3);
-    // assert!(successes[&task_id_2].is_ok());
-    // assert_eq!(successes[&task_id_2].as_ref().unwrap(), &4);
+    // Check that each "add" task succeeded.
+    assert!(!successes.is_empty());
+    assert!(successes[&task_id_1].is_ok());
+    assert_eq!(successes[&task_id_1].as_ref().unwrap(), &3);
+    assert!(successes[&task_id_2].is_ok());
+    assert_eq!(successes[&task_id_2].as_ref().unwrap(), &4);
+    Ok(())
 }
