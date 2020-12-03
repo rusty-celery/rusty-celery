@@ -68,7 +68,6 @@ impl Task for add {
 #[tokio::test]
 async fn test_redis_broker() -> Result<()> {
     println!("Starting broker");
-    // -------- this hangs ---------
     let my_app = celery::app!(
         broker = RedisBroker { std::env::var("REDIS_ADDR").unwrap_or_else(|_| "redis://127.0.0.1:6379/".into()) },
         tasks = [add],
@@ -80,22 +79,6 @@ async fn test_redis_broker() -> Result<()> {
         prefetch_count = 2
     ).await?;
     println!("Initialized broker");
-    // ---------------------xxx------------------------
-    // -------------- this does NOT hang ----------------
-    // tokio::spawn(async {
-    //     let my_app = celery::app!(
-    //         broker = Redis { "redis://127.0.0.1:6379" },
-    //         tasks = [add],
-    //         task_routes = [
-    //             "add" => "celery",
-    //             "backend.*" => "backend",
-    //             "ml.*" => "ml"
-    //         ],
-    //         prefetch_count = 2
-    //     );
-    //     println!("Initialized broker");
-    // });
-    // ---------------------xxx------------------------
     // Send task to queue.
     let send_result = my_app.send_task(add::new(1, 2)).await;
     assert!(send_result.is_ok());
