@@ -1,8 +1,8 @@
 #![allow(non_upper_case_globals)]
 use anyhow::Result;
-use celery::broker::RedisBroker;
 use async_trait::async_trait;
 use celery::broker::Broker;
+use celery::broker::RedisBroker;
 use celery::error::TaskError;
 use celery::task::{Request, Signature, Task, TaskOptions};
 use once_cell::sync::Lazy;
@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::time::{self, Duration};
-
 
 static SUCCESSES: Lazy<Mutex<HashMap<String, Result<i32, TaskError>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
