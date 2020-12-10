@@ -28,7 +28,7 @@ chrono = "0.4"
 tokio = { version = "0.3.4", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-rmp-serde = { version = "0.14", optional = true }
+rmp-serde = { version = "0.15", optional = true }
 rmpv = { version = "0.4.5", optional = true, features = ["with-serde"] }
 serde_yaml = { version = "0.8", optional = true }
 serde-pickle = { version = "0.6", optional = true }
@@ -47,7 +47,7 @@ globset = "0.4"
 hostname = "0.3.0"
 
 [dev-dependencies]
-rmp-serde = "0.14"
+rmp-serde = "0.15"
 rmpv = { version = "0.4.5", features = ["with-serde"] }
 serde_yaml = "0.8"
 serde-pickle = "0.6"
