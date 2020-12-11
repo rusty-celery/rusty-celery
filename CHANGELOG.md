@@ -74,7 +74,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Celery::consume` to take `&Arc<Self>` instead of a static reference to `self`.
 - Now using `tokio-amqp` internally with `lapin`.
 - Drop explicit dependency on amq-protocol.
-- Default celery-app example runs on redis broker.
 
 ### Fixed
 

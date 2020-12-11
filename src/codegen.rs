@@ -152,19 +152,6 @@ macro_rules! app {
             $( $x = $y, )*
         );
     };
-    (
-        $(broker =)? Redis { $broker_url:expr },
-        $(tasks =)? [ $( $t:ty ),* $(,)? ],
-        $(task_routes =)? [ $( $pattern:expr => $queue:expr ),* $(,)? ],
-        $( $x:ident = $y:expr ),* $(,)?
-    ) => {
-        $crate::__app_internal!(
-            $crate::broker::RedisBroker { $broker_url },
-            [ $( $t ),* ],
-            [ $( $pattern => $queue ),* ],
-            $( $x = $y, )*
-        );
-    };
 }
 
 // TODO add support for scheduling tasks here.
