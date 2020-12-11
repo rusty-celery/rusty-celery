@@ -227,17 +227,14 @@ impl Stream for Consumer {
         // - get from queue
         // - add delivery tag in processing unacked_index_key sortedlist
         // - add delivery tag, msg in processing hashset unacked_key
+        if self.pending_tasks.load(Ordering::SeqCst) >= self.prefetch_count.load(Ordering::SeqCst)
+            && self.prefetch_count.load(Ordering::SeqCst) > 0
+        {
+            debug!("Pending tasks limit reached");
+            return Poll::Pending;
+        }
         let mut polled_pop = if self.polled_pop.is_none() {
-            let send_waker = if self.pending_tasks.load(Ordering::SeqCst)
-                >= self.prefetch_count.load(Ordering::SeqCst)
-            {
-                debug!("Pending tasks filled prefetch limit");
-                let sender = self.waker_tx.clone();
-                Some((sender, cx.waker().clone()))
-            } else {
-                None
-            };
-            Box::pin(self.channel.clone().fetch_task(send_waker))
+            Box::pin(self.channel.clone().fetch_task(None))
         } else {
             self.polled_pop.take().unwrap()
         };
@@ -319,7 +316,7 @@ impl Broker for RedisBroker {
     ) -> Result<(), BrokerError> {
         let (channel, delivery_msg) = delivery;
         channel.resend_task(delivery_msg).await?;
-        self.ack(delivery).await?;
+        // self.ack(delivery).await?;
         Ok(())
     }
 
