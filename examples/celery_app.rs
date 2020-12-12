@@ -63,6 +63,7 @@ async fn main() -> Result<()> {
     let opt = CeleryOpt::from_args();
 
     let my_app = celery::app!(
+        // broker = RedisBroker { std::env::var("REDIS_ADDR").unwrap_or_else(|_| "redis://127.0.0.1:6379/".into()) },
         broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
         tasks = [
             add,
@@ -101,6 +102,12 @@ async fn main() -> Result<()> {
                 my_app
                     .send_task(long_running_task::new(Some(3)).with_time_limit(2))
                     .await?;
+                // Send the long running task that will succeed.
+                for _ in 0..100 {
+                    my_app
+                        .send_task(long_running_task::new(Some(10)).with_time_limit(20))
+                        .await?;
+                }
             } else {
                 for task in tasks {
                     match task.as_str() {
@@ -118,6 +125,5 @@ async fn main() -> Result<()> {
     };
 
     my_app.close().await?;
-
     Ok(())
 }

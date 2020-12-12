@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Redis broker support.
 - Added the `max_sleep_duration` property on the `Beat` which can be used to ensure that
   the scheduler backend is called regularly (which may be necessary for custom backends).
 
@@ -72,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Celery apps no longer need to have static lifetimes. To remove this constraint, we changed
   `Celery::consume` to take `&Arc<Self>` instead of a static reference to `self`.
 - Now using `tokio-amqp` internally with `lapin`.
-- Drop explicit dependency on amq-protocol
+- Drop explicit dependency on amq-protocol.
 
 ### Fixed
 

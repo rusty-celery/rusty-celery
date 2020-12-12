@@ -3,6 +3,8 @@ use async_trait::async_trait;
 use super::*;
 use crate::error::TaskError;
 use crate::task::{Request, Task, TaskOptions};
+use chrono::{DateTime, SecondsFormat, Utc};
+use std::time::SystemTime;
 
 #[derive(Clone, Serialize, Deserialize)]
 struct TestTaskParams {
@@ -153,4 +155,74 @@ fn test_msgpack_deserialize_body_with_args() {
     };
     let body = message.body::<TestTask>().unwrap();
     assert_eq!(body.1.a, 4);
+}
+
+#[test]
+/// Tests message serialization.
+fn test_serialization() {
+    let now = DateTime::<Utc>::from(SystemTime::now());
+    // HACK: round this to milliseconds because that will happen during conversion
+    // from message -> delivery.
+    let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, false);
+    let now = DateTime::<Utc>::from(DateTime::parse_from_rfc3339(&now_str).unwrap());
+
+    let message = Message {
+        properties: MessageProperties {
+            correlation_id: "aaa".into(),
+            content_type: "application/json".into(),
+            content_encoding: "utf-8".into(),
+            reply_to: Some("bbb".into()),
+        },
+        headers: MessageHeaders {
+            id: "aaa".into(),
+            task: "add".into(),
+            lang: Some("rust".into()),
+            root_id: Some("aaa".into()),
+            parent_id: Some("000".into()),
+            group: Some("A".into()),
+            meth: Some("method_name".into()),
+            shadow: Some("add-these".into()),
+            eta: Some(now),
+            expires: Some(now),
+            retries: Some(1),
+            timelimit: (Some(30), Some(60)),
+            argsrepr: Some("(1)".into()),
+            kwargsrepr: Some("{'y': 2}".into()),
+            origin: Some("gen123@piper".into()),
+        },
+        raw_body: vec![],
+    };
+    let ser_msg_result = message.json_serialized();
+    assert!(ser_msg_result.is_ok());
+    let ser_msg = ser_msg_result.unwrap();
+    let ser_msg_json: serde_json::Value = serde_json::from_slice(&ser_msg[..]).unwrap();
+    assert_eq!(ser_msg_json["content_encoding"], String::from("utf-8"));
+    assert_eq!(
+        ser_msg_json["content_type"],
+        String::from("application/json")
+    );
+    assert_eq!(ser_msg_json["correlation_id"], String::from("aaa"));
+    assert_eq!(ser_msg_json["reply_to"], String::from("bbb"));
+    assert_ne!(ser_msg_json["delivery_tag"], "");
+    assert_eq!(ser_msg_json["headers"]["id"], String::from("aaa"));
+    assert_eq!(ser_msg_json["headers"]["task"], String::from("add"));
+    assert_eq!(ser_msg_json["headers"]["lang"], String::from("rust"));
+    assert_eq!(ser_msg_json["headers"]["root_id"], String::from("aaa"));
+    assert_eq!(ser_msg_json["headers"]["parent_id"], String::from("000"));
+    assert_eq!(ser_msg_json["headers"]["group"], String::from("A"));
+    assert_eq!(ser_msg_json["headers"]["meth"], String::from("method_name"));
+    assert_eq!(ser_msg_json["headers"]["shadow"], String::from("add-these"));
+    assert_eq!(ser_msg_json["headers"]["retries"], 1);
+    assert_eq!(ser_msg_json["headers"]["eta"], now_str);
+    assert_eq!(ser_msg_json["headers"]["expires"], now_str);
+    assert_eq!(ser_msg_json["headers"]["timelimit"][0], 30);
+    assert_eq!(ser_msg_json["headers"]["timelimit"][1], 60);
+    assert_eq!(ser_msg_json["headers"]["argsrepr"], "(1)");
+    assert_eq!(ser_msg_json["headers"]["kwargsrepr"], "{'y': 2}");
+    assert_eq!(ser_msg_json["headers"]["origin"], "gen123@piper");
+    let body = serde_json::to_vec(&ser_msg_json["body"]).unwrap();
+    // match "[]"
+    assert_eq!(body.len(), 2);
+    assert_eq!(body[0], 91);
+    assert_eq!(body[1], 93);
 }
