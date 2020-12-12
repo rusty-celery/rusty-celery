@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [v0.4.0-rc6](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rc6) - 2020-12-11
-
 ### Added
 
 - 🚀🚀 Redis broker support 🚀🚀
