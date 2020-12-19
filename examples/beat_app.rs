@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use anyhow::Result;
-use celery::beat::{CronSchedule, RegularSchedule};
+use celery::beat::{CronSchedule, DeltaSchedule};
 use celery::broker::AMQPBroker;
 use celery::task::TaskResult;
 use env_logger::Env;
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     ).await?;
 
     // Add scheduled tasks to the default `Beat` and start it.
-    let add_schedule = RegularSchedule::new(Duration::from_secs(5));
+    let add_schedule = DeltaSchedule::new(Duration::from_secs(5));
     beat.schedule_task(add::new(1, 2), add_schedule);
 
     // The long running task will run every two minutes.
