@@ -39,7 +39,7 @@ tokio-amqp = "0.3.0"
 log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
 uuid = { version = "0.8", features = ["v4"]}
-rand = "0.7"
+rand = "0.8"
 celery-codegen = { version = "0.4.0-rc6", path = "./celery-codegen", optional = true }
 colored = "2"
 once_cell = { version = "1.3.1" }
