@@ -565,8 +565,8 @@ where
                         .consume(
                             queue,
                             Box::new(move |e| {
-                                if broker_error_tx.clone().try_send(e).is_err() {
-                                    error!("Failed to send broker error event");
+                                if let Err(err) = broker_error_tx.clone().try_send(e) {
+                                    error!("Failed to send broker error event: {:?}", err);
                                 };
                             }),
                         )

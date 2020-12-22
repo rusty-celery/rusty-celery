@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the `max_sleep_duration` property on the `Beat` which can be used to ensure that
   the scheduler backend is called regularly (which may be necessary for custom backends).
 
+### Fixed
+
+- Fixed a bug with `AMQPBroker::close()` that would result in an error with `lapin`.
+
 ## [v0.4.0-rc5](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rc5) - 2020-11-19
 
 ### Added

@@ -301,13 +301,22 @@ impl Broker for AMQPBroker {
     }
 
     async fn close(&self) -> Result<(), BrokerError> {
-        // 320 reply-code = "connection-forced", operator intervened.
-        // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
+        let consume_channel = self.consume_channel.write().await;
+        let produce_channel = self.produce_channel.write().await;
         let conn = self.conn.lock().await;
+
         if conn.status().connected() {
-            debug!("Closing connection...");
+            debug!("Closing all channels and connections...");
+            consume_channel
+                .basic_cancel("", lapin::options::BasicCancelOptions::default())
+                .await?;
+            // 320 reply-code = "connection-forced", operator intervened.
+            // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
+            consume_channel.close(320, "").await?;
+            produce_channel.close(320, "").await?;
             conn.close(320, "").await?;
         }
+
         Ok(())
     }
 
