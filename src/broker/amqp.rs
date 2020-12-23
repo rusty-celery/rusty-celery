@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
 use lapin::message::Delivery;
 use lapin::options::{
-    BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
+    BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions,
+    QueueDeclareOptions,
 };
 use lapin::types::{AMQPValue, FieldArray, FieldTable};
 use lapin::uri::{self, AMQPUri};
@@ -177,6 +178,7 @@ impl Broker for AMQPBroker {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
+        consumer_tag: &str,
         error_handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError> {
         self.conn
@@ -192,12 +194,20 @@ impl Broker for AMQPBroker {
             .await
             .basic_consume(
                 queue.name().as_str(),
-                "",
+                consumer_tag,
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )
             .await
             .map_err(|e| e.into())
+    }
+
+    async fn cancel(&self, consumer_tag: &str) -> Result<(), BrokerError> {
+        let consume_channel = self.consume_channel.write().await;
+        consume_channel
+            .basic_cancel(consumer_tag, BasicCancelOptions::default())
+            .await?;
+        Ok(())
     }
 
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
@@ -307,12 +317,11 @@ impl Broker for AMQPBroker {
 
         if conn.status().connected() {
             debug!("Closing all channels and connections...");
-            consume_channel
-                .basic_cancel("", lapin::options::BasicCancelOptions::default())
-                .await?;
             // 320 reply-code = "connection-forced", operator intervened.
             // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
+            debug!("Closing consumer channel...");
             consume_channel.close(320, "").await?;
+            debug!("Closing producer channel...");
             produce_channel.close(320, "").await?;
             conn.close(320, "").await?;
         }

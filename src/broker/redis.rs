@@ -280,6 +280,7 @@ impl Broker for RedisBroker {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
+        _consumer_tag: &str,
         error_handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError> {
         let consumer = Consumer {
@@ -294,6 +295,10 @@ impl Broker for RedisBroker {
             waker_tx: self.waker_tx.clone(),
         };
         Ok(consumer)
+    }
+
+    async fn cancel(&self, _consumer_tag: &str) -> Result<(), BrokerError> {
+        Ok(())
     }
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.

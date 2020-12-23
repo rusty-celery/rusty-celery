@@ -55,8 +55,12 @@ pub trait Broker: Send + Sync + Sized {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
+        consumer_tag: &str,
         error_handler: Box<E>,
     ) -> Result<Self::DeliveryStream, BrokerError>;
+
+    /// Cancel the consumer with the given `consumer_tag`.
+    async fn cancel(&self, consumer_tag: &str) -> Result<(), BrokerError>;
 
     /// Acknowledge a [`Delivery`](trait.Broker.html#associatedtype.Delivery) for deletion.
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError>;
