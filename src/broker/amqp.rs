@@ -315,11 +315,17 @@ impl Broker for AMQPBroker {
         let produce_channel = self.produce_channel.write().await;
         let conn = self.conn.lock().await;
 
-        if conn.status().connected() {
+        if consume_channel.status().connected() {
             debug!("Closing consumer channel...");
             consume_channel.close(200, "OK").await?;
+        }
+
+        if produce_channel.status().connected() {
             debug!("Closing producer channel...");
             produce_channel.close(200, "OK").await?;
+        }
+
+        if conn.status().connected() {
             debug!("Closing connection...");
             conn.close(200, "OK").await?;
         }
