@@ -645,6 +645,8 @@ where
             self.broker.cancel(&consumer_tag).await?;
         }
 
+        drop(stream_map);
+
         if pending_tasks > 0 {
             // Warm shutdown loop. When there are still pendings tasks we wait for them
             // to finish. We get updates about pending tasks through the `task_event_rx` channel.
