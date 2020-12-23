@@ -572,9 +572,7 @@ where
                             queue,
                             &consumer_tag,
                             Box::new(move |e| {
-                                if let Err(err) = broker_error_tx.clone().try_send(e) {
-                                    error!("Failed to send broker error event: {:?}", err);
-                                };
+                                broker_error_tx.clone().try_send(e).ok();
                             }),
                         )
                         .await?,
@@ -644,8 +642,6 @@ where
             debug!("Cancelling consumer {}", consumer_tag);
             self.broker.cancel(&consumer_tag).await?;
         }
-
-        drop(stream_map);
 
         if pending_tasks > 0 {
             // Warm shutdown loop. When there are still pendings tasks we wait for them
