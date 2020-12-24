@@ -1,7 +1,7 @@
 //! This module contains the definition of application-provided schedules.
 //!
 //! These structs have not changed a lot compared to Python: in Python there are three
-//! different types of schedules: `schedule` (corresponding to [`RegularSchedule`]),
+//! different types of schedules: `schedule` (corresponding to [`DeltaSchedule`]),
 //! `crontab` (corresponding to [`CronSchedule`]), `solar` (not implemented yet).
 use std::time::{Duration, SystemTime};
 
@@ -18,20 +18,20 @@ pub trait Schedule {
 }
 
 /// A schedule that can be used to execute tasks at regular intervals.
-pub struct RegularSchedule {
+pub struct DeltaSchedule {
     interval: Duration,
 }
 
-impl RegularSchedule {
-    /// Create a new regular schedule which can be used to execute a task
+impl DeltaSchedule {
+    /// Create a new time delta schedule which can be used to execute a task
     /// forever, starting immediately and with the given `interval`
     /// between subsequent executions.
-    pub fn new(interval: Duration) -> RegularSchedule {
-        RegularSchedule { interval }
+    pub fn new(interval: Duration) -> DeltaSchedule {
+        DeltaSchedule { interval }
     }
 }
 
-impl Schedule for RegularSchedule {
+impl Schedule for DeltaSchedule {
     fn next_call_at(&self, last_run_at: Option<SystemTime>) -> Option<SystemTime> {
         match last_run_at {
             Some(last_run_at) => Some(
