@@ -25,7 +25,7 @@ name = "celery_app"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-tokio = { version = "0.3.6", features = ["full"]}
+tokio = { version = "1.0.0", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 rmp-serde = { version = "0.15", optional = true }
