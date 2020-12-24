@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 🚀🚀 Redis broker support 🚀🚀
 - Added the `max_sleep_duration` property on the `Beat` which can be used to ensure that
   the scheduler backend is called regularly (which may be necessary for custom backends).
+- Added a method `Broker::cancel` to cancel an existing consumer.
+- Changed `Ok` variant type of the the return type of `Broker::consume`. This is now a tuple that includes a unique
+  consumer tag that can then be passed to `Broker::cancel` to cancel the corresponding consumer.
 
 ### Fixed
 
