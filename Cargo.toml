@@ -25,7 +25,7 @@ name = "celery_app"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-tokio = { version = "0.3.4", features = ["full"]}
+tokio = { version = "0.3.6", features = ["full"]}
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 rmp-serde = { version = "0.15", optional = true }
@@ -34,8 +34,8 @@ serde_yaml = { version = "0.8", optional = true }
 serde-pickle = { version = "0.6", optional = true }
 thiserror = "1.0"
 async-trait = "0.1"
-lapin = "1.2.7"
-tokio-amqp = "0.3.0"
+lapin = "1.6.5"
+tokio-amqp = "0.3.1"
 log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
 uuid = { version = "0.8", features = ["v4"]}
