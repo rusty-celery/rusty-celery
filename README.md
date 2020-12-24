@@ -10,9 +10,9 @@
 </div>
 <p align="center">
     <a href="https://github.com/rusty-celery/rusty-celery/actions">
-        <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg?event=push&branch=master">
+        <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg?event=push&branch=main">
     </a>
-    <a href="https://github.com/rusty-celery/rusty-celery/blob/master/LICENSE">
+    <a href="https://github.com/rusty-celery/rusty-celery/blob/main/LICENSE">
         <img alt="License" src="https://img.shields.io/github/license/rusty-celery/rusty-celery.svg?color=blue&cachedrop">
     </a>
     <a href="https://crates.io/crates/celery">
@@ -28,7 +28,7 @@
 <br/>
 
 
-We welcome contributions from everyone regardless of your experience level with Rust. For complete beginners, see [HACKING_QUICKSTART.md](https://github.com/rusty-celery/rusty-celery/blob/master/HACKING_QUICKSTART.md).
+We welcome contributions from everyone regardless of your experience level with Rust. For complete beginners, see [HACKING_QUICKSTART.md](https://github.com/rusty-celery/rusty-celery/blob/main/HACKING_QUICKSTART.md).
 
 If you already know the basics of Rust but are new to Celery, check out the [Rusty Celery Book](https://rusty-celery.github.io/) or the original Python [Celery Project](http://www.celeryproject.org/).
 
@@ -72,11 +72,11 @@ my_app.consume().await?;
 
 ## Examples
 
-The [`examples/`](https://github.com/rusty-celery/rusty-celery/tree/master/examples) directory contains:
+The [`examples/`](https://github.com/rusty-celery/rusty-celery/tree/main/examples) directory contains:
 
-- a simple Celery app implemented in Rust using an AMQP broker ([`examples/celery_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.rs)),
-- the same Celery app implemented in Python ([`examples/celery_app.py`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/celery_app.py)),
-- and a Beat app implemented in Rust ([`examples/beat_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/master/examples/beat_app.rs)).
+- a simple Celery app implemented in Rust using an AMQP broker ([`examples/celery_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/main/examples/celery_app.rs)),
+- the same Celery app implemented in Python ([`examples/celery_app.py`](https://github.com/rusty-celery/rusty-celery/blob/main/examples/celery_app.py)),
+- and a Beat app implemented in Rust ([`examples/beat_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/main/examples/beat_app.rs)).
 
 ### Prerequisites
 
