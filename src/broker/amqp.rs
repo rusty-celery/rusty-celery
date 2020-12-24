@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
 use lapin::message::Delivery;
 use lapin::options::{
-    BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueDeclareOptions,
+    BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions,
+    QueueDeclareOptions,
 };
 use lapin::types::{AMQPValue, FieldArray, FieldTable};
 use lapin::uri::{self, AMQPUri};
@@ -178,7 +179,7 @@ impl Broker for AMQPBroker {
         &self,
         queue: &str,
         error_handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, BrokerError> {
+    ) -> Result<(String, Self::DeliveryStream), BrokerError> {
         self.conn
             .lock()
             .await
@@ -187,7 +188,8 @@ impl Broker for AMQPBroker {
         let queue = queues
             .get(queue)
             .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
-        self.consume_channel
+        let consumer = self
+            .consume_channel
             .read()
             .await
             .basic_consume(
@@ -196,8 +198,16 @@ impl Broker for AMQPBroker {
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )
-            .await
-            .map_err(|e| e.into())
+            .await?;
+        Ok((consumer.tag().to_string(), consumer))
+    }
+
+    async fn cancel(&self, consumer_tag: &str) -> Result<(), BrokerError> {
+        let consume_channel = self.consume_channel.write().await;
+        consume_channel
+            .basic_cancel(consumer_tag, BasicCancelOptions::default())
+            .await?;
+        Ok(())
     }
 
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
@@ -301,13 +311,25 @@ impl Broker for AMQPBroker {
     }
 
     async fn close(&self) -> Result<(), BrokerError> {
-        // 320 reply-code = "connection-forced", operator intervened.
-        // For reference see https://www.rabbitmq.com/amqp-0-9-1-reference.html#domain.reply-code
+        let consume_channel = self.consume_channel.write().await;
+        let produce_channel = self.produce_channel.write().await;
         let conn = self.conn.lock().await;
+
+        if consume_channel.status().connected() {
+            debug!("Closing consumer channel...");
+            consume_channel.close(200, "OK").await?;
+        }
+
+        if produce_channel.status().connected() {
+            debug!("Closing producer channel...");
+            produce_channel.close(200, "OK").await?;
+        }
+
         if conn.status().connected() {
             debug!("Closing connection...");
-            conn.close(320, "").await?;
+            conn.close(200, "OK").await?;
         }
+
         Ok(())
     }
 

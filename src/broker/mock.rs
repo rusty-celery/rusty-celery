@@ -80,8 +80,13 @@ impl Broker for MockBroker {
         &self,
         queue: &str,
         error_handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, BrokerError> {
+    ) -> Result<(String, Self::DeliveryStream), BrokerError> {
         unimplemented!();
+    }
+
+    #[allow(unused)]
+    async fn cancel(&self, consumer_tag: &str) -> Result<(), BrokerError> {
+        Ok(())
     }
 
     #[allow(unused)]

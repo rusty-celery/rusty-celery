@@ -556,23 +556,21 @@ where
 
         // Stream of deliveries from the queue.
         let mut stream_map = StreamMap::new();
+        let mut consumer_tags = vec![];
         for queue in queues {
             let broker_error_tx = broker_error_tx.clone();
-            stream_map.insert(
-                queue,
-                Box::pin(
-                    self.broker
-                        .consume(
-                            queue,
-                            Box::new(move |e| {
-                                if broker_error_tx.clone().try_send(e).is_err() {
-                                    error!("Failed to send broker error event");
-                                };
-                            }),
-                        )
-                        .await?,
-                ),
-            );
+
+            let (consumer_tag, consumer) = self
+                .broker
+                .consume(
+                    queue,
+                    Box::new(move |e| {
+                        broker_error_tx.clone().try_send(e).ok();
+                    }),
+                )
+                .await?;
+            stream_map.insert(queue, Box::pin(consumer));
+            consumer_tags.push(consumer_tag);
         }
 
         // Stream of OS signals.
@@ -629,6 +627,12 @@ where
                     }
                 }
             };
+        }
+
+        // Cancel consumers.
+        for consumer_tag in consumer_tags {
+            debug!("Cancelling consumer {}", consumer_tag);
+            self.broker.cancel(&consumer_tag).await?;
         }
 
         if pending_tasks > 0 {
