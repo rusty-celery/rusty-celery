@@ -41,12 +41,12 @@ To check that this worked you can try `git remote -v` and you should see a remot
 Now every time you want to pull changes from the main repo you can do this:
 
 ```bash
-git checkout master  # if not already on master
-git pull --rebase upstream master
+git checkout main  # if not already on main
+git pull --rebase upstream main
 git push
 ```
 
-If you visit your fork of the project on GitHub it should say that your master branch is up-to-date with [rusty-celery/rusty-celery](https://github.com/rusty-celery/rusty-celery). Then when you're preparing to make a contribution you can create a new branch to work on your fix/improvement/feature:
+If you visit your fork of the project on GitHub it should say that your main branch is up-to-date with [rusty-celery/rusty-celery](https://github.com/rusty-celery/rusty-celery). Then when you're preparing to make a contribution you can create a new branch to work on your fix/improvement/feature:
 
 ```bash
 git checkout -b BRANCH
@@ -85,7 +85,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 > Clippy may fail with several error messages which is okay. We actually tell Clippy to ignore those in our CI.
 
-Since some of these commands can get a little verbose and you'll be using them so often, the [`Makefile`](https://github.com/rusty-celery/rusty-celery/blob/master/Makefile) actually has shortcuts for running all of these and then some. For instance, running `make build`, `make test`, `make doc`, and `make lint` wraps the above commands, respectively.
+Since some of these commands can get a little verbose and you'll be using them so often, the [`Makefile`](https://github.com/rusty-celery/rusty-celery/blob/main/Makefile) actually has shortcuts for running all of these and then some. For instance, running `make build`, `make test`, `make doc`, and `make lint` wraps the above commands, respectively.
 
 > Including a Makefile in a Rust project is definitely not a standard thing to do but it's a nice little productivity hack.
 
@@ -95,11 +95,11 @@ Now that you know how to build and run tests you can start peaking into the sour
 
 Rusty Celery is organized like a typical Rust project:
 
-- [`Cargo.toml`](https://github.com/rusty-celery/rusty-celery/blob/master/Cargo.toml) defines the what the crate (what Rust folk call a library) is called (`celery` in this case) and other meta data, along with all of the dependencies it requires. You'll also notice at the top of the file is a section called `[workspace]`. This is there because the project technically contains more than one crate. The subcrates are not meant to be standalone libraries but are of course closely tied with the root crate. If you look in one of the subcrates you'll also find a `Cargo.toml`.
-- [`src/`](https://github.com/rusty-celery/rusty-celery/tree/master/src) is where the source code of the main crate is located and is where you'll most likely be making changes.
-- [`src/lib.rs`](https://github.com/rusty-celery/rusty-celery/blob/master/src/lib.rs) is what's called the "crate root" and defines which submodules are visible publically and internally. For example, the line that says `mod app;` makes the `app` module visibly internally so that code from other modules can use things in the app module with `crate::app::*`. On the hand, where you see something like `pub use app::Celery` means the struct `Celery` will be publically available as `celery::Celery`.
-- [`examples/`](https://github.com/rusty-celery/rusty-celery/tree/master/examples) contains runnable examples. Any Rust files in this directory will have a link to them in the `Cargo.toml` file which means you can run them with `cargo run`. For instance: `cargo run --example celery_app`.
-- [`tests/`](https://github.com/rusty-celery/rusty-celery/tree/master/tests) contains integration tests. The are meant to test typical usage of the public API. Unit tests on the other hand are actually located within `src/` files (usually at the bottom) where you see a `#[cfg(test)]` macro. This macro means that code will only be compiled when running tests.
+- [`Cargo.toml`](https://github.com/rusty-celery/rusty-celery/blob/main/Cargo.toml) defines the what the crate (what Rust folk call a library) is called (`celery` in this case) and other meta data, along with all of the dependencies it requires. You'll also notice at the top of the file is a section called `[workspace]`. This is there because the project technically contains more than one crate. The subcrates are not meant to be standalone libraries but are of course closely tied with the root crate. If you look in one of the subcrates you'll also find a `Cargo.toml`.
+- [`src/`](https://github.com/rusty-celery/rusty-celery/tree/main/src) is where the source code of the main crate is located and is where you'll most likely be making changes.
+- [`src/lib.rs`](https://github.com/rusty-celery/rusty-celery/blob/main/src/lib.rs) is what's called the "crate root" and defines which submodules are visible publically and internally. For example, the line that says `mod app;` makes the `app` module visibly internally so that code from other modules can use things in the app module with `crate::app::*`. On the hand, where you see something like `pub use app::Celery` means the struct `Celery` will be publically available as `celery::Celery`.
+- [`examples/`](https://github.com/rusty-celery/rusty-celery/tree/main/examples) contains runnable examples. Any Rust files in this directory will have a link to them in the `Cargo.toml` file which means you can run them with `cargo run`. For instance: `cargo run --example celery_app`.
+- [`tests/`](https://github.com/rusty-celery/rusty-celery/tree/main/tests) contains integration tests. The are meant to test typical usage of the public API. Unit tests on the other hand are actually located within `src/` files (usually at the bottom) where you see a `#[cfg(test)]` macro. This macro means that code will only be compiled when running tests.
 
 ## Rust basics
 
