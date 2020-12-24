@@ -178,9 +178,8 @@ impl Broker for AMQPBroker {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
-        consumer_tag: &str,
         error_handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, BrokerError> {
+    ) -> Result<(String, Self::DeliveryStream), BrokerError> {
         self.conn
             .lock()
             .await
@@ -189,17 +188,18 @@ impl Broker for AMQPBroker {
         let queue = queues
             .get(queue)
             .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
-        self.consume_channel
+        let consumer = self
+            .consume_channel
             .read()
             .await
             .basic_consume(
                 queue.name().as_str(),
-                consumer_tag,
+                "",
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )
-            .await
-            .map_err(|e| e.into())
+            .await?;
+        Ok((consumer.tag().to_string(), consumer))
     }
 
     async fn cancel(&self, consumer_tag: &str) -> Result<(), BrokerError> {

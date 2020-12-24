@@ -6,7 +6,6 @@ use std::convert::TryFrom;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::select;
-use uuid::Uuid;
 
 #[cfg(unix)]
 use tokio::signal::unix::{signal, Signal, SignalKind};
@@ -559,25 +558,18 @@ where
         let mut stream_map = StreamMap::new();
         let mut consumer_tags = vec![];
         for queue in queues {
-            // Create unique consumer tag.
-            let mut buffer = Uuid::encode_buffer();
-            let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
-            let consumer_tag = uuid.to_owned();
             let broker_error_tx = broker_error_tx.clone();
-            stream_map.insert(
-                queue,
-                Box::pin(
-                    self.broker
-                        .consume(
-                            queue,
-                            &consumer_tag,
-                            Box::new(move |e| {
-                                broker_error_tx.clone().try_send(e).ok();
-                            }),
-                        )
-                        .await?,
-                ),
-            );
+
+            let (consumer_tag, consumer) = self
+                .broker
+                .consume(
+                    queue,
+                    Box::new(move |e| {
+                        broker_error_tx.clone().try_send(e).ok();
+                    }),
+                )
+                .await?;
+            stream_map.insert(queue, Box::pin(consumer));
             consumer_tags.push(consumer_tag);
         }
 

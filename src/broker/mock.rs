@@ -79,9 +79,8 @@ impl Broker for MockBroker {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
-        consumer_tag: &str,
         error_handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, BrokerError> {
+    ) -> Result<(String, Self::DeliveryStream), BrokerError> {
         unimplemented!();
     }
 

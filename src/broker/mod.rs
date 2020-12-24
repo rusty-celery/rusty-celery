@@ -47,7 +47,8 @@ pub trait Broker: Send + Sync + Sized {
 
     /// Consume messages from a queue.
     ///
-    /// If the connection is successful, this should return a future stream of `Result`s where an `Ok`
+    /// If the connection is successful, this should return a unique consumer tag and a
+    /// corresponding stream of `Result`s where an `Ok`
     /// value is a [`Self::Delivery`](trait.Broker.html#associatedtype.Delivery)
     /// type that can be coerced into a [`Message`](protocol/struct.Message.html)
     /// and an `Err` value is a
@@ -55,9 +56,8 @@ pub trait Broker: Send + Sync + Sized {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
-        consumer_tag: &str,
         error_handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, BrokerError>;
+    ) -> Result<(String, Self::DeliveryStream), BrokerError>;
 
     /// Cancel the consumer with the given `consumer_tag`.
     async fn cancel(&self, consumer_tag: &str) -> Result<(), BrokerError>;

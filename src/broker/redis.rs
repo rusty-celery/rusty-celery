@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::task::{Poll, Waker};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 struct Config {
     broker_url: String,
@@ -280,9 +281,8 @@ impl Broker for RedisBroker {
     async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
         &self,
         queue: &str,
-        _consumer_tag: &str,
         error_handler: Box<E>,
-    ) -> Result<Self::DeliveryStream, BrokerError> {
+    ) -> Result<(String, Self::DeliveryStream), BrokerError> {
         let consumer = Consumer {
             channel: Channel {
                 connection: self.manager.clone(),
@@ -294,7 +294,13 @@ impl Broker for RedisBroker {
             pending_tasks: Arc::clone(&self.pending_tasks),
             waker_tx: self.waker_tx.clone(),
         };
-        Ok(consumer)
+
+        // Create unique consumer tag.
+        let mut buffer = Uuid::encode_buffer();
+        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let consumer_tag = uuid.to_owned();
+
+        Ok((consumer_tag, consumer))
     }
 
     async fn cancel(&self, _consumer_tag: &str) -> Result<(), BrokerError> {
