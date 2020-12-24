@@ -18,7 +18,7 @@ use tokio::time::{self, Duration};
 /// the correct amount of times. We also check that executions are
 /// reasonably on time.
 #[tokio::test]
-async fn test_task_with_regular_schedule() {
+async fn test_task_with_delta_schedule() {
     // Create a dummy broker for this test.
     let dummy_broker = MockBroker::new();
 
@@ -41,7 +41,7 @@ async fn test_task_with_regular_schedule() {
 
     beat.schedule_task(
         Signature::<DummyTask>::new(()),
-        RegularSchedule::new(Duration::from_millis(20)),
+        DeltaSchedule::new(Duration::from_millis(20)),
     );
 
     let start_time = SystemTime::now();
@@ -104,11 +104,11 @@ async fn test_scheduling_two_tasks() {
 
     beat.schedule_task(
         Signature::<DummyTask>::new(()),
-        RegularSchedule::new(Duration::from_millis(60)),
+        DeltaSchedule::new(Duration::from_millis(60)),
     );
     beat.schedule_task(
         Signature::<DummyTask2>::new(()),
-        RegularSchedule::new(Duration::from_millis(43)),
+        DeltaSchedule::new(Duration::from_millis(43)),
     );
 
     let result = time::timeout(Duration::from_millis(200), beat.start()).await;
