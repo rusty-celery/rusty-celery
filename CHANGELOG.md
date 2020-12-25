@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The `RegularSchedule` in the `beat` module has been renamed to `DeltaSchedule` to
   be more coherent with Python Celery terminology, where it is sometimes called *timedelta*.
+- `redis` dependency updated to 0.18.
 
 ### Added
 

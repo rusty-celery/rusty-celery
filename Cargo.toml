@@ -47,8 +47,7 @@ globset = "0.4"
 hostname = "0.3.0"
 
 [dependencies.redis]
-git = "https://github.com/mitsuhiko/redis-rs.git"
-rev="8088a59"
+version = "0.18"
 features=["connection-manager", "tokio-comp"]
 
 [dev-dependencies]
