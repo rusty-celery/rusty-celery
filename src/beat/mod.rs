@@ -24,7 +24,7 @@
 use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
 use crate::routing::{self, Rule};
 use crate::{
-    error::{BeatError, BrokerError, CeleryError},
+    error::{BeatError, BrokerError},
     protocol::MessageContentType,
     task::{Signature, Task, TaskOptions},
 };
@@ -182,7 +182,7 @@ where
     }
 
     /// Construct a `Beat` app with the current configuration.
-    pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, CeleryError> {
+    pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, BeatError> {
         // Declare default queue to broker.
         let broker_builder = self
             .config
@@ -280,8 +280,21 @@ where
     }
 
     /// Schedule the execution of a task.
-    pub fn schedule_task<T, S>(&mut self, mut signature: Signature<T>, schedule: S)
+    pub fn schedule_task<T, S>(&mut self, signature: Signature<T>, schedule: S)
     where
+        T: Task + Clone + 'static,
+        S: Schedule + 'static,
+    {
+        self.schedule_named_task(Signature::<T>::task_name().to_string(), signature, schedule);
+    }
+
+    /// Schedule the execution of a task with the given `name`.
+    pub fn schedule_named_task<T, S>(
+        &mut self,
+        name: String,
+        mut signature: Signature<T>,
+        schedule: S,
+    ) where
         T: Task + Clone + 'static,
         S: Schedule + 'static,
     {
@@ -294,12 +307,8 @@ where
         };
         let message_factory = Box::new(signature);
 
-        self.scheduler.schedule_task(
-            Signature::<T>::task_name().to_string(),
-            message_factory,
-            queue,
-            schedule,
-        );
+        self.scheduler
+            .schedule_task(name, message_factory, queue, schedule);
     }
 
     /// Start the *beat*.

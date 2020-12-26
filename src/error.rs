@@ -27,10 +27,6 @@ pub enum CeleryError {
     #[error("protocol error")]
     ProtocolError(#[from] ProtocolError),
 
-    /// An invalid glob pattern for a routing rule.
-    #[error("invalid glob routing rule")]
-    BadRoutingPattern(#[from] globset::Error),
-
     /// There is already a task registerd to this name.
     #[error("there is already a task registered as '{0}'")]
     TaskRegistrationError(String),
@@ -49,12 +45,19 @@ pub enum BeatError {
     /// A protocol error.
     #[error("protocol error")]
     ProtocolError(#[from] ProtocolError),
+
+    /// An error with a task schedule.
+    #[error("task schedule error")]
+    ScheduleError(#[from] ScheduleError),
 }
 
-/// Error that can occur while creating a cron schedule.
+/// Errors that are related to task schedules.
 #[derive(Error, Debug)]
-#[error("invalid cron schedule: {0}")]
-pub struct CronScheduleError(pub String);
+pub enum ScheduleError {
+    /// Error that can occur while creating a cron schedule.
+    #[error("invalid cron schedule: {0}")]
+    CronScheduleError(String),
+}
 
 /// Errors that can occur at the task level.
 #[derive(Error, Debug)]
@@ -141,6 +144,10 @@ pub enum BrokerError {
     #[error("Deserialize error \"{0}\"")]
     DeserializeError(#[from] serde_json::Error),
 
+    /// Routing pattern error
+    #[error("Routing pattern error \"{0}\"")]
+    BadRoutingPattern(#[from] BadRoutingPattern),
+
     /// Protocol error
     #[error("Protocol error \"{0}\"")]
     ProtocolError(#[from] ProtocolError),
@@ -170,6 +177,11 @@ impl BrokerError {
         }
     }
 }
+
+/// An invalid glob pattern for a routing rule.
+#[derive(Error, Debug)]
+#[error("invalid glob routing rule")]
+pub struct BadRoutingPattern(#[from] globset::Error);
 
 /// Errors that can occur due to messages not conforming to the protocol.
 #[derive(Error, Debug)]

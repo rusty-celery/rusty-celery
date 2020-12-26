@@ -43,11 +43,18 @@ macro_rules! __beat_internal {
     (
         $broker_type:ty { $broker_url:expr },
         $scheduler_backend_type:ty { $scheduler_backend:expr },
+        [
+            $( $task_name:expr => {
+                $task_type:ty,
+                $schedule:expr,
+                ( $( $task_arg:expr ),* $(,)?)
+            } ),*
+        ],
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
         async fn _build_beat() ->
-            $crate::export::Result<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
+            $crate::export::BeatResult<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
 
             let broker_url = $broker_url;
 
@@ -61,7 +68,13 @@ macro_rules! __beat_internal {
                 builder = builder.task_route($pattern, $queue);
             )*
 
-            Ok(builder.build().await?)
+            let mut beat = builder.build().await?;
+
+            $(
+                beat.schedule_named_task($task_name.to_string(), <$task_type>::new( $( $task_arg ),* ), $schedule);
+            )*
+
+            Ok(beat)
         }
 
         _build_beat()
@@ -253,12 +266,26 @@ macro_rules! app {
 macro_rules! beat {
     (
         broker = $broker_type:ty { $broker_url:expr },
+        tasks = [
+            $( $task_name:expr => {
+                $task_type:ty,
+                schedule = $schedule:expr,
+                args = $args:tt $(,)?
+            } ),* $(,)?
+        ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
             $broker_type { $broker_url },
             $crate::beat::LocalSchedulerBackend { $crate::beat::LocalSchedulerBackend::new() },
+            [ $ (
+                $task_name => {
+                    $task_type,
+                    $schedule,
+                    $args
+                }
+            ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );
@@ -266,12 +293,26 @@ macro_rules! beat {
     (
         broker = $broker_type:ty { $broker_url:expr },
         scheduler_backend = $scheduler_backend_type:ty { $scheduler_backend:expr },
+        tasks = [
+            $( $task_name:expr => {
+                $task_type:ty,
+                schedule = $schedule:expr,
+                args = $args:tt $(,)?
+            } ),* $(,)?
+        ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
             $broker_type { $broker_url },
             $scheduler_backend_type { $scheduler_backend },
+            [ $ (
+                $task_name => {
+                    $task_type,
+                    $schedule,
+                    $args
+                }
+            ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );

@@ -26,18 +26,22 @@ async fn main() -> Result<()> {
     // Build a `Beat` with a default scheduler backend.
     let mut beat = celery::beat!(
         broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        tasks = [
+            "add" => {
+                add,
+                schedule = DeltaSchedule::new(Duration::from_secs(5)),
+                args = (1, 2),
+            },
+            "long_running" => {
+                long_running_task,
+                schedule = CronSchedule::from_string("*/2 * * * *")?,
+                args = (Some(1),),
+            }
+        ],
         task_routes = [
             "*" => QUEUE_NAME,
         ],
     ).await?;
-
-    // Add scheduled tasks to the default `Beat` and start it.
-    let add_schedule = DeltaSchedule::new(Duration::from_secs(5));
-    beat.schedule_task(add::new(1, 2), add_schedule);
-
-    // The long running task will run every two minutes.
-    let long_running_schedule = CronSchedule::from_string("*/2 * * * *")?;
-    beat.schedule_task(long_running_task::new(Some(1)), long_running_schedule);
 
     beat.start().await?;
 
