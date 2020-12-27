@@ -313,7 +313,10 @@ impl Broker for RedisBroker {
         let (channel, delivery) = delivery;
         channel.remove_task(delivery).await?;
         let mut waker_rx = self.waker_rx.lock().await;
-        if let Ok(waker) = waker_rx.try_recv() {
+        // work around for try_recv. We do not care if a waker is available after this check.
+        let dummy_waker = futures::task::noop_waker_ref();
+        let mut dummy_ctx = std::task::Context::from_waker(dummy_waker);
+        if let Poll::Ready(Some(waker)) = waker_rx.poll_recv(&mut dummy_ctx) {
             waker.wake();
         }
         Ok(())
