@@ -167,12 +167,21 @@ macro_rules! app {
     };
 }
 
-// TODO add support for scheduling tasks here.
 /// A macro for creating a [`Beat`](beat/struct.Beat.html) app.
 ///
-/// At a minimum the `beat!` macro requires these 2 arguments (in order):
+/// At a minimum the `beat!` macro requires these 3 arguments (in order):
 /// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
+/// - `tasks`: a list of tasks together with their relative schedules (can be empty),
 /// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
+///
+/// # Tasks
+///
+/// An entry in the task list has the following components:
+/// - The name of the task,
+/// - The instance of the task to execute,
+/// - The task schedule, which can be one of the provided schedules (e.g., [`CronSchedule`](crate::beat::CronSchedule))
+///   or any other struct that implements [`Schedule`](crate::beat::Schedule),
+/// - A list of arguments for the task in the form of a comma-separated list surrounded by parenthesis.
 ///
 /// # Custom scheduler backend
 ///
@@ -206,6 +215,38 @@ macro_rules! app {
 /// # async fn main() -> Result<()> {
 /// let beat = celery::beat!(
 ///     broker = AMQPBroker{ std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [],
+///     task_routes = [ "*" => "celery" ],
+/// ).await?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Create a `beat` with a scheduled task:
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+/// # use anyhow::Result;
+/// # use celery::prelude::*;
+/// # use celery::beat::CronSchedule;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// #[celery::task]
+/// fn add(x: i32, y: i32) -> TaskResult<i32> {
+///     // It is enough to provide the implementation to the worker,
+///     // the beat does not need it.
+///     unimplemented!()
+/// }
+///
+/// let beat = celery::beat!(
+///     broker = AMQPBroker{ std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [
+///         "add_task" => {
+///             add,
+///             schedule = CronSchedule::from_string("*/3 * * * mon-fri")?,
+///             args = (1, 2)
+///         }
+///     ],
 ///     task_routes = [ "*" => "celery" ],
 /// ).await?;
 /// # Ok(())
@@ -222,6 +263,7 @@ macro_rules! app {
 /// # async fn main() -> Result<()> {
 /// let beat = celery::beat!(
 ///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [],
 ///     task_routes = [],
 ///     default_queue = "beat_queue"
 /// ).await?;
@@ -255,6 +297,7 @@ macro_rules! app {
 /// let beat = celery::beat!(
 ///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     scheduler_backend = CustomSchedulerBackend { CustomSchedulerBackend {} },
+///     tasks = [],
 ///     task_routes = [
 ///         "*" => "beat_queue",
 ///     ],
