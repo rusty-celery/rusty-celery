@@ -199,6 +199,50 @@ jobs:
         command: test
         args: --no-run --test codegen beat_codegen
 
+  coverage:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+      rabbitmq:
+        image: rabbitmq
+        ports:
+          - 5672:5672
+        env:
+          RABBITMQ_DEFAULT_VHOST: my_vhost
+    steps:
+    - name: Install rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+
+    - uses: actions/checkout@v2
+
+    - name: Ready cache
+      run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
+
+    - name: Cache cargo
+      uses: actions/cache@v1
+      id: cache
+      with:
+        path: ~/.cargo
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+
+    - name: Run cargo-tarpaulin
+      uses: actions-rs/tarpaulin@v0.1
+      with:
+        out-type: Lcov
+        args: '--all-features --workspace'
+
+    - name: Coveralls upload
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        path-to-lcov: "lcov.info"
+
   docs:
     name: Build Docs
     runs-on: ubuntu-latest
