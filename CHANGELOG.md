@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `Ok` variant type of the the return type of `Broker::consume`. This is now a tuple that includes a unique
   consumer tag that can then be passed to `Broker::cancel` to cancel the corresponding consumer.
 
+### Changed
+
+- Tokio updated to 1.0.0.
+
 ### Fixed
 
 - Fixed a bug with `AMQPBroker::close()` that would result in an error with `lapin`.

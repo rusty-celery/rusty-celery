@@ -10,10 +10,10 @@ use tokio::select;
 #[cfg(unix)]
 use tokio::signal::unix::{signal, Signal, SignalKind};
 
-use tokio::stream::StreamMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
+use tokio_stream::StreamMap;
 
 mod trace;
 
@@ -611,7 +611,7 @@ where
                     info!("Warm shutdown...");
                     break;
                 },
-                maybe_task_event = task_event_rx.next() => {
+                maybe_task_event = task_event_rx.recv() => {
                     if let Some(event) = maybe_task_event {
                         debug!("Received task event {:?}", event);
                         match event {
@@ -620,7 +620,7 @@ where
                         };
                     }
                 },
-                maybe_broker_error = broker_error_rx.next() => {
+                maybe_broker_error = broker_error_rx.recv() => {
                     if let Some(broker_error) = maybe_broker_error {
                         error!("{}", broker_error);
                         return Err(broker_error.into());
@@ -648,7 +648,7 @@ where
                             return Err(CeleryError::ForcedShutdown);
                         }
                     },
-                    maybe_event = task_event_rx.next() => {
+                    maybe_event = task_event_rx.recv() => {
                         if let Some(event) = maybe_event {
                             debug!("Received task event {:?}", event);
                             match event {
@@ -699,10 +699,10 @@ impl Ender {
         let sigtype;
 
         select! {
-            _ = self.sigint.next() => {
+            _ = self.sigint.recv() => {
                 sigtype = SigType::Interrupt
             },
-            _ = self.sigterm.next() => {
+            _ = self.sigterm.recv() => {
                 sigtype = SigType::Terminate
             }
         }
