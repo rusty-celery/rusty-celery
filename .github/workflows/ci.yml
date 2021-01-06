@@ -199,6 +199,60 @@ jobs:
         command: test
         args: --no-run --test codegen beat_codegen
 
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+      rabbitmq:
+        image: rabbitmq
+        ports:
+          - 5672:5672
+        env:
+          RABBITMQ_DEFAULT_VHOST: my_vhost
+    steps:
+    - name: Install rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+
+    - uses: actions/checkout@v2
+
+    - name: Set build variables
+      shell: bash
+      run: |
+        # We use these variables as part of the cache keys.
+        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
+        echo "DOY=$(date +%j)" >> $GITHUB_ENV
+
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/registry
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v2
+      with:
+        path: target
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
+
+    - name: Run cargo-tarpaulin
+      uses: actions-rs/tarpaulin@v0.1
+      with:
+        out-type: Lcov
+        args: '--all-features --workspace --ignore-tests'
+
+    - name: Coveralls upload
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        path-to-lcov: "lcov.info"
+
   docs:
     name: Build Docs
     runs-on: ubuntu-latest
