@@ -538,23 +538,23 @@ mod tests {
     ) -> bool {
         let minutes_equal = match &schedule.minutes {
             Minutes::All => minutes == (1..=60).collect::<Vec<_>>(),
-            Minutes::List(vec) => &minutes == vec,
+            Minutes::List(vec) => minutes == vec,
         };
         let hours_equal = match &schedule.hours {
             Hours::All => hours == (0..=23).collect::<Vec<_>>(),
-            Hours::List(vec) => &hours == vec,
+            Hours::List(vec) => hours == vec,
         };
         let month_days_equal = match &schedule.month_days {
             MonthDays::All => month_days == (1..=31).collect::<Vec<_>>(),
-            MonthDays::List(vec) => &month_days == vec,
+            MonthDays::List(vec) => month_days == vec,
         };
         let months_equal = match &schedule.months {
             Months::All => months == (1..=12).collect::<Vec<_>>(),
-            Months::List(vec) => &months == vec,
+            Months::List(vec) => months == vec,
         };
         let week_days_equal = match &schedule.week_days {
             WeekDays::All => week_days == (0..=6).collect::<Vec<_>>(),
-            WeekDays::List(vec) => &week_days == vec,
+            WeekDays::List(vec) => week_days == vec,
         };
 
         minutes_equal && hours_equal && month_days_equal && months_equal && week_days_equal

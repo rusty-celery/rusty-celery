@@ -138,13 +138,17 @@ mod tests {
 
     #[test]
     fn test_update() {
-        let mut options = TaskOptions::default();
-        options.max_retries = Some(3);
-        options.acks_late = Some(true);
+        let mut options = TaskOptions {
+            max_retries: Some(3),
+            acks_late: Some(true),
+            ..Default::default()
+        };
 
-        let mut other = TaskOptions::default();
-        other.time_limit = Some(2);
-        other.acks_late = Some(false);
+        let other = TaskOptions {
+            time_limit: Some(2),
+            acks_late: Some(false),
+            ..Default::default()
+        };
 
         options.update(&other);
         assert_eq!(options.time_limit, Some(2));
