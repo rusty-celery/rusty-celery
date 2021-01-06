@@ -245,7 +245,7 @@ jobs:
       uses: actions-rs/tarpaulin@v0.1
       with:
         out-type: Lcov
-        args: '--all-features --workspace'
+        args: '--all-features --workspace --ignore-tests'
 
     - name: Coveralls upload
       uses: coverallsapp/github-action@master
