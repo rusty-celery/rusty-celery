@@ -90,7 +90,7 @@ async fn test_amqp_broker() {
 
     // Try closing connection and then reconnecting.
     my_app.broker.close().await.unwrap();
-    my_app.broker.reconnect(5).await.unwrap();
+    my_app.broker.reconnect(500).await.unwrap();
 
     // Send another task to the queue.
     let send_result = my_app.send_task(add::new(2, 2)).await;
