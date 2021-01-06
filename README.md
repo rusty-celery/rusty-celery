@@ -12,6 +12,9 @@
     <a href="https://github.com/rusty-celery/rusty-celery/actions">
         <img alt="Build" src="https://github.com/rusty-celery/rusty-celery/workflows/CI/badge.svg?event=push&branch=main">
     </a>
+    <a href='https://coveralls.io/github/rusty-celery/rusty-celery?branch=main'>
+        <img src='https://coveralls.io/repos/github/rusty-celery/rusty-celery/badge.svg?branch=main' alt='Coverage Status' />
+    </a>
     <a href="https://github.com/rusty-celery/rusty-celery/blob/main/LICENSE">
         <img alt="License" src="https://img.shields.io/github/license/rusty-celery/rusty-celery.svg?color=blue&cachedrop">
     </a>
