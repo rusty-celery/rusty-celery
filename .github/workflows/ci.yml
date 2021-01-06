@@ -200,6 +200,7 @@ jobs:
         args: --no-run --test codegen beat_codegen
 
   coverage:
+    name: Coverage
     runs-on: ubuntu-latest
     services:
       redis:
@@ -221,15 +222,24 @@ jobs:
 
     - uses: actions/checkout@v2
 
-    - name: Ready cache
-      run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
+    - name: Set build variables
+      shell: bash
+      run: |
+        # We use these variables as part of the cache keys.
+        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
+        echo "DOY=$(date +%j)" >> $GITHUB_ENV
 
-    - name: Cache cargo
-      uses: actions/cache@v1
-      id: cache
+    - name: Cache cargo registry
+      uses: actions/cache@v2
       with:
-        path: ~/.cargo
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+        path: ~/.cargo/registry
+        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v2
+      with:
+        path: target
+        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
 
     - name: Run cargo-tarpaulin
       uses: actions-rs/tarpaulin@v0.1
