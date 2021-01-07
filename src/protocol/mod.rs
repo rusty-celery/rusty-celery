@@ -632,7 +632,7 @@ impl Delivery {
                 kwargsrepr: self.headers.kwargsrepr.clone(),
                 origin: self.headers.origin.clone(),
             },
-            raw_body: raw_body,
+            raw_body,
         })
     }
 }
