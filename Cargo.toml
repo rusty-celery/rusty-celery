@@ -24,6 +24,7 @@ path = "src/lib.rs"
 name = "celery_app"
 
 [dependencies]
+base64 = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1.0.0", features = ["full"]}
 tokio-stream = "0.1.0"
