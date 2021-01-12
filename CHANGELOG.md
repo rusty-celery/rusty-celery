@@ -13,20 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The `RegularSchedule` in the `beat` module has been renamed to `DeltaSchedule` to
   be more coherent with Python Celery terminology, where it is sometimes called *timedelta*.
+- Tokio updated to 1.0.0.
+- The `Broker::configure_task_routes` produces `BrokerError` instead of `CeleryError`.
+- The `beat` macro now expects a list of tasks that is used to initialize the scheduler.
+- Errors have been refactored:
+   * The `BadRoutingPattern` variant has been moved from `CeleryError` to `BrokerError`;
+   * The `CronScheduleError` has been replaced by a `ScheduleError` enum with a `CronScheduleError` variant;
+   * A `ScheduleError` variant has been added to `BeatError`
+   * A `BadRoutingPattern` error has been added.
 
 ### Added
 
 - 🚀🚀 Redis broker support 🚀🚀
 - Added the `max_sleep_duration` property on the `Beat` which can be used to ensure that
   the scheduler backend is called regularly (which may be necessary for custom backends).
+- Added a method `Beat::schedule_named_task` to add a scheduled task with a custom name.
 - Added a method `Broker::cancel` to cancel an existing consumer.
 - Changed `Ok` variant type of the the return type of `Broker::consume`. This is now a tuple that includes a unique
   consumer tag that can then be passed to `Broker::cancel` to cancel the corresponding consumer.
 - Added a "coverage" job to GitHub Actions.
-
-### Changed
-
-- Tokio updated to 1.0.0.
 
 ### Fixed
 
