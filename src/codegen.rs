@@ -43,11 +43,18 @@ macro_rules! __beat_internal {
     (
         $broker_type:ty { $broker_url:expr },
         $scheduler_backend_type:ty { $scheduler_backend:expr },
+        [
+            $( $task_name:expr => {
+                $task_type:ty,
+                $schedule:expr,
+                ( $( $task_arg:expr ),* $(,)?)
+            } ),*
+        ],
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
         async fn _build_beat() ->
-            $crate::export::Result<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
+            $crate::export::BeatResult<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
 
             let broker_url = $broker_url;
 
@@ -61,7 +68,13 @@ macro_rules! __beat_internal {
                 builder = builder.task_route($pattern, $queue);
             )*
 
-            Ok(builder.build().await?)
+            let mut beat = builder.build().await?;
+
+            $(
+                beat.schedule_named_task($task_name.to_string(), <$task_type>::new( $( $task_arg ),* ), $schedule);
+            )*
+
+            Ok(beat)
         }
 
         _build_beat()
@@ -154,12 +167,21 @@ macro_rules! app {
     };
 }
 
-// TODO add support for scheduling tasks here.
 /// A macro for creating a [`Beat`](beat/struct.Beat.html) app.
 ///
-/// At a minimum the `beat!` macro requires these 2 arguments (in order):
+/// At a minimum the `beat!` macro requires these 3 arguments (in order):
 /// - `broker`: a broker type (currently only AMQP is supported) with an expression for the broker URL in brackets,
+/// - `tasks`: a list of tasks together with their relative schedules (can be empty),
 /// - `task_routes`: a list of routing rules in the form of `pattern => queue`.
+///
+/// # Tasks
+///
+/// An entry in the task list has the following components:
+/// - The name of the task,
+/// - The instance of the task to execute,
+/// - The task schedule, which can be one of the provided schedules (e.g., [`CronSchedule`](crate::beat::CronSchedule))
+///   or any other struct that implements [`Schedule`](crate::beat::Schedule),
+/// - A list of arguments for the task in the form of a comma-separated list surrounded by parenthesis.
 ///
 /// # Custom scheduler backend
 ///
@@ -193,6 +215,38 @@ macro_rules! app {
 /// # async fn main() -> Result<()> {
 /// let beat = celery::beat!(
 ///     broker = AMQPBroker{ std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [],
+///     task_routes = [ "*" => "celery" ],
+/// ).await?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Create a `beat` with a scheduled task:
+///
+/// ```rust,no_run
+/// # #[macro_use] extern crate celery;
+/// # use anyhow::Result;
+/// # use celery::prelude::*;
+/// # use celery::beat::CronSchedule;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// #[celery::task]
+/// fn add(x: i32, y: i32) -> TaskResult<i32> {
+///     // It is enough to provide the implementation to the worker,
+///     // the beat does not need it.
+///     unimplemented!()
+/// }
+///
+/// let beat = celery::beat!(
+///     broker = AMQPBroker{ std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [
+///         "add_task" => {
+///             add,
+///             schedule = CronSchedule::from_string("*/3 * * * mon-fri")?,
+///             args = (1, 2)
+///         }
+///     ],
 ///     task_routes = [ "*" => "celery" ],
 /// ).await?;
 /// # Ok(())
@@ -209,6 +263,7 @@ macro_rules! app {
 /// # async fn main() -> Result<()> {
 /// let beat = celery::beat!(
 ///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+///     tasks = [],
 ///     task_routes = [],
 ///     default_queue = "beat_queue"
 /// ).await?;
@@ -242,6 +297,7 @@ macro_rules! app {
 /// let beat = celery::beat!(
 ///     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
 ///     scheduler_backend = CustomSchedulerBackend { CustomSchedulerBackend {} },
+///     tasks = [],
 ///     task_routes = [
 ///         "*" => "beat_queue",
 ///     ],
@@ -253,12 +309,26 @@ macro_rules! app {
 macro_rules! beat {
     (
         broker = $broker_type:ty { $broker_url:expr },
+        tasks = [
+            $( $task_name:expr => {
+                $task_type:ty,
+                schedule = $schedule:expr,
+                args = $args:tt $(,)?
+            } ),* $(,)?
+        ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
             $broker_type { $broker_url },
             $crate::beat::LocalSchedulerBackend { $crate::beat::LocalSchedulerBackend::new() },
+            [ $ (
+                $task_name => {
+                    $task_type,
+                    $schedule,
+                    $args
+                }
+            ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );
@@ -266,12 +336,26 @@ macro_rules! beat {
     (
         broker = $broker_type:ty { $broker_url:expr },
         scheduler_backend = $scheduler_backend_type:ty { $scheduler_backend:expr },
+        tasks = [
+            $( $task_name:expr => {
+                $task_type:ty,
+                schedule = $schedule:expr,
+                args = $args:tt $(,)?
+            } ),* $(,)?
+        ],
         task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
         $(, $x:ident = $y:expr )* $(,)?
     ) => {
         $crate::__beat_internal!(
             $broker_type { $broker_url },
             $scheduler_backend_type { $scheduler_backend },
+            [ $ (
+                $task_name => {
+                    $task_type,
+                    $schedule,
+                    $args
+                }
+            ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
         );

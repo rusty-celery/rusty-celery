@@ -7,7 +7,7 @@ use futures::Stream;
 use log::error;
 use tokio::time::{self, Duration};
 
-use crate::error::{BrokerError, CeleryError};
+use crate::error::BrokerError;
 use crate::{
     protocol::{Message, TryDeserializeMessage},
     routing::Rule,
@@ -117,7 +117,7 @@ pub trait BrokerBuilder {
 pub(crate) fn configure_task_routes<Bb: BrokerBuilder>(
     mut broker_builder: Bb,
     task_routes: &[(String, String)],
-) -> Result<(Bb, Vec<Rule>), CeleryError> {
+) -> Result<(Bb, Vec<Rule>), BrokerError> {
     let mut rules: Vec<Rule> = Vec::with_capacity(task_routes.len());
     for (pattern, queue) in task_routes {
         let rule = Rule::new(&pattern, &queue)?;

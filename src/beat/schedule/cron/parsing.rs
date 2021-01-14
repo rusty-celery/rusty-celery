@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::{Ordinal, TimeUnitField};
-use crate::error::CronScheduleError;
+use crate::error::ScheduleError;
 
 pub struct CronParsingError;
 
@@ -13,7 +13,7 @@ pub enum Shorthand {
     Hourly,
 }
 
-pub fn parse_shorthand(s: &str) -> Result<Shorthand, CronScheduleError> {
+pub fn parse_shorthand(s: &str) -> Result<Shorthand, ScheduleError> {
     use Shorthand::*;
     match s.to_lowercase().as_str() {
         "@yearly" => Ok(Yearly),
@@ -21,7 +21,7 @@ pub fn parse_shorthand(s: &str) -> Result<Shorthand, CronScheduleError> {
         "@weekly" => Ok(Weekly),
         "@daily" => Ok(Daily),
         "@hourly" => Ok(Hourly),
-        _ => Err(CronScheduleError(format!(
+        _ => Err(ScheduleError::CronScheduleError(format!(
             "'{}' is not a valid shorthand for a cron schedule",
             s
         ))),
@@ -45,7 +45,7 @@ enum ParsedElement {
     }, // inclusive
 }
 
-pub fn parse_longhand<T: TimeUnitField>(s: &str) -> Result<Vec<Ordinal>, CronScheduleError> {
+pub fn parse_longhand<T: TimeUnitField>(s: &str) -> Result<Vec<Ordinal>, ScheduleError> {
     let lower_bound = T::inclusive_min();
     let upper_bound = T::inclusive_max();
     let mut result = HashSet::new();
@@ -56,7 +56,7 @@ pub fn parse_longhand<T: TimeUnitField>(s: &str) -> Result<Vec<Ordinal>, CronSch
         match parsed_element {
             Err(_) => {
                 let error_message = format!("'{}' is an invalid value for {}", s, T::name());
-                return Err(CronScheduleError(error_message));
+                return Err(ScheduleError::CronScheduleError(error_message));
             }
             Ok(Star) => {
                 for i in lower_bound..=upper_bound {
@@ -134,7 +134,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse() -> Result<(), CronScheduleError> {
+    fn test_parse() -> Result<(), ScheduleError> {
         assert_eq!(parse_longhand::<Minutes>("3")?, vec![3]);
         assert_eq!(parse_longhand::<Minutes>("3-6/2")?, vec![3, 5]);
         assert_eq!(parse_longhand::<Months>("*/3")?, vec![1, 4, 7, 10]);

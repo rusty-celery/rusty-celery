@@ -6,7 +6,7 @@ use chrono::{offset::Utc, TimeZone};
 use std::time::SystemTime;
 
 use super::Schedule;
-use crate::error::CronScheduleError;
+use crate::error::ScheduleError;
 
 mod parsing;
 mod time_units;
@@ -85,7 +85,7 @@ impl CronSchedule<Utc> {
         month_days: Vec<Ordinal>,
         months: Vec<Ordinal>,
         week_days: Vec<Ordinal>,
-    ) -> Result<Self, CronScheduleError> {
+    ) -> Result<Self, ScheduleError> {
         Self::new_with_time_zone(minutes, hours, month_days, months, week_days, Utc)
     }
 
@@ -113,7 +113,7 @@ impl CronSchedule<Utc> {
     /// - `@weekly`: at 0:00 on Monday each week
     /// - `@daily`: at 0:00 each day
     /// - `@hourly`: each hour at 00
-    pub fn from_string(schedule: &str) -> Result<Self, CronScheduleError> {
+    pub fn from_string(schedule: &str) -> Result<Self, ScheduleError> {
         Self::from_string_with_time_zone(schedule, Utc)
     }
 }
@@ -135,7 +135,7 @@ where
         mut months: Vec<Ordinal>,
         mut week_days: Vec<Ordinal>,
         time_zone: Z,
-    ) -> Result<Self, CronScheduleError> {
+    ) -> Result<Self, ScheduleError> {
         minutes.sort_unstable();
         minutes.dedup();
         hours.sort_unstable();
@@ -183,10 +183,7 @@ where
     /// - `@weekly`: at 0:00 on Monday each week
     /// - `@daily`: at 0:00 each day
     /// - `@hourly`: each hour at 00
-    pub fn from_string_with_time_zone(
-        schedule: &str,
-        time_zone: Z,
-    ) -> Result<Self, CronScheduleError> {
+    pub fn from_string_with_time_zone(schedule: &str, time_zone: Z) -> Result<Self, ScheduleError> {
         if schedule.starts_with('@') {
             Self::from_shorthand(schedule, time_zone)
         } else {
@@ -202,7 +199,9 @@ where
         month_days: &[Ordinal],
         months: &[Ordinal],
         week_days: &[Ordinal],
-    ) -> Result<(), CronScheduleError> {
+    ) -> Result<(), ScheduleError> {
+        use ScheduleError::CronScheduleError;
+
         if minutes.is_empty() {
             return Err(CronScheduleError("Minutes were not set".to_string()));
         }
@@ -286,7 +285,7 @@ where
         Ok(())
     }
 
-    fn from_shorthand(schedule: &str, time_zone: Z) -> Result<Self, CronScheduleError> {
+    fn from_shorthand(schedule: &str, time_zone: Z) -> Result<Self, ScheduleError> {
         use Shorthand::*;
         match parse_shorthand(schedule)? {
             Yearly => Ok(Self {
@@ -332,10 +331,10 @@ where
         }
     }
 
-    fn from_longhand(schedule: &str, time_zone: Z) -> Result<Self, CronScheduleError> {
+    fn from_longhand(schedule: &str, time_zone: Z) -> Result<Self, ScheduleError> {
         let components: Vec<_> = schedule.split_whitespace().collect();
         if components.len() != 5 {
-            Err(CronScheduleError(format!(
+            Err(ScheduleError::CronScheduleError(format!(
                 "'{}' is not a valid cron schedule: invalid number of elements",
                 schedule
             )))
@@ -561,7 +560,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_string() -> Result<(), CronScheduleError> {
+    fn test_from_string() -> Result<(), ScheduleError> {
         let schedule = CronSchedule::from_string("2 12 8 1 *")?;
         assert!(cron_schedule_equal(
             &schedule,
