@@ -159,11 +159,11 @@ impl Channel {
                     let delivery: Delivery = serde_json::from_str(&rez[..])?;
                     debug!(
                         "Received msg: {} / {}",
-                        delivery.delivery_tag, delivery.headers.task
+                        delivery.properties.delivery_tag, delivery.headers.task
                     );
                     let _set_rez: u32 = redis::cmd("HSET")
                         .arg(&self.process_map_name())
-                        .arg(&delivery.correlation_id)
+                        .arg(&delivery.properties.correlation_id)
                         .arg(&rez)
                         .query_async(&mut self.connection)
                         .await?;
@@ -193,7 +193,7 @@ impl Channel {
     async fn remove_task(&self, delivery: &Delivery) -> Result<(), BrokerError> {
         redis::cmd("HDEL")
             .arg(&self.process_map_name())
-            .arg(&delivery.correlation_id)
+            .arg(&delivery.properties.correlation_id)
             .query_async(&mut self.connection.clone())
             .await?;
         Ok(())

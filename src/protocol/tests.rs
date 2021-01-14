@@ -190,20 +190,27 @@ fn test_serialization() {
             kwargsrepr: Some("{'y': 2}".into()),
             origin: Some("gen123@piper".into()),
         },
-        raw_body: vec![],
+        raw_body: Vec::from(&JSON[..]),
     };
     let ser_msg_result = message.json_serialized();
     assert!(ser_msg_result.is_ok());
     let ser_msg = ser_msg_result.unwrap();
     let ser_msg_json: serde_json::Value = serde_json::from_slice(&ser_msg[..]).unwrap();
-    assert_eq!(ser_msg_json["content_encoding"], String::from("utf-8"));
+    assert_eq!(ser_msg_json["content-encoding"], String::from("utf-8"));
     assert_eq!(
-        ser_msg_json["content_type"],
+        ser_msg_json["content-type"],
         String::from("application/json")
     );
-    assert_eq!(ser_msg_json["correlation_id"], String::from("aaa"));
-    assert_eq!(ser_msg_json["reply_to"], String::from("bbb"));
-    assert_ne!(ser_msg_json["delivery_tag"], "");
+    assert_eq!(
+        ser_msg_json["properties"]["correlation_id"],
+        String::from("aaa")
+    );
+    assert_eq!(ser_msg_json["properties"]["reply_to"], String::from("bbb"));
+    assert_ne!(ser_msg_json["properties"]["delivery_tag"], "");
+    assert_eq!(
+        ser_msg_json["properties"]["body_encoding"],
+        String::from("base64")
+    );
     assert_eq!(ser_msg_json["headers"]["id"], String::from("aaa"));
     assert_eq!(ser_msg_json["headers"]["task"], String::from("add"));
     assert_eq!(ser_msg_json["headers"]["lang"], String::from("rust"));
@@ -220,9 +227,7 @@ fn test_serialization() {
     assert_eq!(ser_msg_json["headers"]["argsrepr"], "(1)");
     assert_eq!(ser_msg_json["headers"]["kwargsrepr"], "{'y': 2}");
     assert_eq!(ser_msg_json["headers"]["origin"], "gen123@piper");
-    let body = serde_json::to_vec(&ser_msg_json["body"]).unwrap();
-    // match "[]"
-    assert_eq!(body.len(), 2);
-    assert_eq!(body[0], 91);
-    assert_eq!(body[1], 93);
+    let body = base64::decode(ser_msg_json["body"].as_str().unwrap()).unwrap();
+    assert_eq!(body.len(), 73);
+    assert_eq!(&body, JSON.as_bytes());
 }
