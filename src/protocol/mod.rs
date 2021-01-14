@@ -8,6 +8,7 @@ use chrono::{DateTime, Duration, Utc};
 use log::{debug, warn};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use serde_json::{from_slice, from_value, json, Value};
 use std::convert::TryFrom;
 use std::process;
 use std::time::SystemTime;
@@ -173,7 +174,6 @@ impl Message {
     pub fn body<T: Task>(&self) -> Result<MessageBody<T>, ProtocolError> {
         match self.properties.content_type.as_str() {
             "application/json" => {
-                use serde_json::{from_slice, from_value, Value};
                 let value: Value = from_slice(&self.raw_body)?;
                 debug!("Deserialized message body: {:?}", value);
                 if let Value::Array(ref vec) = value {
@@ -332,9 +332,7 @@ impl Message {
         &self.headers.id
     }
 
-    pub fn json_serialized(&self) -> Result<Vec<u8>, serde_json::error::Error> {
-        use serde_json::{json, value::Value};
-
+    pub fn json_serialized(&self) -> Result<Vec<u8>, ProtocolError> {
         let root_id = match &self.headers.root_id {
             Some(root_id) => json!(root_id.clone()),
             None => Value::Null,
@@ -355,12 +353,9 @@ impl Message {
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
         let delivery_tag = uuid.to_owned();
         let msg_json_value = json!({
-            "body": self.raw_body.clone(),
-            "content_encoding": self.properties.content_encoding.clone(),
-            "content_type": self.properties.content_type.clone(),
-            "correlation_id": self.properties.correlation_id.clone(),
-            "reply_to": reply_to,
-            "delivery_tag": delivery_tag,
+            "body": base64::encode(self.raw_body.clone()),
+            "content-encoding": self.properties.content_encoding.clone(),
+            "content-type": self.properties.content_type.clone(),
             "headers": {
                 "id": self.headers.id.clone(),
                 "task": self.headers.task.clone(),
@@ -377,11 +372,16 @@ impl Message {
                 "argsrepr": self.headers.argsrepr.clone(),
                 "kwargsrepr": self.headers.kwargsrepr.clone(),
                 "origin": self.headers.origin.clone()
-            }
+            },
+            "properties": json!({
+                "correlation_id": self.properties.correlation_id.clone(),
+                "reply_to": reply_to,
+                "delivery_tag": delivery_tag,
+                "body_encoding": "base64",
+            })
         });
         let res = serde_json::to_string(&msg_json_value)?;
         Ok(res.into_bytes())
-        // Ok(res.bytes())
     }
 }
 
@@ -484,7 +484,7 @@ pub struct MessageProperties {
 }
 
 /// Additional meta data pertaining to the Celery protocol.
-#[derive(Eq, PartialEq, Debug, Default, Clone)]
+#[derive(Eq, PartialEq, Debug, Default, Deserialize, Clone)]
 pub struct MessageHeaders {
     /// A unique ID of the task.
     pub id: String,
@@ -579,43 +579,41 @@ pub struct MessageBodyEmbed {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeliveryHeaders {
-    pub id: String,
-    pub task: String,
-    pub lang: Option<String>,
-    pub root_id: Option<String>,
-    pub parent_id: Option<String>,
-    pub group: Option<String>,
-    pub meth: Option<String>,
-    pub shadow: Option<String>,
-    pub eta: Option<DateTime<Utc>>,
-    pub expires: Option<DateTime<Utc>>,
-    pub retries: Option<u32>,
-    pub timelimit: (Option<u32>, Option<u32>),
-    pub argsrepr: Option<String>,
-    pub kwargsrepr: Option<String>,
-    pub origin: Option<String>,
+#[serde(rename_all = "snake_case")]
+pub enum BodyEncoding {
+    Base64,
+}
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeliveryProperties {
+    pub correlation_id: String,
+    pub reply_to: Option<String>,
+    pub delivery_tag: String,
+    pub body_encoding: BodyEncoding,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Delivery {
-    pub body: Vec<u8>,
+    pub body: String,
+    #[serde(rename = "content-encoding")]
     pub content_encoding: String,
+    #[serde(rename = "content-type")]
     pub content_type: String,
-    pub correlation_id: String,
-    pub reply_to: Option<String>,
-    pub delivery_tag: String,
-    pub headers: DeliveryHeaders,
+    pub headers: MessageHeaders,
+    pub properties: DeliveryProperties,
 }
 
 impl Delivery {
     pub fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
+        let raw_body = match self.properties.body_encoding {
+            BodyEncoding::Base64 => base64::decode(self.body.clone())
+                .map_err(|e| ProtocolError::InvalidProperty(format!("body error: {}", e)))?,
+        };
         Ok(Message {
             properties: MessageProperties {
-                correlation_id: self.correlation_id.clone(),
+                correlation_id: self.properties.correlation_id.clone(),
                 content_type: self.content_type.clone(),
                 content_encoding: self.content_encoding.clone(),
-                reply_to: self.reply_to.clone(),
+                reply_to: self.properties.reply_to.clone(),
             },
             headers: MessageHeaders {
                 id: self.headers.id.clone(),
@@ -634,7 +632,7 @@ impl Delivery {
                 kwargsrepr: self.headers.kwargsrepr.clone(),
                 origin: self.headers.origin.clone(),
             },
-            raw_body: self.body.clone(),
+            raw_body,
         })
     }
 }

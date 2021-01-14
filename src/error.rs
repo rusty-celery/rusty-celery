@@ -189,6 +189,10 @@ pub enum ProtocolError {
     /// Raised when serializing or de-serializing a message body fails.
     #[error("message body serialization error")]
     BodySerializationError(#[from] ContentTypeError),
+
+    /// Raised when field value is invalid.
+    #[error("invalid property '{0}'")]
+    InvalidProperty(String),
 }
 
 impl From<serde_json::Error> for ProtocolError {

@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Tokio updated to 1.0.0.
+- Change redis delivery msg to comply with python message
 
 ### Fixed
 
