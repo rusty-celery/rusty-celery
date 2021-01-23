@@ -210,8 +210,8 @@ pub(crate) enum TaskEvent {
     StatusChange(TaskStatus),
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum TaskStatus {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum TaskStatus {
     Pending,
     Finished,
 }
