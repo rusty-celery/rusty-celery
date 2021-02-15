@@ -292,6 +292,7 @@ impl parse::Parse for TaskAttr {
 }
 
 impl Task {
+    #![allow(clippy::unnecessary_wraps)]
     fn new(attrs: TaskAttrs) -> Result<Self, Error> {
         Ok(Task {
             errors: Vec::new(),

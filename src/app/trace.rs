@@ -26,6 +26,7 @@ impl<T> Tracer<T>
 where
     T: Task,
 {
+    #![allow(clippy::unnecessary_wraps)]
     fn new(task: T, event_tx: UnboundedSender<TaskEvent>) -> Result<Self, ProtocolError> {
         if let Some(eta) = task.request().eta {
             info!(

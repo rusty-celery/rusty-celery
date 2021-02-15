@@ -438,14 +438,11 @@ where
         // NOTE: we don't need to log errors from the trace here since the tracer
         // handles all errors at it's own level or the task level. In this function
         // we only log errors at the broker and delivery level.
-        if let Err(e) = tracer.trace().await {
-            // If retry error -> retry the task.
-            if let TraceError::Retry(retry_eta) = e {
-                self.broker
-                    .retry(&delivery, retry_eta)
-                    .await
-                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
-            }
+        if let Err(TraceError::Retry(retry_eta)) = tracer.trace().await {
+            self.broker
+                .retry(&delivery, retry_eta)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
 
         // If we have not done it before, we have to acknowledge the message now.
