@@ -1,3 +1,4 @@
+use crate::error::BackendError;
 use crate::task::TaskStatus;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -18,16 +19,16 @@ pub trait Backend: Send + Sync + Sized {
     ) -> Result<(), ()>;
 
     /// Get task meta from backend.
-    async fn get_task_meta(&self, task_id: &str) -> ResultMetadata;
+    async fn get_task_meta(&self, task_id: &str) -> Result<ResultMetadata, BackendError>;
 
     /// Get current state of a given task.
-    async fn get_state(&self, task_id: &str) -> TaskStatus {
-        self.get_task_meta(task_id).await.status
+    async fn get_state(&self, task_id: &str) -> Result<TaskStatus, BackendError> {
+        Ok(self.get_task_meta(task_id).await?.status)
     }
 
     /// Get result of a given task.
-    async fn get_result(&self, task_id: &str) -> Option<String> {
-        self.get_task_meta(task_id).await.result
+    async fn get_result(&self, task_id: &str) -> Result<Option<String>, BackendError> {
+        Ok(self.get_task_meta(task_id).await?.result)
     }
 }
 
