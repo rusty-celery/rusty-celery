@@ -48,7 +48,7 @@ once_cell = { version = "1.3.1" }
 globset = "0.4"
 hostname = "0.3.0"
 
-redis = { version="0.19.0", features=["connection-manager", "tokio-comp"] }
+redis = { version="0.20.0", features=["connection-manager", "tokio-comp"] }
 
 [dev-dependencies]
 rmp-serde = "0.15"
