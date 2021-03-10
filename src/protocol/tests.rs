@@ -70,7 +70,7 @@ fn test_deserialize_body_with_args() {
     assert_eq!(body.1.a, 4);
 }
 
-const YAML: &str = "---\n- []\n- a: 4\n- callbacks: ~\n  errbacks: ~\n  chain: ~\n  chord: ~";
+const YAML: &str = "---\n- []\n- a: 4\n- callbacks: ~\n  errbacks: ~\n  chain: ~\n  chord: ~\n";
 
 #[test]
 fn test_yaml_serialize_body() {

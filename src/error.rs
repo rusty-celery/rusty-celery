@@ -165,10 +165,11 @@ impl BrokerError {
     pub fn is_connection_error(&self) -> bool {
         match self {
             BrokerError::IoError(_) | BrokerError::NotConnected => true,
-            BrokerError::AMQPError(err) => matches!(err,
-                lapin::Error::ProtocolError(_) |
-                lapin::Error::InvalidConnectionState(_) |
-                lapin::Error::InvalidChannelState(_)
+            BrokerError::AMQPError(err) => matches!(
+                err,
+                lapin::Error::ProtocolError(_)
+                    | lapin::Error::InvalidConnectionState(_)
+                    | lapin::Error::InvalidChannelState(_)
             ),
             BrokerError::RedisError(err) => {
                 err.is_connection_dropped() || err.is_connection_refusal()
