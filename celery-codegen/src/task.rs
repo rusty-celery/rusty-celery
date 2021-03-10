@@ -292,8 +292,8 @@ impl parse::Parse for TaskAttr {
 }
 
 impl Task {
-    fn new(attrs: TaskAttrs) -> Result<Self, Error> {
-        Ok(Task {
+    fn new(attrs: TaskAttrs) -> Self {
+        Task {
             errors: Vec::new(),
             visibility: syn::Visibility::Inherited,
             name: attrs.name(),
@@ -318,7 +318,7 @@ impl Task {
                 .unwrap_or_default(),
             on_failure: attrs.on_failure(),
             on_success: attrs.on_success(),
-        })
+        }
     }
 }
 
@@ -574,6 +574,7 @@ impl ToTokens for Task {
             if self.is_async {
                 quote! {
                     impl #wrapper {
+                        #[allow(clippy::unnecessary_wraps)]
                         async fn _run(#typed_run_inputs) -> #return_type {
                             Ok(#inner_block)
                         }
@@ -582,6 +583,7 @@ impl ToTokens for Task {
             } else {
                 quote! {
                     impl #wrapper {
+                        #[allow(clippy::unnecessary_wraps)]
                         fn _run(#typed_run_inputs) -> #return_type {
                             Ok(#inner_block)
                         }
@@ -591,6 +593,7 @@ impl ToTokens for Task {
         } else if self.is_async {
             quote! {
                 impl #wrapper {
+                    #[allow(clippy::unnecessary_wraps)]
                     async fn _run(#typed_run_inputs) -> #return_type {
                         #inner_block
                     }
@@ -599,6 +602,7 @@ impl ToTokens for Task {
         } else {
             quote! {
                 impl #wrapper {
+                    #[allow(clippy::unnecessary_wraps)]
                     fn _run(#typed_run_inputs) -> #return_type {
                         #inner_block
                     }
@@ -710,10 +714,7 @@ pub(crate) fn impl_macro(
 ) -> proc_macro::TokenStream {
     let attrs = syn::parse_macro_input!(args as TaskAttrs);
     let mut item = syn::parse_macro_input!(input as syn::ItemFn);
-    let mut task = match Task::new(attrs) {
-        Ok(task) => task,
-        Err(e) => return quote!(#e).into(),
-    };
+    let mut task = Task::new(attrs);
     task.visit_item_fn_mut(&mut item);
     if !task.errors.is_empty() {
         task.errors
