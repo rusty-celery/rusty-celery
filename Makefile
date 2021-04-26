@@ -15,7 +15,8 @@ format :
 lint :
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-targets --all-features -- \
-			-D warnings
+			-D warnings \
+			-A clippy::upper-case-acronyms
 
 .PHONY : test
 test :

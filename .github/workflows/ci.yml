@@ -89,7 +89,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-        args: --workspace --all-targets --all-features -- -D warnings
+        args: --workspace --all-targets --all-features -- -D warnings -A clippy::upper-case-acronyms
 
   build:
     name: Build
