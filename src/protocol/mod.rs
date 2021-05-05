@@ -89,6 +89,81 @@ where
         self
     }
 
+    pub fn content_encoding(mut self, content_encoding: String) -> Self {
+        self.message.properties.content_encoding = content_encoding;
+        self
+    }
+
+    pub fn correlation_id(mut self, correlation_id: String) -> Self {
+        self.message.properties.correlation_id = correlation_id;
+        self
+    }
+
+    pub fn reply_to(mut self, reply_to: String) -> Self {
+        self.message.properties.reply_to = Some(reply_to);
+        self
+    }
+
+    pub fn id(mut self, id: String) -> Self {
+        self.message.headers.id = id;
+        self
+    }
+
+    pub fn task(mut self, task: String) -> Self {
+        self.message.headers.task = task;
+        self
+    }
+
+    pub fn lang(mut self, lang: String) -> Self {
+        self.message.headers.lang = Some(lang);
+        self
+    }
+
+    pub fn root_id(mut self, root_id: String) -> Self {
+        self.message.headers.root_id = Some(root_id);
+        self
+    }
+
+    pub fn parent_id(mut self, parent_id: String) -> Self {
+        self.message.headers.parent_id = Some(parent_id);
+        self
+    }
+
+    pub fn group(mut self, group: String) -> Self {
+        self.message.headers.group = Some(group);
+        self
+    }
+
+    pub fn meth(mut self, meth: String) -> Self {
+        self.message.headers.meth = Some(meth);
+        self
+    }
+
+    pub fn shadow(mut self, shadow: String) -> Self {
+        self.message.headers.shadow = Some(shadow);
+        self
+    }
+
+    pub fn retries(mut self, retries: u32) -> Self {
+        self.message.headers.retries = Some(retries);
+        self
+    }
+
+    pub fn argsrepr(mut self, argsrepr: String) -> Self {
+        self.message.headers.argsrepr = Some(argsrepr);
+        self
+    }
+
+    pub fn kwargsrepr(mut self, kwargsrepr: String) -> Self {
+        self.message.headers.kwargsrepr = Some(kwargsrepr);
+        self
+    }
+
+    pub fn origin(mut self, origin: String) -> Self {
+        self.message.headers.origin = Some(origin);
+        self
+    }
+
     pub fn time_limit(mut self, time_limit: u32) -> Self {
         self.message.headers.timelimit.1 = Some(time_limit);
         self
