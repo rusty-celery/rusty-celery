@@ -201,6 +201,8 @@ jobs:
 
   coverage:
     name: Coverage
+    # TODO (epwalsh): run this again once it's fixed.
+    if: false
     runs-on: ubuntu-latest
     services:
       redis:
