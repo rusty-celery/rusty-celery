@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `Ok` variant type of the the return type of `Broker::consume`. This is now a tuple that includes a unique
   consumer tag that can then be passed to `Broker::cancel` to cancel the corresponding consumer.
 - Added a "coverage" job to GitHub Actions.
+- Completed MessageBuilder struct
 
 ### Fixed
 
