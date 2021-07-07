@@ -9,12 +9,10 @@ macro_rules! __app_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        async fn _build_app() ->
+        async fn _build_app<S: AsRef<str>>(broker_url: S) ->
             $crate::export::Result<$crate::export::Arc<$crate::Celery::<$broker_type>>> {
 
-            let broker_url = $broker_url;
-
-            let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
+            let mut builder = $crate::Celery::<$broker_type>::builder("celery", broker_url.as_ref());
 
             $(
                 builder = builder.$x($y);
@@ -33,7 +31,8 @@ macro_rules! __app_internal {
             Ok($crate::export::Arc::new(celery))
         }
 
-        _build_app()
+        let broker_url = $broker_url;
+        _build_app(broker_url)
     }};
 }
 
