@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed a bug with `AMQPBroker::close()` that would result in an error with `lapin`.
+- Fixed a bug with the `celery::app!` macro that caused it to fail to compile when the broker connection string was passed as a variable instead of an expression.
 
 ## [v0.4.0-rc5](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rc5) - 2020-11-19
 

@@ -12,6 +12,16 @@ async fn test_basic_use() {
 }
 
 #[tokio::test]
+async fn test_basic_use_with_variable() {
+    let connection_string = std::env::var("AMQP_ADDR").unwrap();
+    let _app = celery::app!(
+        broker = AMQPBroker { connection_string },
+        tasks = [],
+        task_routes = []
+    );
+}
+
+#[tokio::test]
 async fn test_basic_use_with_trailing_comma() {
     let _app = celery::app!(
         broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
