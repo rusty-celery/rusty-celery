@@ -13,14 +13,14 @@ use crate::{
     routing::Rule,
 };
 
-#[cfg(feature = "amqp")]
+#[cfg(feature = "broker_amqp")]
 mod amqp;
-#[cfg(feature = "redis")]
+#[cfg(feature = "broker_redis")]
 mod redis;
 
-#[cfg(feature = "redis")]
+#[cfg(feature = "broker_redis")]
 pub use self::redis::{RedisBroker, RedisBrokerBuilder};
-#[cfg(feature = "amqp")]
+#[cfg(feature = "broker_amqp")]
 pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
 
 #[cfg(test)]

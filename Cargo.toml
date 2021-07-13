@@ -60,7 +60,8 @@ anyhow = "1.0"
 structopt = "0.3"
 
 [features]
-default = ["codegen", "amqp", "redis"]
-amqp = ["lapin", "tokio-amqp"]
+default = ["codegen", "broker_amqp", "broker_redis"]
+broker_amqp = ["lapin", "tokio-amqp"]
 codegen = ["celery-codegen"]
 extra_content_types = ["rmp-serde", "rmpv", "serde_yaml", "serde-pickle"]
+broker_redis = ["redis"]
