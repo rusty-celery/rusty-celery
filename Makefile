@@ -32,23 +32,10 @@ test :
 	@cargo test --no-run --test codegen app_codegen
 	@cargo test --no-run --test codegen beat_codegen
 
-.PHONY : broker-amqp-test
-broker-amqp-test :
-	@cargo test --test integrations brokers::amqp
-
-.PHONY : run-all-tests
-run-all-tests :
-	@cargo test --workspace --lib
-	@cargo test --workspace --doc
-	@cargo test --test codegen task_codegen
-	@cargo test --no-run --test codegen app_codegen
-	@cargo test --no-run --test codegen beat_codegen
+.PHONY : broker-tests
+broker-tests :
 	@cargo test --test integrations brokers::amqp
 	@cargo test --test integrations brokers::redis
-
-.PHONY : rabbitmq
-rabbitmq :
-	@./scripts/brokers/amqp.sh
 
 .PHONY : build-docs
 build-docs :

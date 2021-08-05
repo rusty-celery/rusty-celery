@@ -46,15 +46,45 @@ jobs:
       CACHE_PREFIX: v0
       AMQP_ADDR: amqp://127.0.0.1:5672//
       REDIS_ADDR: redis://127.0.0.1:6379/
-    services: ${{ matrix.task.services }}
+    services: ${{ matrix.services }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         rust: [stable]
         task:
           - name: Tests
-            run: make run-all-tests
+            run: make test
+
+          - name: Lint
+            run: make check-clippy
+
+          - name: Build
+            run: make build
+
+        include:
+          - os: ubuntu-latest
+            rust: stable
+            sccache-path: /home/runner/.cache/sccache
+            target: x86_64-unknown-linux-musl
+            services: {}
+            task:
+              name: Format
+              run: make check-fmt
+
+          - os: ubuntu-latest
+            rust: nightly
+            sccache-path: /home/runner/.cache/sccache
+            target: x86_64-unknown-linux-musl
+            services: {}
+            task:
+              name: Build Docs
+              run: make build-docs
+
+          - os: ubuntu-latest
+            rust: stable
+            sccache-path: /home/runner/.cache/sccache
+            target: x86_64-unknown-linux-musl
             services:
               rabbitmq:
                 image: rabbitmq
@@ -64,45 +94,19 @@ jobs:
                 image: redis
                 ports:
                   - 6379:6379
-
-          - name: Lint
-            run: make check-clippy
-            services: {}
-
-          - name: Build
-            run: make build
-            services: {}
-
-        include:
-          - os: ubuntu-latest
-            rust: stable
-            sccache-path: /home/runner/.cache/sccache
-            target: x86_64-unknown-linux-musl
             task:
-              name: Format
-              run: make check-fmt
-              services: {}
-
-          - os: ubuntu-latest
-            rust: nightly
-            sccache-path: /home/runner/.cache/sccache
-            target: x86_64-unknown-linux-musl
-            task:
-              name: Build Docs
-              run: make build-docs
-              services: {}
+              name: Broker Tests
+              run: make broker-tests
 
           - os: ubuntu-latest
             sccache-path: /home/runner/.cache/sccache
             target: x86_64-unknown-linux-musl
+            services: {}
 
           - os: macos-latest
             sccache-path: /Users/runner/Library/Caches/Mozilla.sccache
             target: x86_64-apple-darwin
-
-          - os: windows-latest
-            sccache-path: "%LOCALAPPDATA%\\Mozilla\\sccache"
-            target: x86_64-pc-windows-gnu
+            services: {}
     steps:
       - uses: actions/checkout@v2
 
@@ -126,11 +130,6 @@ jobs:
         run: |
           # brew update  # takes forever
           brew install sccache
-
-      - name: Install sccache (windows-latest)
-        if: matrix.os == 'windows-latest'
-        run: |
-          scoop install sccache
 
       - name: Install Rust ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
