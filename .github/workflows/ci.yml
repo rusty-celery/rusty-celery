@@ -101,7 +101,7 @@ jobs:
             target: x86_64-apple-darwin
 
           - os: windows-latest
-            sccache-path: "%LOCALAPPDATA%\Mozilla\sccache"
+            sccache-path: "%LOCALAPPDATA%\\Mozilla\\sccache"
             target: x86_64-pc-windows-gnu
     steps:
       - uses: actions/checkout@v2
