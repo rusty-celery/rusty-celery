@@ -39,4 +39,4 @@ broker-tests :
 
 .PHONY : build-docs
 build-docs :
-	cargo doc --all-faetures --workspace --no-deps
+	cargo doc --all-features --workspace --no-deps
