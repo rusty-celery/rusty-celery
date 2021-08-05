@@ -37,6 +37,16 @@ broker-tests :
 	@cargo test --test integrations brokers::amqp
 	@cargo test --test integrations brokers::redis
 
+.PHONY : run-all-tests
+run-all-tests :
+	@cargo test --workspace --lib
+	@cargo test --workspace --doc
+	@cargo test --test codegen task_codegen
+	@cargo test --no-run --test codegen app_codegen
+	@cargo test --no-run --test codegen beat_codegen
+	@cargo test --test integrations brokers::amqp
+	@cargo test --test integrations brokers::redis
+
 .PHONY : build-docs
 build-docs :
 	cargo doc --all-features --workspace --no-deps
