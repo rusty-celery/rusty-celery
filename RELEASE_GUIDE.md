@@ -18,18 +18,6 @@
     git tag "$TAG" -m "Adds tag $TAG for release" && git push --tags
     ```
 
-6. Find the tag you just pushed [on GitHub](https://github.com/rusty-celery/rusty-celery/releases), click edit, then copy over the output of:
-
-    ```
-    python scripts/generate_release_notes.py
-    ```
-
-    On a Mac, for example, you can just pipe the above command into `pbcopy`.
-
-7. Check the box "This is a pre-release" if the release is a release candidate (ending with `-rc*`). Otherwise leave it unchecked.
-
-8. Finally, click "Publish Release". GitHub Actions will then build and publish to [crates.io](https://crates.io).
-
 # Fixing a failed release
 
 If for some reason the GitHub Actions release workflow failed with an error that needs to be fixed, you'll have to delete both the tag and corresponding release from GitHub. After you've pushed a fix, delete the tag from your local clone with
