@@ -125,7 +125,7 @@ where
             message.task_id(),
             queue
         );
-        self.broker.send(&message, &queue).await?;
+        self.broker.send(&message, queue).await?;
         scheduled_task.last_run_at.replace(SystemTime::now());
         scheduled_task.total_run_count += 1;
         Ok(())

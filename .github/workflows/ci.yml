@@ -1,5 +1,9 @@
 name: CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
@@ -22,10 +26,6 @@ jobs:
     steps:
     # Note that checkout@v2 will not work with the git command below!
     - uses: actions/checkout@v1
-
-    - name: Debugging info
-      run: |
-        git remote -v
 
     - name: Check that CHANGELOG has been updated
       run: |
@@ -199,62 +199,6 @@ jobs:
         command: test
         args: --no-run --test codegen beat_codegen
 
-  coverage:
-    name: Coverage
-    # TODO (epwalsh): run this again once it's fixed.
-    if: false
-    runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-      rabbitmq:
-        image: rabbitmq
-        ports:
-          - 5672:5672
-        env:
-          RABBITMQ_DEFAULT_VHOST: my_vhost
-    steps:
-    - name: Install rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-
-    - uses: actions/checkout@v2
-
-    - name: Set build variables
-      shell: bash
-      run: |
-        # We use these variables as part of the cache keys.
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "DOY=$(date +%j)" >> $GITHUB_ENV
-
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Run cargo-tarpaulin
-      uses: actions-rs/tarpaulin@v0.1
-      with:
-        out-type: Lcov
-        args: '--all-features --workspace --ignore-tests'
-
-    - name: Coveralls upload
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        path-to-lcov: "lcov.info"
-
   docs:
     name: Build Docs
     runs-on: ubuntu-latest
@@ -299,8 +243,6 @@ jobs:
         image: rabbitmq
         ports:
           - 5672:5672
-        env:
-          RABBITMQ_DEFAULT_VHOST: my_vhost
     steps:
     - uses: actions/checkout@v2
 
@@ -334,7 +276,7 @@ jobs:
         command: test
         args: --test integrations brokers::amqp
       env:
-        AMQP_ADDR: amqp://127.0.0.1:5672/my_vhost
+        AMQP_ADDR: amqp://127.0.0.1:5672//
         RUST_LOG: info
 
   broker_redis_test:
