@@ -33,295 +33,140 @@ jobs:
         # file with notes on your contribution.
         git diff --name-only $(git merge-base origin/main HEAD) | grep '^CHANGELOG.md$' && echo "Thanks for helping keep our CHANGELOG up-to-date!"
 
-  format:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        components: rustfmt
-        override: true
-
-    - name: Check formatting
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: -- --check
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        components: clippy
-        override: true
-
-    - name: Set build variables
-      shell: bash
-      run: |
-        # We use these variables as part of the cache keys.
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "DOY=$(date +%j)" >> $GITHUB_ENV
-
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Lint with clippy
-      if: always()
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --workspace --all-targets --all-features -- -D warnings -A clippy::upper-case-acronyms
-
-  build:
-    name: Build
+  build_checks:
+    name: ${{ matrix.task.name }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      RUST_BACKTRACE: full
+      RUSTC_WRAPPER: sccache
+      RUSTV: ${{ matrix.rust }}
+      TARGET: ${{ matrix.target }}
+      SCCACHE_CACHE_SIZE: 1G
+      SCCACHE_DIR: ${{ matrix.sccache-path }}
+      CACHE_PREFIX: v0
+      AMQP_ADDR: amqp://127.0.0.1:5672//
+      REDIS_ADDR: redis://127.0.0.1:6379/
+    services: ${{ matrix.task.services }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        features: [codegen, extra_content_types]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable]
+        task:
+          - name: Tests
+            run: make run-all-tests
+            services:
+              rabbitmq:
+                image: rabbitmq
+                ports:
+                  - 5672:5672
+              redis:
+                image: redis
+                ports:
+                  - 6379:6379
+
+          - name: Lint
+            run: make check-clippy
+            services: {}
+
+          - name: Build
+            run: make build
+            services: {}
+
+        include:
+          - os: ubuntu-latest
+            rust: stable
+            sccache-path: /home/runner/.cache/sccache
+            target: x86_64-unknown-linux-musl
+            task:
+              name: Format
+              run: make check-fmt
+              services: {}
+
+          - os: ubuntu-latest
+            rust: nightly
+            sccache-path: /home/runner/.cache/sccache
+            target: x86_64-unknown-linux-musl
+            task:
+              name: Build Docs
+              run: make build-docs
+              services: {}
+
+          - os: ubuntu-latest
+            sccache-path: /home/runner/.cache/sccache
+            target: x86_64-unknown-linux-musl
+
+          - os: macos-latest
+            sccache-path: /Users/runner/Library/Caches/Mozilla.sccache
+            target: x86_64-apple-darwin
+
+          - os: windows-latest
+            sccache-path: %LOCALAPPDATA%\Mozilla\sccache
+            target: x86_64-pc-windows-gnu
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+      - name: Install sccache (ubuntu-latest)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          LINK: https://github.com/mozilla/sccache/releases/download
+          SCCACHE_VERSION: v0.2.15
+        run: |
+          SCCACHE_FILE=sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl
+          URL="$LINK/$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz"
+          echo "Downloading sccache from $URL"
+          mkdir -p $HOME/.local/bin
+          curl -L $URL | tar xz
+          mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
+          chmod +x $HOME/.local/bin/sccache
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-    - name: Set build variables
-      shell: bash
-      run: |
-        # We use these variables as part of the cache keys.
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "DOY=$(date +%j)" >> $GITHUB_ENV
+      - name: Install sccache (macos-latest)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # brew update  # takes forever
+          brew install sccache
 
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ matrix.features }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
+      - name: Install sccache (windows-latest)
+        if: matrix.os == 'windows-latest'
+        run: |
+          scoop install sccache
 
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: cargo build ${{ github.job }} ${{ matrix.features }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
+      - name: Install Rust ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          profile: minimal
+          override: true
 
-    - name: Build
-      if: always()
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --workspace --no-default-features --features ${{ matrix.features }}
+      - name: Install Musl Tools
+        if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
+        run: |
+          sudo apt install -y musl-tools
+          sudo ln -s /usr/bin/musl-gcc /usr/local/bin/x86_64-linux-musl-gcc
+          echo "TARGET_CC=musl-gcc" | tee -a $GITHUB_ENV
+          rustup target add x86_64-unknown-linux-musl
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
+      - name: Cache cargo registry and sccache
+        uses: actions/cache@v2
+        continue-on-error: false
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ matrix.sccache-path }}
+          key: ${{ env.CACHE_PREFIX }}-${{ runner.os }}-${{ matrix.task.name }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ env.CACHE_PREFIX }}-${{ runner.os }}-${{ matrix.task.name }}-
 
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+      - name: Start sccache server
+        run: sccache --start-server
 
-    - name: Set build variables
-      shell: bash
-      run: |
-        # We use these variables as part of the cache keys.
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "DOY=$(date +%j)" >> $GITHUB_ENV
+      - name: ${{ matrix.task.name }}
+        run: ${{ matrix.task.run }}
 
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Run unit tests
-      if: always()
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --lib
-
-    - name: Run doc tests
-      if: always()
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --doc
-
-    - name: Run task codegen tests
-      if: always()
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --test codegen task_codegen
-
-    - name: Compile app codegen tests
-      if: always()
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --no-run --test codegen app_codegen
-
-    - name: Compile beat codegen tests
-      if: always()
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --no-run --test codegen beat_codegen
-
-  docs:
-    name: Build Docs
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install rust nightly  # we build docs on nightly because that's what docs.rs does.
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-
-    - name: Set build variables
-      run: |
-        # We use these variables as part of the cache keys.
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "DOY=$(date +%j)" >> $GITHUB_ENV
-
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Build docs
-      uses: actions-rs/cargo@v1
-      with:
-        command: doc
-        args: --all-features --workspace --no-deps
-
-  broker_amqp_test:
-    name: Check Broker (AMQP)
-    runs-on: ubuntu-latest
-    services:
-      rabbitmq:
-        image: rabbitmq
-        ports:
-          - 5672:5672
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        components: rustfmt, clippy
-        override: true
-
-    - name: Set build variables
-      run: |
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "DOY=$(date +%j)" >> $GITHUB_ENV
-
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Run broker integration tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --test integrations brokers::amqp
-      env:
-        AMQP_ADDR: amqp://127.0.0.1:5672//
-        RUST_LOG: info
-
-  broker_redis_test:
-    name: Check Broker (Redis)
-    runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        components: rustfmt, clippy
-        override: true
-
-    - name: Set build variables
-      run: |
-        echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-        echo "DOY=$(date +%j)" >> $GITHUB_ENV
-
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo/registry
-        key: cargo registry ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: target
-        key: cargo build ${{ github.job }} ${{ runner.os }} ${{ env.RUST_VERSION }} ${{ hashFiles('**/Cargo.toml') }} ${{ env.DOY }}
-
-    - name: Run broker integration tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --test integrations brokers::redis
-      env:
-        REDIS_ADDR: redis://127.0.0.1:6379/
-        RUST_LOG: info
+      - name: Stop sccache server
+        run: sccache --stop-server || true
 
   test_python_example:
     name: Check Python Example
@@ -362,7 +207,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: [format, lint, build, test, docs, broker_amqp_test, broker_redis_test]
+    needs: [build_checks]
     runs-on: ubuntu-latest
     # Only run on main repo releases .
     if: github.repository == 'rusty-celery/rusty-celery' && github.event_name == 'release'
