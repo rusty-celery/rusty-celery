@@ -248,6 +248,7 @@ jobs:
 
     - name: Publish celery to crates.io
       run: |
+        sleep 30  # wait a few seconds for the workspace crates to update on crates.io
         cargo publish
 
   publish_github_release:
