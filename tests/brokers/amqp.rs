@@ -66,7 +66,7 @@ impl Task for add {
 #[tokio::test]
 async fn test_amqp_broker() {
     let my_app = celery::app!(
-        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/my_vhost".into()) },
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672//".into()) },
         tasks = [add],
         task_routes = [
             "add" => "celery",
