@@ -279,5 +279,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body_path: ${{ github.workspace }}-RELEASE_NOTES.md
+          prerelease: ${{ contains(env.RELEASE_VERSION, '-rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
