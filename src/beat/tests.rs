@@ -181,20 +181,20 @@ async fn test_task_with_delayed_first_run() {
 
     assert!(result.is_err()); // The beat should only stop because of the timeout
 
-    let tasks: Vec<_> = beat
+    let task_count = beat
         .scheduler
         .broker
         .sent_tasks
         .write()
         .await
         .drain()
-        .collect();
+        .count();
 
     // There a was a bug that caused the task to be dropped without being executed
     // if it was not scheduled to run immediately. Hence here we check that
     // the task has been executed at least once.
     assert!(
-        !tasks.is_empty(),
+        task_count > 0,
         "A task that was supposed to run at least once did not run."
     );
 }
