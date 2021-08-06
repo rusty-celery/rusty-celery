@@ -452,8 +452,8 @@ impl Message {
                 "correlation_id": self.properties.correlation_id.clone(),
                 "reply_to": reply_to,
                 "delivery_tag": delivery_tag,
-                "body_encoding": "base64",
-            })
+                "body_encoding": "base64"
+            }),
         });
         let res = serde_json::to_string(&msg_json_value)?;
         Ok(res.into_bytes())

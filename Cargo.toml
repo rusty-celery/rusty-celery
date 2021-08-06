@@ -36,8 +36,8 @@ serde_yaml = { version = "0.8", optional = true }
 serde-pickle = { version = "0.6", optional = true }
 thiserror = "1.0"
 async-trait = "0.1"
-lapin = "1.6.5"
-tokio-amqp = "1.0.0"
+lapin = { version = "1.6.5", optional = true }
+tokio-amqp = { version = "1.0.0", optional = true }
 log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
 uuid = { version = "0.8", features = ["v4"]}
@@ -48,7 +48,7 @@ once_cell = { version = "1.3.1" }
 globset = "0.4"
 hostname = "0.3.0"
 
-redis = { version="0.20.0", features=["connection-manager", "tokio-comp"] }
+redis = { version="0.20.0", features=["connection-manager", "tokio-comp"], optional = true }
 
 [dev-dependencies]
 rmp-serde = "0.15"
@@ -60,6 +60,8 @@ anyhow = "1.0"
 structopt = "0.3"
 
 [features]
-default = ["codegen"]
+default = ["codegen", "broker_amqp", "broker_redis"]
+broker_amqp = ["lapin", "tokio-amqp"]
 codegen = ["celery-codegen"]
 extra_content_types = ["rmp-serde", "rmpv", "serde_yaml", "serde-pickle"]
+broker_redis = ["redis"]
