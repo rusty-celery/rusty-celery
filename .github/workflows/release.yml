@@ -14,23 +14,23 @@ jobs:
       matrix:
         crate: [celery-codegen]
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+      - name: Install rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
-    - name: Log in to crates.io
-      uses: actions-rs/cargo@v1
-      with:
-        command: login
-        args: ${{ secrets.CARGO_TOKEN }}
+      - name: Log in to crates.io
+        uses: actions-rs/cargo@v1
+        with:
+          command: login
+          args: ${{ secrets.CARGO_TOKEN }}
 
-    - name: Publish ${{ matrix.crate }} to crates.io
-      run: |
-        cd ${{ matrix.crate }}
-        cargo publish
+      - name: Publish ${{ matrix.crate }} to crates.io
+        run: |
+          cd ${{ matrix.crate }}
+          cargo publish
 
   publish_celery_crate:
     name: Publish celery crate
@@ -38,23 +38,51 @@ jobs:
     needs: [publish_workspace_crates]
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Install rust stable
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+      - name: Install rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
-    - name: Log in to crates.io
-      uses: actions-rs/cargo@v1
-      with:
-        command: login
-        args: ${{ secrets.CARGO_TOKEN }}
+      - name: Prepare environment
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV;
 
-    - name: Publish celery to crates.io
-      run: |
-        sleep 30  # wait a few seconds for the workspace crates to update on crates.io
-        cargo publish
+      - name: Install jq and curl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Log in to crates.io
+        uses: actions-rs/cargo@v1
+        with:
+          command: login
+          args: ${{ secrets.CARGO_TOKEN }}
+
+      - name: Wait for workspace crates to update on crates.io
+        run: |
+          for subcrate in 'celery-codegen' ; do
+              echo "Waiting for $subcrate to update on crates.io..."
+              for delay in 1 5 10 20 ; do
+                  sleep $delay
+                  subcrate_version=$(curl "https://crates.io/api/v1/crates/$subcrate" 2> /dev/null | jq -r '.crate.newest_version')
+                  echo "Latest version pulled: $subcrate_version"
+                  if [ "$VERSION" == "$subcrate_version" ]; then
+                      echo "$subcrate up-to-date!"
+                      break
+                  else
+                      if [ "$delay" == "20" ]; then
+                          echo "$subcrate failed to update on crates.io"
+                          exit 1
+                      fi
+                  fi
+              done
+          done
+
+      - name: Publish celery to crates.io
+        run: |
+          cargo publish
 
   publish_github_release:
     name: Publish github release
