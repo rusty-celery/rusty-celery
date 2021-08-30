@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [v0.4.0-rc9](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rc9) - 2021-08-30
+## [v0.4.0-rc10](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rc10) - 2021-08-30
 
 ### Fixed
 
