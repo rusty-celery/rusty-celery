@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fixed another bug with the `app!` and `beat!` related to issue [#250](https://github.com/rusty-celery/rusty-celery/issues/250).
+
 ## [v0.4.0-rc8](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rc8) - 2020-08-05
 
 ### Changed
