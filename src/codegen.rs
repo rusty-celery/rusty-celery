@@ -52,24 +52,8 @@ macro_rules! __beat_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-<<<<<<< HEAD
         async fn _build_beat(mut builder: $crate::beat::BeatBuilder::<<$broker_type as $crate::broker::Broker>::Builder, $scheduler_backend_type>) ->
             $crate::export::BeatResult<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
-=======
-        async fn _build_beat<S: AsRef<str>>(broker_url: S) ->
-            $crate::export::BeatResult<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
-
-            let mut builder = $crate::beat::Beat::<$broker_type, $scheduler_backend_type>::custom_builder("beat", broker_url.as_ref(), $scheduler_backend);
-
-            $(
-                builder = builder.$x($y);
-            )*
-
-            $(
-                builder = builder.task_route($pattern, $queue);
-            )*
-
->>>>>>> a4782e0... fix beat macro with connection string as variable
             let mut beat = builder.build().await?;
 
             $(
@@ -79,7 +63,6 @@ macro_rules! __beat_internal {
             Ok(beat)
         }
 
-<<<<<<< HEAD
         let broker_url = $broker_url;
 
         let mut builder = $crate::beat::Beat::<$broker_type, $scheduler_backend_type>::custom_builder("beat", &broker_url, $scheduler_backend);
@@ -93,10 +76,6 @@ macro_rules! __beat_internal {
         )*
 
         _build_beat(builder)
-=======
-            let broker_url = $broker_url;
-        _build_beat(broker_url)
->>>>>>> a4782e0... fix beat macro with connection string as variable
     }};
 }
 
