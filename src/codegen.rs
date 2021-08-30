@@ -52,12 +52,10 @@ macro_rules! __beat_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        async fn _build_beat() ->
+        async fn _build_beat<S: AsRef<str>>(broker_url: S) ->
             $crate::export::BeatResult<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
 
-            let broker_url = $broker_url;
-
-            let mut builder = $crate::beat::Beat::<$broker_type, $scheduler_backend_type>::custom_builder("beat", &broker_url, $scheduler_backend);
+            let mut builder = $crate::beat::Beat::<$broker_type, $scheduler_backend_type>::custom_builder("beat", broker_url.as_ref(), $scheduler_backend);
 
             $(
                 builder = builder.$x($y);
@@ -76,7 +74,8 @@ macro_rules! __beat_internal {
             Ok(beat)
         }
 
-        _build_beat()
+            let broker_url = $broker_url;
+        _build_beat(broker_url)
     }};
 }
 
