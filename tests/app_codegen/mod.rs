@@ -8,17 +8,23 @@ async fn test_basic_use() {
         broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
         tasks = [],
         task_routes = []
-    );
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
 async fn test_basic_use_with_variable() {
     let connection_string = std::env::var("AMQP_ADDR").unwrap();
+    let default_queue = "default";
     let _app = celery::app!(
         broker = AMQPBroker { connection_string },
         tasks = [],
-        task_routes = []
-    );
+        task_routes = [],
+        default_queue = default_queue,
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -27,7 +33,9 @@ async fn test_basic_use_with_trailing_comma() {
         broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
         tasks = [],
         task_routes = [],
-    );
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -37,7 +45,9 @@ async fn test_with_options() {
         tasks = [],
         task_routes = [],
         task_time_limit = 2
-    );
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -47,5 +57,7 @@ async fn test_with_options_and_trailing_comma() {
         tasks = [],
         task_routes = [],
         task_time_limit = 2,
-    );
+    )
+    .await
+    .unwrap();
 }
