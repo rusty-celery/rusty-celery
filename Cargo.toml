@@ -33,7 +33,7 @@ serde_json = "1.0"
 rmp-serde = { version = "0.15", optional = true }
 rmpv = { version = "1.0.0", optional = true, features = ["with-serde"] }
 serde_yaml = { version = "0.8", optional = true }
-serde-pickle = { version = "0.6", optional = true }
+serde-pickle = { version = "1.0", optional = true }
 thiserror = "1.0"
 async-trait = "0.1"
 lapin = "1.6.5"
@@ -53,7 +53,7 @@ redis = { version = "0.21.1", features=["connection-manager", "tokio-comp"] }
 rmp-serde = "0.15"
 rmpv = { version = "1.0.0", features = ["with-serde"] }
 serde_yaml = "0.8"
-serde-pickle = "0.6"
+serde-pickle = "1.0"
 env_logger = "0.9"
 anyhow = "1.0"
 structopt = "0.3"
