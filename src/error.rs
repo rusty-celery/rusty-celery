@@ -1,6 +1,7 @@
 //! All error types used throughout the library.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Errors that can occur while creating or using a `Celery` app.
@@ -60,7 +61,7 @@ pub enum ScheduleError {
 }
 
 /// Errors that can occur at the task level.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize, Deserialize)]
 pub enum TaskError {
     /// An error that is expected to happen every once in a while.
     ///
