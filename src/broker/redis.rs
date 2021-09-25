@@ -385,7 +385,7 @@ impl Broker for RedisBroker {
         // Stop additional task fetching
         let old_prefetch_count = self.prefetch_count.fetch_and(0, Ordering::SeqCst);
         let mut conn = self.manager.clone();
-        let timeed_out = false;
+        let timed_out = false;
         loop {
             let rez: Result<String, RedisError> = redis::cmd("PING").query_async(&mut conn).await;
             match rez {
@@ -403,7 +403,7 @@ impl Broker for RedisBroker {
                     }
                 }
                 Err(e) => {
-                    if !timeed_out {
+                    if !timed_out {
                         tokio::time::sleep(tokio::time::Duration::from_secs(
                             connection_timeout as u64,
                         ))

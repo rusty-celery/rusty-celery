@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ⚠️ **BREAKING CHANGE** ⚠️
 
-  To improve the `app!` and `beat!` macros and accomodate custom `Broker`s and `SchedulerBackend`s,
+  To improve the `app!` and `beat!` macros and accommodate custom `Broker`s and `SchedulerBackend`s,
   we've had to make breaking changes to the way these macros are invoked.
 
   The biggest change is that the macros now return a future of `Result<Celery>` or `Result<Beat>`.
@@ -133,7 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Ensure a `Signature` inherits default `TaskOptions` from the corresponding `Task` and `Celery` or `Beat` app.
 - Cleaned up remaining uses of `.unwrap()` in the library.
-- Options returned with `Task::options()` now have the current values, where app-level values are overriden by task-level values.
+- Options returned with `Task::options()` now have the current values, where app-level values are overridden by task-level values.
 
 ## v0.4.0-rc3 - 2020-09-09
 
@@ -215,7 +215,7 @@ is the same for Python consumers.
 
 ### Changed
 
-- Tasks must explicity return a `TaskResult<T>` now.
+- Tasks must explicitly return a `TaskResult<T>` now.
 
 ## v0.2.4 - 2020-03-16
 
@@ -263,7 +263,7 @@ But if set to `false`, tasks that raised `TaskError::UnexpectedError` won't be r
 - Task parameters are now separated from task struct.
 - Task callback methods `on_failure` and `on_success` are now instance methods.
 - `Celery::send_task` now takes a `Signature` instead of a `Task`.
-- When tasks are defined through the `task` macro by annoting a function, that function needs to be explicity marked async for the function to use async / await syntax.
+- When tasks are defined through the `task` macro by annotating a function, that function needs to be explicitly marked async for the function to use async / await syntax.
 
 ### Removed
 

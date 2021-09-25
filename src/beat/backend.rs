@@ -7,7 +7,7 @@ use std::collections::BinaryHeap;
 /// according to some source of truth, such as a database.
 ///
 /// The default scheduler backend, [`LocalSchedulerBackend`](struct.LocalSchedulerBackend.html),
-/// doesn't do any external syncronization, so the source of truth is just the locally defined
+/// doesn't do any external synchronization, so the source of truth is just the locally defined
 /// schedules.
 pub trait SchedulerBackend {
     /// Check whether the internal state of the scheduler should be synchronized.
