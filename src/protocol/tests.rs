@@ -103,7 +103,7 @@ const PICKLE: &[u8] = b"\x80\x02(]}(X\x01\x00\x00\x00aJ\x04\x00\x00\x00u}(X\x09\
 #[test]
 fn test_pickle_serialize_body() {
     let body = MessageBody::<TestTask>::new(TestTaskParams { a: 4 });
-    let serialized = serde_pickle::to_vec(&body, false).unwrap();
+    let serialized = serde_pickle::to_vec(&body, serde_pickle::SerOptions::new()).unwrap();
     // println!("{}", String::from_utf8(serialized.split_off(1)).unwrap());
     assert_eq!(serialized, PICKLE.to_vec());
 }
