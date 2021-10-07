@@ -7,7 +7,7 @@ use crate::protocol::MessageContentType;
 /// the request / signature level (pertaining only to an individual task request).
 ///
 /// The order of precedence is determined by how specific the given configuration option is.
-/// That is, options set at the request level have the highest precendence,
+/// That is, options set at the request level have the highest precedence,
 /// followed by options set at the task level, and lastly the app level.
 ///
 /// For example, if `time_limit: Some(10)` is set at the app level through the
