@@ -28,7 +28,7 @@ pub enum CeleryError {
     #[error("protocol error")]
     ProtocolError(#[from] ProtocolError),
 
-    /// There is already a task registerd to this name.
+    /// There is already a task registered to this name.
     #[error("there is already a task registered as '{0}'")]
     TaskRegistrationError(String),
 
@@ -141,7 +141,7 @@ pub enum BrokerError {
     #[error("IO error \"{0}\"")]
     IoError(#[from] std::io::Error),
 
-    /// Deserilize error
+    /// Deserialize error
     #[error("Deserialize error \"{0}\"")]
     DeserializeError(#[from] serde_json::Error),
 

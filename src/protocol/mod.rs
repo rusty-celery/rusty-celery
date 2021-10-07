@@ -211,7 +211,9 @@ where
                 #[cfg(any(test, feature = "extra_content_types"))]
                 "application/x-yaml" => serde_yaml::to_vec(&body)?,
                 #[cfg(any(test, feature = "extra_content_types"))]
-                "application/x-python-serialize" => serde_pickle::to_vec(&body, false)?,
+                "application/x-python-serialize" => {
+                    serde_pickle::to_vec(&body, serde_pickle::SerOptions::new())?
+                }
                 #[cfg(any(test, feature = "extra_content_types"))]
                 "application/x-msgpack" => rmp_serde::to_vec(&body)?,
                 _ => {
@@ -310,8 +312,8 @@ impl Message {
             }
             #[cfg(any(test, feature = "extra_content_types"))]
             "application/x-python-serialize" => {
-                use serde_pickle::{from_slice, from_value, HashableValue, Value};
-                let value: Value = from_slice(&self.raw_body)?;
+                use serde_pickle::{from_slice, from_value, DeOptions, HashableValue, Value};
+                let value: Value = from_slice(&self.raw_body, DeOptions::new())?;
                 // debug!("Deserialized message body: {:?}", value);
                 if let Value::List(ref vec) = value {
                     if let [Value::List(ref args), Value::Dict(ref kwargs), Value::Dict(ref embed)] =
@@ -402,7 +404,7 @@ impl Message {
         }
     }
 
-    /// Get thet task ID.
+    /// Get the task ID.
     pub fn task_id(&self) -> &str {
         &self.headers.id
     }
@@ -597,7 +599,7 @@ pub struct MessageHeaders {
 
     /// A tuple specifying the hard and soft time limits, respectively.
     ///
-    /// *Note that as of writting this, the Python celery docs actually have a typo where it says
+    /// *Note that as of writing this, the Python celery docs actually have a typo where it says
     /// these are reversed.*
     pub timelimit: (Option<u32>, Option<u32>),
 
