@@ -2,4 +2,4 @@
 
 set -e
 
-docker run -p 5672:5672 --rm rabbitmq
+docker run -p 127.0.0.1:5672:5672 --rm rabbitmq
