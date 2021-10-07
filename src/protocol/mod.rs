@@ -404,7 +404,7 @@ impl Message {
         }
     }
 
-    /// Get thet task ID.
+    /// Get the task ID.
     pub fn task_id(&self) -> &str {
         &self.headers.id
     }
@@ -599,7 +599,7 @@ pub struct MessageHeaders {
 
     /// A tuple specifying the hard and soft time limits, respectively.
     ///
-    /// *Note that as of writting this, the Python celery docs actually have a typo where it says
+    /// *Note that as of writing this, the Python celery docs actually have a typo where it says
     /// these are reversed.*
     pub timelimit: (Option<u32>, Option<u32>),
 

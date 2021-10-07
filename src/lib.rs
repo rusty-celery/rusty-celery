@@ -1,5 +1,5 @@
 //! A Rust implementation of [Celery](http://www.celeryproject.org/) for producing and consuming
-//! asyncronous tasks with a distributed message queue.
+//! asynchronous tasks with a distributed message queue.
 //!
 //! # Examples
 //!
