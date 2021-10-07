@@ -99,11 +99,11 @@ fn test_yaml_deserialize_body_with_args() {
     assert_eq!(body.1.a, 4);
 }
 
-const PICKLE: &[u8] = b"\x80\x02(]}(X\x01\x00\x00\x00aJ\x04\x00\x00\x00u}(X\x09\x00\x00\x00callbacksNX\x08\x00\x00\x00errbacksNX\x05\x00\x00\x00chainNX\x05\x00\x00\x00chordNut.";
+const PICKLE: &[u8] = b"\x80\x03(]}(X\x01\x00\x00\x00aJ\x04\x00\x00\x00u}(X\x09\x00\x00\x00callbacksNX\x08\x00\x00\x00errbacksNX\x05\x00\x00\x00chainNX\x05\x00\x00\x00chordNut.";
 #[test]
 fn test_pickle_serialize_body() {
     let body = MessageBody::<TestTask>::new(TestTaskParams { a: 4 });
-    let serialized = serde_pickle::to_vec(&body, false).unwrap();
+    let serialized = serde_pickle::to_vec(&body, serde_pickle::SerOptions::new()).unwrap();
     // println!("{}", String::from_utf8(serialized.split_off(1)).unwrap());
     assert_eq!(serialized, PICKLE.to_vec());
 }
