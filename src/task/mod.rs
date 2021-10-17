@@ -210,10 +210,18 @@ pub(crate) enum TaskEvent {
     StatusChange(TaskStatus),
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum TaskStatus {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum TaskStatus {
+    /// The task is waiting for execution.
     Pending,
-    Finished,
+    /// The task has been started.
+    Started,
+    /// The task is to be retried, possibly because of failure.
+    Retry,
+    /// The task failed with error, or has exceeded the retry limit.
+    Failure,
+    /// The task executed successfully.
+    Success,
 }
 
 /// Extension methods for `Result` types within a task body.

@@ -16,7 +16,7 @@ use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
 /// the `event_tx` channel and the return value of `Tracer::trace`, respectively.
 pub(super) struct Tracer<T>
 where
-    T: Task,
+    T: Task
 {
     task: T,
     event_tx: UnboundedSender<TaskEvent>,
@@ -24,7 +24,7 @@ where
 
 impl<T> Tracer<T>
 where
-    T: Task,
+    T: Task
 {
     fn new(task: T, event_tx: UnboundedSender<TaskEvent>) -> Self {
         if let Some(eta) = task.request().eta {
@@ -45,8 +45,7 @@ where
 #[async_trait]
 impl<T> TracerTrait for Tracer<T>
 where
-    T: Task,
-{
+    T: Task {
     async fn trace(&mut self) -> Result<(), TraceError> {
         if self.is_expired() {
             warn!(
@@ -92,7 +91,7 @@ where
                 self.task.on_success(&returned).await;
 
                 self.event_tx
-                    .send(TaskEvent::StatusChange(TaskStatus::Finished))
+                    .send(TaskEvent::StatusChange(TaskStatus::Success))
                     .unwrap_or_else(|_| {
                         error!("Failed sending task event");
                     });
@@ -142,7 +141,7 @@ where
                 self.task.on_failure(&e).await;
 
                 self.event_tx
-                    .send(TaskEvent::StatusChange(TaskStatus::Finished))
+                    .send(TaskEvent::StatusChange(TaskStatus::Success))
                     .unwrap_or_else(|_| {
                         error!("Failed sending task event");
                     });
@@ -159,6 +158,7 @@ where
                             self.task.name(),
                             &self.task.request().id,
                         );
+
                         return Err(TraceError::TaskError(e));
                     }
                     info!(
@@ -228,12 +228,13 @@ pub(super) type TraceBuilder = Box<
         + 'static,
 >;
 
-pub(super) fn build_tracer<T: Task + Send + 'static>(
+pub(super) fn build_tracer<T, B>(
     message: Message,
     mut options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
-    hostname: String,
-) -> TraceBuilderResult {
+    hostname: String
+) -> TraceBuilderResult
+    where T: Task + Send + 'static {
     // Build request object.
     let mut request = Request::<T>::try_from(message)?;
     request.hostname = Some(hostname);

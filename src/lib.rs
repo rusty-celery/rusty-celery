@@ -88,6 +88,7 @@
 
 mod app;
 mod routing;
+pub mod backend;
 pub use app::{Celery, CeleryBuilder};
 pub mod beat;
 pub mod broker;
