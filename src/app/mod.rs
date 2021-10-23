@@ -231,7 +231,7 @@ where
         .await?;
 
         let backend = match backend_builder {
-            Some(builder) => Some(builder.build(10).await?),
+            Some(builder) => Some(Arc::new(builder.build(10).await?)),
             None => None
         };
 
@@ -267,7 +267,7 @@ pub struct Celery<Br, Bd>
     pub broker: Br,
 
     /// The app's backend.
-    pub backend: Option<Bd>,
+    pub backend: Option<Arc<Bd>>,
 
     /// The default queue to send and receive from.
     pub default_queue: String,
@@ -280,7 +280,7 @@ pub struct Celery<Br, Bd>
 
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
-    task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
+    task_trace_builders: RwLock<HashMap<String, TraceBuilder<Bd>>>,
 
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
@@ -377,7 +377,7 @@ where
         let task_trace_builders = self.task_trace_builders.read().await;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
             Ok(
-                build_tracer(message, self.task_options, event_tx, self.hostname.clone())
+                build_tracer(message, self.task_options, event_tx, self.hostname.clone(), self.backend.clone())
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?,
             )
         } else {

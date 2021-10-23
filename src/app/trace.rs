@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use log::{debug, error, info, warn};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
 use crate::error::{ProtocolError, TaskError, TraceError};
 use crate::protocol::Message;
 use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::backend::Backend;
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
@@ -14,19 +15,22 @@ use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
 /// and handling any errors, logging, and running the `on_failure` or `on_success` post-execution
 /// methods. It communicates its progress and the results back to the application through
 /// the `event_tx` channel and the return value of `Tracer::trace`, respectively.
-pub(super) struct Tracer<T>
+pub(super) struct Tracer<T, B>
 where
-    T: Task
+    T: Task,
+    B: Backend
 {
     task: T,
     event_tx: UnboundedSender<TaskEvent>,
+    backend: Option<Arc<B>>
 }
 
-impl<T> Tracer<T>
+impl<T, B> Tracer<T, B>
 where
-    T: Task
+    T: Task,
+    B: Backend
 {
-    fn new(task: T, event_tx: UnboundedSender<TaskEvent>) -> Self {
+    fn new(task: T, event_tx: UnboundedSender<TaskEvent>, backend: Option<Arc<B>>) -> Self {
         if let Some(eta) = task.request().eta {
             info!(
                 "Task {}[{}] received, ETA: {}",
@@ -38,14 +42,15 @@ where
             info!("Task {}[{}] received", task.name(), task.request().id);
         }
 
-        Self { task, event_tx }
+        Self { task, event_tx, backend }
     }
 }
 
 #[async_trait]
-impl<T> TracerTrait for Tracer<T>
+impl<T, B> TracerTrait for Tracer<T, B>
 where
-    T: Task {
+    T: Task,
+    B: Backend {
     async fn trace(&mut self) -> Result<(), TraceError> {
         if self.is_expired() {
             warn!(
@@ -86,6 +91,10 @@ where
                     duration.as_secs_f32(),
                     returned
                 );
+    
+                if let Some(backend) = &self.backend {
+                     backend.mark_as_done(&self.task.request().id, "".to_string());
+                }
 
                 // Run success callback.
                 self.task.on_success(&returned).await;
@@ -136,6 +145,10 @@ where
                         (true, eta)
                     }
                 };
+
+                if let Some(backend) = &self.backend {
+                     backend.mark_as_failure::<&str>(&self.task.request().id, "".to_string()); // TODO: fix type
+                }
 
                 // Run failure callback.
                 self.task.on_failure(&e).await;
@@ -221,8 +234,8 @@ pub(super) trait TracerTrait: Send + Sync {
 
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, ProtocolError>;
 
-pub(super) type TraceBuilder = Box<
-    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>, String) -> TraceBuilderResult
+pub(super) type TraceBuilder<B> = Box<
+    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>, String, Option<Arc<B>>) -> TraceBuilderResult
         + Send
         + Sync
         + 'static,
@@ -232,9 +245,11 @@ pub(super) fn build_tracer<T, B>(
     message: Message,
     mut options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
-    hostname: String
+    hostname: String,
+    backend: Option<Arc<B>>
 ) -> TraceBuilderResult
-    where T: Task + Send + 'static {
+    where T: Task + Send + 'static,
+    B: Backend + 'static {
     // Build request object.
     let mut request = Request::<T>::try_from(message)?;
     request.hostname = Some(hostname);
@@ -248,5 +263,5 @@ pub(super) fn build_tracer<T, B>(
     // it.
     let task = T::from_request(request, options);
 
-    Ok(Box::new(Tracer::<T>::new(task, event_tx)))
+    Ok(Box::new(Tracer::<T, B>::new(task, event_tx, backend)))
 }

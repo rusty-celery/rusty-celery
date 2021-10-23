@@ -10,19 +10,19 @@ pub trait Backend: Send + Sync + Sized {
     /// The builder type used to create the results backend with a custom configuration.
     type Builder: BackendBuilder<Backend = Self>;
 
-    async fn mark_as_done(&self, task_id: &str, result: String) -> Result<(), BackendError> {
+    async fn mark_as_done<T: Send>(&self, task_id: &str, result: T) -> Result<(), BackendError> {
         self.store_result(task_id, Some(result), None, TaskStatus::Success).await
     }
 
-    async fn mark_as_failure(&self, task_id: &str, traceback: String) -> Result<(), BackendError> {
-        self.store_result(task_id, None, Some(traceback.to_owned()), TaskStatus::Failure).await
+    async fn mark_as_failure<T: Send>(&self, task_id: &str, traceback: String) -> Result<(), BackendError> {
+        self.store_result(task_id, None as Option<_>, Some(traceback.to_owned()), TaskStatus::Failure).await
     }
 
     /// Update task state and result.
-    async fn store_result(
+    async fn store_result<T: Send>(
         &self,
         task_id: &str,
-        result: Option<String>,
+        result: Option<T>,
         traceback: Option<String>,
         state: TaskStatus,
     ) -> Result<(), BackendError> {
@@ -31,7 +31,7 @@ pub trait Backend: Send + Sync + Sized {
     }
 
     /// Update task state and result.
-    async fn store_result_inner(&self, task_id: &str, result: Option<String>, traceback: Option<String>, state: TaskStatus) -> Result<(), BackendError>;
+    async fn store_result_inner<T>(&self, task_id: &str, result: Option<T>, traceback: Option<String>, state: TaskStatus) -> Result<(), BackendError>;
 
     /// Get task meta from backend.
     async fn get_task_meta<T>(&self, task_id: &str) -> Result<ResultMetadata<T>, BackendError>;
