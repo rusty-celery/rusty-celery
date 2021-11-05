@@ -1,6 +1,7 @@
 //! All error types used throughout the library.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Errors that can occur while creating or using a `Celery` app.
@@ -27,7 +28,7 @@ pub enum CeleryError {
     #[error("protocol error")]
     ProtocolError(#[from] ProtocolError),
 
-    /// There is already a task registerd to this name.
+    /// There is already a task registered to this name.
     #[error("there is already a task registered as '{0}'")]
     TaskRegistrationError(String),
 
@@ -64,7 +65,7 @@ pub enum ScheduleError {
 }
 
 /// Errors that can occur at the task level.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize, Deserialize)]
 pub enum TaskError {
     /// An error that is expected to happen every once in a while.
     ///
@@ -148,7 +149,7 @@ pub enum BrokerError {
     #[error("IO error \"{0}\"")]
     IoError(#[from] std::io::Error),
 
-    /// Deserilize error
+    /// Deserialize error
     #[error("Deserialize error \"{0}\"")]
     DeserializeError(#[from] serde_json::Error),
 
