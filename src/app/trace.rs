@@ -91,9 +91,11 @@ where
                     duration.as_secs_f32(),
                     returned
                 );
-    
+
                 if let Some(backend) = &self.backend {
-                     backend.mark_as_done(&self.task.request().id, "".to_string());
+                    if let Err(e) = backend.mark_as_done(&self.task.request().id, &returned).await {
+                        error!("Failed to save result: {}", e);
+                    }
                 }
 
                 // Run success callback.
@@ -147,7 +149,9 @@ where
                 };
 
                 if let Some(backend) = &self.backend {
-                     backend.mark_as_failure::<&str>(&self.task.request().id, "".to_string()); // TODO: fix type
+                    if let Err(backend_err) = backend.mark_as_failure::<T::Returns>(&self.task.request().id, e.to_string()).await {
+                        error!("Failed to save result: {}", backend_err);
+                    }
                 }
 
                 // Run failure callback.

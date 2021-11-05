@@ -1,3 +1,7 @@
+#[doc(hidden)]
+pub mod empty;
+pub(crate) mod mock;
+
 use crate::error::BackendError;
 use crate::task::TaskStatus;
 use async_trait::async_trait;
@@ -15,7 +19,7 @@ pub trait Backend: Send + Sync + Sized {
     }
 
     async fn mark_as_failure<T: Send>(&self, task_id: &str, traceback: String) -> Result<(), BackendError> {
-        self.store_result(task_id, None as Option<_>, Some(traceback.to_owned()), TaskStatus::Failure).await
+        self.store_result::<T>(task_id, None as Option<_>, Some(traceback.to_owned()), TaskStatus::Failure).await
     }
 
     /// Update task state and result.
@@ -31,7 +35,7 @@ pub trait Backend: Send + Sync + Sized {
     }
 
     /// Update task state and result.
-    async fn store_result_inner<T>(&self, task_id: &str, result: Option<T>, traceback: Option<String>, state: TaskStatus) -> Result<(), BackendError>;
+    async fn store_result_inner<T: Send>(&self, task_id: &str, result: Option<T>, traceback: Option<String>, state: TaskStatus) -> Result<(), BackendError>;
 
     /// Get task meta from backend.
     async fn get_task_meta<T>(&self, task_id: &str) -> Result<ResultMetadata<T>, BackendError>;
