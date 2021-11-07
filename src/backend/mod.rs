@@ -11,7 +11,7 @@ use crate::task::TaskState;
 use crate::{error::BackendError, prelude::TaskError};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// A results [`Backend`] is used to store and retrive the results and status of the tasks.
 #[async_trait]
@@ -25,6 +25,7 @@ pub trait Backend: Send + Sync + Sized {
         task_id: &str,
     ) -> Result<(), BackendError> {
         let metadata = ResultMetadata {
+            task_id: task_id.to_string(),
             status: TaskState::Pending,
             result: None,
             traceback: None,
@@ -39,6 +40,7 @@ pub trait Backend: Send + Sync + Sized {
         task_id: &str,
     ) -> Result<(), BackendError> {
         let metadata = ResultMetadata {
+            task_id: task_id.to_string(),
             status: TaskState::Started,
             result: None,
             traceback: None,
@@ -55,6 +57,7 @@ pub trait Backend: Send + Sync + Sized {
         date_done: DateTime<Utc>,
     ) -> Result<(), BackendError> {
         let metadata = ResultMetadata {
+            task_id: task_id.to_string(),
             status: TaskState::Success,
             result: Some(result),
             traceback: None,
@@ -71,6 +74,7 @@ pub trait Backend: Send + Sync + Sized {
         date_done: DateTime<Utc>,
     ) -> Result<(), BackendError> {
         let metadata = ResultMetadata {
+            task_id: task_id.to_string(),
             status: TaskState::Failure,
             result: None,
             traceback: Some(traceback),
@@ -105,13 +109,13 @@ pub trait Backend: Send + Sync + Sized {
     ) -> Result<(), BackendError>;
 
     /// Get task meta from backend.
-    async fn get_task_meta<T: Send + Sync + Unpin + for<'de> Deserialize<'de>>(
+    async fn get_task_meta<T: Send + Sync + Unpin + DeserializeOwned>(
         &self,
         task_id: &str,
     ) -> Result<ResultMetadata<T>, BackendError>;
 
     /// Get current state of a given task.
-    async fn get_state<T: Send + Sync + Unpin + for<'de> Deserialize<'de>>(
+    async fn get_state<T: Send + Sync + Unpin + DeserializeOwned>(
         &self,
         task_id: &str,
     ) -> Result<TaskState, BackendError> {
@@ -119,7 +123,7 @@ pub trait Backend: Send + Sync + Sized {
     }
 
     /// Get result of a given task.
-    async fn get_result<T: Send + Sync + Unpin + for<'de> Deserialize<'de>>(
+    async fn get_result<T: Send + Sync + Unpin + DeserializeOwned>(
         &self,
         task_id: &str,
     ) -> Result<Option<T>, BackendError> {
@@ -127,7 +131,7 @@ pub trait Backend: Send + Sync + Sized {
     }
 
     /// Get result of a given task.
-    async fn get_traceback<T: Send + Sync + Unpin + for<'de> Deserialize<'de>>(
+    async fn get_traceback<T: Send + Sync + Unpin + DeserializeOwned>(
         &self,
         task_id: &str,
     ) -> Result<Option<TaskError>, BackendError> {
@@ -138,6 +142,8 @@ pub trait Backend: Send + Sync + Sized {
 /// Metadata of the task stored in the storage used.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResultMetadata<T: Send + Sync + Unpin> {
+    /// Task's ID.
+    task_id: String,
     /// Current status of the task.
     status: TaskState,
     /// Result of the task.
@@ -155,6 +161,12 @@ pub trait BackendBuilder {
 
     /// Create a new `BackendBuilder`.
     fn new(broker_url: &str) -> Self;
+
+    /// Set database name.
+    fn database(self, database: &str) -> Self;
+
+    /// Set database collection name.
+    fn taskmeta_collection(self, collection_name: &str) -> Self;
 
     /// Construct the `Backend` with the given configuration.
     async fn build(self, connection_timeout: u32) -> Result<Self::Backend, BackendError>;

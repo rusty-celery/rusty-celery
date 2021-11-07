@@ -3,12 +3,8 @@ use crate::task::TaskState;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use mongodb::{
-    bson::{doc, oid::ObjectId},
-    options::ClientOptions,
-    Client, Database,
-};
-use serde::{Deserialize, Serialize};
+use mongodb::{bson::doc, options::ClientOptions, Client, Database};
+use serde::{de::DeserializeOwned, Serialize};
 
 pub struct MongoBackendBuilder {
     backend_url: String,
@@ -34,6 +30,17 @@ impl BackendBuilder for MongoBackendBuilder {
         }
     }
 
+    fn database(mut self, database: &str) -> Self {
+        self.database = database.to_string();
+        self
+    }
+
+    fn taskmeta_collection(mut self, collection_name: &str) -> Self {
+        self.taskmeta_collection = collection_name.to_string();
+        self
+    }
+
+    /// Create new `MongoBackend`.
     async fn build(self, connection_timeout: u32) -> Result<Self::Backend, BackendError> {
         let mut client_options = ClientOptions::parse(&self.backend_url).await?;
         client_options.app_name = Some("celery".to_string());
@@ -57,7 +64,7 @@ impl Backend for MongoBackend {
         metadata: Option<ResultMetadata<T>>,
     ) -> Result<(), BackendError> {
         let collection = self.database.collection(&self.collection_name);
-        let filter = doc! { "_id": ObjectId::parse_str(task_id)? };
+        let filter = doc! { "task_id": task_id };
         if let None = metadata {
             collection.delete_one(filter, None).await?;
             return Ok(());
@@ -67,19 +74,19 @@ impl Backend for MongoBackend {
         if metadata.status == TaskState::Pending {
             collection.insert_one(metadata, None).await?;
             return Ok(());
-        } 
+        }
 
         collection.replace_one(filter, metadata, None).await?;
 
         Ok(())
     }
 
-    async fn get_task_meta<T: Send + Sync + Unpin + for<'de> Deserialize<'de>>(
+    async fn get_task_meta<T: Send + Sync + Unpin + DeserializeOwned>(
         &self,
         task_id: &str,
     ) -> Result<ResultMetadata<T>, BackendError> {
         let collection = self.database.collection(&self.collection_name);
-        let filter = doc! { "_id": ObjectId::parse_str(task_id)? };
+        let filter = doc! { "task_id": task_id };
         match collection.find_one(filter, None).await? {
             Some(doc) => Ok(doc),
             None => Err(BackendError::DocumentNotFound(task_id.to_string())),

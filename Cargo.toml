@@ -58,6 +58,7 @@ serde-pickle = "0.6"
 env_logger = "0.9"
 anyhow = "1.0"
 structopt = "0.3"
+serial_test = "0.5.1"
 
 [features]
 default = ["codegen"]

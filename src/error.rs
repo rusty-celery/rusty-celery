@@ -220,11 +220,6 @@ pub enum BackendError {
     #[error("MongoDb error \"{0}\"")]
     MongoDbError(#[from] mongodb::error::Error),
 
-    #[cfg(feature = "backend_mongo")]
-    /// Bson error.
-    #[error("BsonOid error \"{0}\"")]
-    BsonOidError(#[from] mongodb::bson::oid::Error),
-
     /// Backend is not set.
     #[error("Backend not set")]
     NotSet,

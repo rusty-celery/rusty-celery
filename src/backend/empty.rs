@@ -2,7 +2,7 @@ use crate::backend::ResultMetadata;
 use crate::prelude::BackendError;
 use super::{Backend, BackendBuilder};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 pub struct EmptyBackend;
 pub struct EmptyBackendBuilder;
@@ -13,6 +13,14 @@ impl BackendBuilder for EmptyBackendBuilder {
 
     fn new(_: &str) -> Self {
         unimplemented!()
+    }
+
+    fn database(self, _: &str) -> Self {
+        self
+    }
+
+    fn taskmeta_collection(self, _: &str) -> Self {
+        self
     }
 
     async fn build(self, _: u32) -> Result<Self::Backend, BackendError> {
@@ -28,7 +36,7 @@ impl Backend for EmptyBackend {
         unimplemented!()
     }
 
-    async fn get_task_meta<T: Send + Sync + Unpin + for<'de> Deserialize<'de>>(&self, _: &str) -> Result<super::ResultMetadata<T>, crate::prelude::BackendError> {
+    async fn get_task_meta<T: Send + Sync + Unpin + DeserializeOwned>(&self, _: &str) -> Result<super::ResultMetadata<T>, crate::prelude::BackendError> {
         unimplemented!()
     }
 }
