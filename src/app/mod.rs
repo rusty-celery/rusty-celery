@@ -203,6 +203,18 @@ where
         self
     }
 
+    /// Set backend database name.
+    pub fn backend_database(mut self, database: &str) -> Self {
+        self.config.backend_builder = Some(self.config.backend_builder.unwrap().database(database));
+        self
+    }
+
+    /// Set backend task meta collection name.
+    pub fn backend_taskmeta_collection(mut self, collection_name: &str) -> Self {
+        self.config.backend_builder = Some(self.config.backend_builder.unwrap().taskmeta_collection(collection_name));
+        self
+    }
+
     /// Construct a [`Celery`] app with the current configuration.
     pub async fn build(self) -> Result<Celery<Brb::Broker, Bdb::Backend>, CeleryError> {
         // Declare default queue to broker.
