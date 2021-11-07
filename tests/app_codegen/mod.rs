@@ -61,3 +61,15 @@ async fn test_with_options_and_trailing_comma() {
     .await
     .unwrap();
 }
+
+#[tokio::test]
+async fn test_backend() {
+    let _app = celery::app!(
+        broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://localhost:5672//".into()) },
+        backend = MongoBackend { std::env::var("MONGO_ADDR").unwrap_or_else(|_| "mongodb://localhost:27017/".into()) },
+        tasks = [],
+        task_routes = []
+    )
+    .await
+    .unwrap();
+}

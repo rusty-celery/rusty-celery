@@ -21,7 +21,7 @@ use crate::{backend::{Backend, BackendBuilder}, broker::{build_and_connect, conf
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, MessageContentType, TryDeserializeMessage};
 use crate::routing::Rule;
-use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskState};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
 struct Config<Brb, Bdb>
@@ -340,7 +340,7 @@ where
     pub async fn send_task<T: Task>(
         &self,
         mut task_sig: Signature<T>,
-    ) -> Result<AsyncResult, CeleryError> {
+    ) -> Result<AsyncResult<Bd>, CeleryError> {
         task_sig.options.update(&self.task_options);
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
@@ -354,7 +354,12 @@ where
             queue,
         );
         self.broker.send(&message, queue).await?;
-        Ok(AsyncResult::new(message.task_id()))
+
+        if let Some(backend) = &self.backend {
+            backend.add_task::<T::Returns>(message.task_id()).await?;
+        }
+
+        Ok(AsyncResult::new(message.task_id(), self.backend.clone()))
     }
 
     /// Register a task.
@@ -637,8 +642,8 @@ where
                     if let Some(event) = maybe_task_event {
                         debug!("Received task event {:?}", event);
                         match event {
-                            TaskEvent::StatusChange(TaskStatus::Pending) => pending_tasks += 1,
-                            TaskEvent::StatusChange(TaskStatus::Success) => pending_tasks -= 1,
+                            TaskEvent::StatusChange(TaskState::Pending) => pending_tasks += 1,
+                            TaskEvent::StatusChange(TaskState::Success) => pending_tasks -= 1,
                             _ => ()
                         };
                     }
@@ -675,8 +680,8 @@ where
                         if let Some(event) = maybe_event {
                             debug!("Received task event {:?}", event);
                             match event {
-                                TaskEvent::StatusChange(TaskStatus::Pending) => pending_tasks += 1,
-                                TaskEvent::StatusChange(TaskStatus::Success) => pending_tasks -= 1,
+                                TaskEvent::StatusChange(TaskState::Pending) => pending_tasks += 1,
+                                TaskEvent::StatusChange(TaskState::Success) => pending_tasks -= 1,
                                 _ => ()
                             };
                             if pending_tasks <= 0 {

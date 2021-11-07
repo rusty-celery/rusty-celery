@@ -1,7 +1,7 @@
-use crate::task::TaskStatus;
-use crate::prelude::BackendError;
-use super::{Backend, BackendBuilder};
+use super::{Backend, BackendBuilder, BackendError, ResultMetadata};
+
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 pub(crate) struct MockBackend;
 pub(crate) struct MockBackendBuilder;
@@ -14,7 +14,7 @@ impl BackendBuilder for MockBackendBuilder {
         unimplemented!()
     }
 
-    async fn build(&self, _: u32) -> Result<Self::Backend, BackendError> {
+    async fn build(self, _: u32) -> Result<Self::Backend, BackendError> {
         unimplemented!()
     }
 }
@@ -23,11 +23,18 @@ impl BackendBuilder for MockBackendBuilder {
 impl Backend for MockBackend {
     type Builder = MockBackendBuilder;
 
-    async fn store_result_inner<T: Send>(&self, _: &str, _: Option<T>, _: Option<String>, _: TaskStatus) -> Result<(), BackendError> {
+    async fn store_result_inner<T: Send + Sync + Unpin + Serialize>(
+        &self,
+        _: &str,
+        _: Option<ResultMetadata<T>>,
+    ) -> Result<(), BackendError> {
         unimplemented!()
     }
 
-    async fn get_task_meta<T>(&self, _: &str) -> Result<super::ResultMetadata<T>, crate::prelude::BackendError> {
+    async fn get_task_meta<T: Send + Sync + Unpin + for<'de> Deserialize<'de>>(
+        &self,
+        _: &str,
+    ) -> Result<super::ResultMetadata<T>, crate::prelude::BackendError> {
         unimplemented!()
     }
 }

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use log::{debug, error, info, warn};
 use std::{convert::TryFrom, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender;
@@ -6,7 +7,7 @@ use tokio::time::{self, Duration, Instant};
 
 use crate::error::{ProtocolError, TaskError, TraceError};
 use crate::protocol::Message;
-use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskState};
 use crate::backend::Backend;
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
@@ -61,8 +62,14 @@ where
             return Err(TraceError::ExpirationError);
         }
 
+        if let Some(backend) = &self.backend {
+            if let Err(e) = backend.mark_as_started::<T::Returns>(&self.task.request().id).await {
+                error!("Failed to save result: {}", e);
+            }
+        }
+
         self.event_tx
-            .send(TaskEvent::StatusChange(TaskStatus::Pending))
+            .send(TaskEvent::StatusChange(TaskState::Started))
             .unwrap_or_else(|_| {
                 // This really shouldn't happen. If it does, there's probably much
                 // bigger things to worry about like running out of memory.
@@ -81,6 +88,7 @@ where
             None => self.task.run(self.task.request().params.clone()).await,
         };
         let duration = start.elapsed();
+        let finished = Utc::now();
 
         match result {
             Ok(returned) => {
@@ -93,7 +101,7 @@ where
                 );
 
                 if let Some(backend) = &self.backend {
-                    if let Err(e) = backend.mark_as_done(&self.task.request().id, &returned).await {
+                    if let Err(e) = backend.mark_as_done(&self.task.request().id, &returned, finished).await {
                         error!("Failed to save result: {}", e);
                     }
                 }
@@ -102,7 +110,7 @@ where
                 self.task.on_success(&returned).await;
 
                 self.event_tx
-                    .send(TaskEvent::StatusChange(TaskStatus::Success))
+                    .send(TaskEvent::StatusChange(TaskState::Success))
                     .unwrap_or_else(|_| {
                         error!("Failed sending task event");
                     });
@@ -149,7 +157,7 @@ where
                 };
 
                 if let Some(backend) = &self.backend {
-                    if let Err(backend_err) = backend.mark_as_failure::<T::Returns>(&self.task.request().id, e.to_string()).await {
+                    if let Err(backend_err) = backend.mark_as_failure::<T::Returns>(&self.task.request().id, e.clone(), finished).await {
                         error!("Failed to save result: {}", backend_err);
                     }
                 }
@@ -158,7 +166,7 @@ where
                 self.task.on_failure(&e).await;
 
                 self.event_tx
-                    .send(TaskEvent::StatusChange(TaskStatus::Success))
+                    .send(TaskEvent::StatusChange(TaskState::Success))
                     .unwrap_or_else(|_| {
                         error!("Failed sending task event");
                     });

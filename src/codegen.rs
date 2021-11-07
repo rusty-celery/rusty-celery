@@ -41,9 +41,9 @@ macro_rules! __app_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        async fn _build_app(mut builder: $crate::CeleryBuilder::<<$broker_type as $crate::broker::Broker>::Builder, <$backend_type as $crate::Backend>::Builder>>) ->
+        async fn _build_app(mut builder: $crate::CeleryBuilder::<<$broker_type as $crate::broker::Broker>::Builder, <$backend_type as $crate::backend::Backend>::Builder>) ->
             $crate::export::Result<$crate::export::Arc<$crate::Celery::<$broker_type, $backend_type>>> {
-            let celery: $crate::Celery<$broker_type, backend_type> = builder.build().await?;
+            let celery: $crate::Celery<$broker_type, $backend_type> = builder.build().await?;
 
             $(
                 celery.register_task::<$t>().await?;

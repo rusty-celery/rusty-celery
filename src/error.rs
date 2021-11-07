@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use thiserror::Error;
+use serde::{Deserialize, Serialize};
 
 /// Errors that can occur while creating or using a `Celery` app.
 #[derive(Error, Debug)]
@@ -64,7 +65,7 @@ pub enum ScheduleError {
 }
 
 /// Errors that can occur at the task level.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize, Deserialize, Clone)]
 pub enum TaskError {
     /// An error that is expected to happen every once in a while.
     ///
@@ -191,11 +192,11 @@ impl BrokerError {
 #[derive(Error, Debug)]
 pub enum BackendError {
     /// Raised when a broker URL can't be parsed.
-    #[error("invalid backend URL '{0}'")]
+    #[error("Invalid backend URL '{0}'")]
     InvalidBackendUrl(String),
 
-    /// Broker is disconnected.
-    #[error("backend not connected")]
+    /// Backend is disconnected.
+    #[error("Backend not connected")]
     NotConnected,
 
     /// Any IO error that could occur.
@@ -209,6 +210,24 @@ pub enum BackendError {
     /// Any other Redis error that could happen.
     #[error("Redis error \"{0}\"")]
     RedisError(#[from] redis::RedisError),
+
+    /// Document not found error.
+    #[error("Document with id '{0}' not found")]
+    DocumentNotFound(String),
+
+    #[cfg(feature = "backend_mongo")]
+    /// Any other MongoDb error that could happen.
+    #[error("MongoDb error \"{0}\"")]
+    MongoDbError(#[from] mongodb::error::Error),
+
+    #[cfg(feature = "backend_mongo")]
+    /// Bson error.
+    #[error("BsonOid error \"{0}\"")]
+    BsonOidError(#[from] mongodb::bson::oid::Error),
+
+    /// Backend is not set.
+    #[error("Backend not set")]
+    NotSet,
 }
 
 /// An invalid glob pattern for a routing rule.
