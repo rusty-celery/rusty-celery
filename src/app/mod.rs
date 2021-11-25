@@ -676,7 +676,7 @@ where
         }
 
         if pending_tasks > 0 {
-            // Warm shutdown loop. When there are still pendings tasks we wait for them
+            // Warm shutdown loop. When there are still pending tasks we wait for them
             // to finish. We get updates about pending tasks through the `task_event_rx` channel.
             // We also watch for a second SIGINT or SIGTERM, in which case we immediately shutdown.
             info!("Waiting on {} pending tasks...", pending_tasks);
