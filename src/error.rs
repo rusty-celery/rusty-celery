@@ -3,7 +3,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use serde::{Deserialize, Serialize};
 
 /// Errors that can occur while creating or using a `Celery` app.
 #[derive(Error, Debug)]
