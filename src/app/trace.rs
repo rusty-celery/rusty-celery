@@ -1,12 +1,14 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use log::{debug, error, info, warn};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
 use crate::error::{ProtocolError, TaskError, TraceError};
 use crate::protocol::Message;
-use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskState};
+use crate::backend::Backend;
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
 ///
@@ -14,19 +16,22 @@ use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
 /// and handling any errors, logging, and running the `on_failure` or `on_success` post-execution
 /// methods. It communicates its progress and the results back to the application through
 /// the `event_tx` channel and the return value of `Tracer::trace`, respectively.
-pub(super) struct Tracer<T>
+pub(super) struct Tracer<T, B>
 where
     T: Task,
+    B: Backend
 {
     task: T,
     event_tx: UnboundedSender<TaskEvent>,
+    backend: Option<Arc<B>>
 }
 
-impl<T> Tracer<T>
+impl<T, B> Tracer<T, B>
 where
     T: Task,
+    B: Backend
 {
-    fn new(task: T, event_tx: UnboundedSender<TaskEvent>) -> Self {
+    fn new(task: T, event_tx: UnboundedSender<TaskEvent>, backend: Option<Arc<B>>) -> Self {
         if let Some(eta) = task.request().eta {
             info!(
                 "Task {}[{}] received, ETA: {}",
@@ -38,15 +43,15 @@ where
             info!("Task {}[{}] received", task.name(), task.request().id);
         }
 
-        Self { task, event_tx }
+        Self { task, event_tx, backend }
     }
 }
 
 #[async_trait]
-impl<T> TracerTrait for Tracer<T>
+impl<T, B> TracerTrait for Tracer<T, B>
 where
     T: Task,
-{
+    B: Backend {
     async fn trace(&mut self) -> Result<(), TraceError> {
         if self.is_expired() {
             warn!(
@@ -57,8 +62,14 @@ where
             return Err(TraceError::ExpirationError);
         }
 
+        if let Some(backend) = &self.backend {
+            if let Err(e) = backend.mark_as_started::<T::Returns>(&self.task.request().id).await {
+                error!("Failed to save result: {}", e);
+            }
+        }
+
         self.event_tx
-            .send(TaskEvent::StatusChange(TaskStatus::Pending))
+            .send(TaskEvent::StatusChange(TaskState::Started))
             .unwrap_or_else(|_| {
                 // This really shouldn't happen. If it does, there's probably much
                 // bigger things to worry about like running out of memory.
@@ -77,6 +88,7 @@ where
             None => self.task.run(self.task.request().params.clone()).await,
         };
         let duration = start.elapsed();
+        let finished = Utc::now();
 
         match result {
             Ok(returned) => {
@@ -88,11 +100,17 @@ where
                     returned
                 );
 
+                if let Some(backend) = &self.backend {
+                    if let Err(e) = backend.mark_as_done(&self.task.request().id, &returned, finished).await {
+                        error!("Failed to save result: {}", e);
+                    }
+                }
+
                 // Run success callback.
                 self.task.on_success(&returned).await;
 
                 self.event_tx
-                    .send(TaskEvent::StatusChange(TaskStatus::Finished))
+                    .send(TaskEvent::StatusChange(TaskState::Success))
                     .unwrap_or_else(|_| {
                         error!("Failed sending task event");
                     });
@@ -138,11 +156,17 @@ where
                     }
                 };
 
+                if let Some(backend) = &self.backend {
+                    if let Err(backend_err) = backend.mark_as_failure::<T::Returns>(&self.task.request().id, e.clone(), finished).await {
+                        error!("Failed to save result: {}", backend_err);
+                    }
+                }
+
                 // Run failure callback.
                 self.task.on_failure(&e).await;
 
                 self.event_tx
-                    .send(TaskEvent::StatusChange(TaskStatus::Finished))
+                    .send(TaskEvent::StatusChange(TaskState::Success))
                     .unwrap_or_else(|_| {
                         error!("Failed sending task event");
                     });
@@ -159,6 +183,7 @@ where
                             self.task.name(),
                             &self.task.request().id,
                         );
+
                         return Err(TraceError::TaskError(e));
                     }
                     info!(
@@ -221,19 +246,22 @@ pub(super) trait TracerTrait: Send + Sync {
 
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, ProtocolError>;
 
-pub(super) type TraceBuilder = Box<
-    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>, String) -> TraceBuilderResult
+pub(super) type TraceBuilder<B> = Box<
+    dyn Fn(Message, TaskOptions, UnboundedSender<TaskEvent>, String, Option<Arc<B>>) -> TraceBuilderResult
         + Send
         + Sync
         + 'static,
 >;
 
-pub(super) fn build_tracer<T: Task + Send + 'static>(
+pub(super) fn build_tracer<T, B>(
     message: Message,
     mut options: TaskOptions,
     event_tx: UnboundedSender<TaskEvent>,
     hostname: String,
-) -> TraceBuilderResult {
+    backend: Option<Arc<B>>
+) -> TraceBuilderResult
+    where T: Task + Send + 'static,
+    B: Backend + 'static {
     // Build request object.
     let mut request = Request::<T>::try_from(message)?;
     request.hostname = Some(hostname);
@@ -247,5 +275,5 @@ pub(super) fn build_tracer<T: Task + Send + 'static>(
     // it.
     let task = T::from_request(request, options);
 
-    Ok(Box::new(Tracer::<T>::new(task, event_tx)))
+    Ok(Box::new(Tracer::<T, B>::new(task, event_tx, backend)))
 }

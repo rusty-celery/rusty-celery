@@ -1,5 +1,5 @@
 use super::Celery;
-use crate::broker::mock::MockBroker;
+use crate::{backend::mock::MockBackend, broker::mock::MockBroker};
 use crate::protocol::MessageContentType;
 use crate::task::{Request, Signature, Task, TaskOptions, TaskResult};
 use async_trait::async_trait;
@@ -7,8 +7,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
-async fn build_basic_app() -> Celery<MockBroker> {
-    let celery = Celery::<MockBroker>::builder("mock-app", "mock://localhost:8000")
+async fn build_basic_app() -> Celery<MockBroker, MockBackend> {
+    let celery = Celery::<MockBroker, MockBackend>::builder("mock-app", "mock://localhost:8000", None)
         .build()
         .await
         .unwrap();
@@ -17,8 +17,8 @@ async fn build_basic_app() -> Celery<MockBroker> {
     celery
 }
 
-async fn build_configured_app() -> Celery<MockBroker> {
-    let celery = Celery::<MockBroker>::builder("mock-app", "mock://localhost:8000")
+async fn build_configured_app() -> Celery<MockBroker, MockBackend> {
+    let celery = Celery::<MockBroker, MockBackend>::builder("mock-app", "mock://localhost:8000", None)
         .task_time_limit(10)
         .task_max_retries(100)
         .task_content_type(MessageContentType::Yaml)
@@ -144,7 +144,7 @@ async fn test_send_task() {
     let app = build_basic_app().await;
     let result = app.send_task(AddTask::new(1, 2)).await.unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.task == "add");
 }
 
@@ -156,7 +156,7 @@ async fn test_send_task_with_countdown() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.eta.is_some());
 }
 
@@ -168,7 +168,7 @@ async fn test_send_task_with_eta() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.eta.is_some());
 }
 
@@ -180,7 +180,7 @@ async fn test_send_task_with_expires_in() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.expires.is_some());
 }
 
@@ -193,7 +193,7 @@ async fn test_send_task_with_expires() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.expires.is_some());
 }
 
@@ -205,7 +205,7 @@ async fn test_send_task_with_content_type() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.properties.content_type == "application/x-yaml");
 }
 
@@ -217,7 +217,7 @@ async fn test_send_task_with_time_limit() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.timelimit == (None, Some(5)));
 }
 
@@ -229,7 +229,7 @@ async fn test_send_task_with_hard_time_limit() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.timelimit == (Some(5), None));
 }
 
@@ -238,7 +238,7 @@ async fn test_configured_app_send_task_app_defaults() {
     let app = build_configured_app().await;
     let result = app.send_task(AddTask::new(1, 2)).await.unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.timelimit == (None, Some(10)));
     assert!(message.properties.content_type == "application/x-yaml");
 }
@@ -248,7 +248,7 @@ async fn test_configured_app_send_task_task_defaults() {
     let app = build_configured_app().await;
     let result = app.send_task(MultiplyTask::new(1, 2)).await.unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.timelimit == (Some(10), Some(5)));
     assert!(message.properties.content_type == "application/x-yaml");
 }
@@ -265,7 +265,7 @@ async fn test_configured_app_send_task_request_overrides() {
         .await
         .unwrap();
     let sent_tasks = app.broker.sent_tasks.read().await;
-    let message = &sent_tasks.get(&result.task_id).unwrap().0;
+    let message = &sent_tasks.get(&result.task_id()).unwrap().0;
     assert!(message.headers.timelimit == (Some(10), Some(2)));
     assert!(message.properties.content_type == "application/json");
 }

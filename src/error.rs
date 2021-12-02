@@ -34,6 +34,10 @@ pub enum CeleryError {
 
     #[error("received unregistered task {0}")]
     UnregisteredTaskError(String),
+
+    /// Raised when failed to store state or result to backend.
+    #[error("backend_error")]
+    Backend(#[from] BackendError),
 }
 
 /// Errors that can occur while creating or using a `Beat` app.
@@ -60,8 +64,7 @@ pub enum ScheduleError {
     CronScheduleError(String),
 }
 
-/// Errors that can occur at the task level.
-#[derive(Error, Debug, Serialize, Deserialize)]
+#[derive(Error, Debug, Serialize, Deserialize, Clone)]
 pub enum TaskError {
     /// An error that is expected to happen every once in a while.
     ///
@@ -120,6 +123,10 @@ pub(crate) enum TraceError {
     /// Raised when a task should be retried.
     #[error("retrying task")]
     Retry(Option<DateTime<Utc>>),
+
+    /// Raised when failed to store state or result to backend.
+    #[error("backend_error")]
+    Backend(#[from] BackendError),
 }
 
 /// Errors that can occur at the broker level.
@@ -178,6 +185,43 @@ impl BrokerError {
             _ => false,
         }
     }
+}
+
+/// Errors that can occur at the result backend level.
+#[derive(Error, Debug)]
+pub enum BackendError {
+    /// Raised when a broker URL can't be parsed.
+    #[error("Invalid backend URL '{0}'")]
+    InvalidBackendUrl(String),
+
+    /// Backend is disconnected.
+    #[error("Backend not connected")]
+    NotConnected,
+
+    /// Any IO error that could occur.
+    #[error("IO error \"{0}\"")]
+    IoError(#[from] std::io::Error),
+
+    /// Deserilize error
+    #[error("Deserialize error \"{0}\"")]
+    DeserializeError(#[from] serde_json::Error),
+
+    /// Any other Redis error that could happen.
+    #[error("Redis error \"{0}\"")]
+    RedisError(#[from] redis::RedisError),
+
+    /// Document not found error.
+    #[error("Document with id '{0}' not found")]
+    DocumentNotFound(String),
+
+    #[cfg(feature = "backend_mongo")]
+    /// Any other MongoDb error that could happen.
+    #[error("MongoDb error \"{0}\"")]
+    MongoDbError(#[from] mongodb::error::Error),
+
+    /// Backend is not set.
+    #[error("Backend not set")]
+    NotSet,
 }
 
 /// An invalid glob pattern for a routing rule.

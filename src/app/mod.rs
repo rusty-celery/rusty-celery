@@ -17,20 +17,22 @@ use tokio_stream::StreamMap;
 
 mod trace;
 
-use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
+use crate::{backend::{Backend, BackendBuilder}, broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder}};
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, MessageContentType, TryDeserializeMessage};
 use crate::routing::Rule;
-use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskState};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
-struct Config<Bb>
+struct Config<Brb, Bdb>
 where
-    Bb: BrokerBuilder,
+    Brb: BrokerBuilder,
+    Bdb: BackendBuilder,
 {
     name: String,
     hostname: String,
-    broker_builder: Bb,
+    broker_builder: Brb,
+    backend_builder: Option<Bdb>,
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
@@ -41,19 +43,21 @@ where
 }
 
 /// Used to create a [`Celery`] app with a custom configuration.
-pub struct CeleryBuilder<Bb>
+pub struct CeleryBuilder<Brb, Bdb>
 where
-    Bb: BrokerBuilder,
+    Brb: BrokerBuilder,
+    Bdb: BackendBuilder
 {
-    config: Config<Bb>,
+    config: Config<Brb, Bdb>,
 }
 
-impl<Bb> CeleryBuilder<Bb>
+impl<Brb, Bdb> CeleryBuilder<Brb, Bdb>
 where
-    Bb: BrokerBuilder,
+    Brb: BrokerBuilder,
+    Bdb: BackendBuilder
 {
     /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
-    pub fn new(name: &str, broker_url: &str) -> Self {
+    pub fn new(name: &str, broker_url: &str, backend_url: Option<&str>) -> Self {
         Self {
             config: Config {
                 name: name.into(),
@@ -65,7 +69,11 @@ where
                         .and_then(|sys_hostname| sys_hostname.into_string().ok())
                         .unwrap_or_else(|| "unknown".into())
                 ),
-                broker_builder: Bb::new(broker_url),
+                broker_builder: Brb::new(broker_url),
+                backend_builder: match backend_url {
+                    Some(url) => Some(Bdb::new(url)),
+                    None => None
+                },
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
                 broker_connection_max_retries: 5,
@@ -195,13 +203,29 @@ where
         self
     }
 
+    /// Set backend database name.
+    pub fn backend_database(mut self, database: &str) -> Self {
+        self.config.backend_builder = Some(self.config.backend_builder.unwrap().database(database));
+        self
+    }
+
+    /// Set backend task meta collection name.
+    pub fn backend_taskmeta_collection(mut self, collection_name: &str) -> Self {
+        self.config.backend_builder = Some(self.config.backend_builder.unwrap().taskmeta_collection(collection_name));
+        self
+    }
+
     /// Construct a [`Celery`] app with the current configuration.
-    pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
+    pub async fn build(self) -> Result<Celery<Brb::Broker, Bdb::Backend>, CeleryError> {
         // Declare default queue to broker.
         let broker_builder = self
             .config
             .broker_builder
             .declare_queue(&self.config.default_queue);
+
+        let backend_builder = self
+            .config
+            .backend_builder;
 
         let (broker_builder, task_routes) =
             configure_task_routes(broker_builder, &self.config.task_routes)?;
@@ -218,10 +242,16 @@ where
         )
         .await?;
 
+        let backend = match backend_builder {
+            Some(builder) => Some(Arc::new(builder.build(10).await?)),
+            None => None
+        };
+
         Ok(Celery {
             name: self.config.name,
             hostname: self.config.hostname,
             broker,
+            backend,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
             task_routes,
@@ -236,7 +266,9 @@ where
 
 /// A [`Celery`] app is used to produce or consume tasks asynchronously. This is the struct that is
 /// created with the [`app!`] macro.
-pub struct Celery<B: Broker> {
+pub struct Celery<Br, Bd>
+    where Br: Broker,
+          Bd: Backend {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
 
@@ -244,7 +276,10 @@ pub struct Celery<B: Broker> {
     pub hostname: String,
 
     /// The app's broker.
-    pub broker: B,
+    pub broker: Br,
+
+    /// The app's backend.
+    pub backend: Option<Arc<Bd>>,
 
     /// The default queue to send and receive from.
     pub default_queue: String,
@@ -257,7 +292,7 @@ pub struct Celery<B: Broker> {
 
     /// Mapping of task name to task tracer factory. Used to create a task tracer
     /// from an incoming message.
-    task_trace_builders: RwLock<HashMap<String, TraceBuilder>>,
+    task_trace_builders: RwLock<HashMap<String, TraceBuilder<Bd>>>,
 
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
@@ -265,13 +300,14 @@ pub struct Celery<B: Broker> {
     broker_connection_retry_delay: u32,
 }
 
-impl<B> Celery<B>
+impl<Br, Bd> Celery<Br, Bd>
 where
-    B: Broker + 'static,
+    Br: Broker + 'static,
+    Bd: Backend + 'static
 {
     /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
-    pub fn builder(name: &str, broker_url: &str) -> CeleryBuilder<B::Builder> {
-        CeleryBuilder::<B::Builder>::new(name, broker_url)
+    pub fn builder(name: &str, broker_url: &str, backend_url: Option<&str>) -> CeleryBuilder<Br::Builder, Bd::Builder> {
+        CeleryBuilder::<Br::Builder, Bd::Builder>::new(name, broker_url, backend_url)
     }
 
     /// Print a pretty ASCII art logo and configuration settings.
@@ -316,7 +352,7 @@ where
     pub async fn send_task<T: Task>(
         &self,
         mut task_sig: Signature<T>,
-    ) -> Result<AsyncResult, CeleryError> {
+    ) -> Result<AsyncResult<Bd>, CeleryError> {
         task_sig.options.update(&self.task_options);
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
@@ -330,7 +366,12 @@ where
             queue,
         );
         self.broker.send(&message, queue).await?;
-        Ok(AsyncResult::new(message.task_id()))
+
+        if let Some(backend) = &self.backend {
+            backend.add_task::<T::Returns>(message.task_id()).await?;
+        }
+
+        Ok(AsyncResult::new(message.task_id(), self.backend.clone()))
     }
 
     /// Register a task.
@@ -339,7 +380,7 @@ where
         if task_trace_builders.contains_key(T::NAME) {
             Err(CeleryError::TaskRegistrationError(T::NAME.into()))
         } else {
-            task_trace_builders.insert(T::NAME.into(), Box::new(build_tracer::<T>));
+            task_trace_builders.insert(T::NAME.into(), Box::new(build_tracer::<T, Bd>));
             debug!("Registered task {}", T::NAME);
             Ok(())
         }
@@ -353,7 +394,7 @@ where
         let task_trace_builders = self.task_trace_builders.read().await;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
             Ok(
-                build_tracer(message, self.task_options, event_tx, self.hostname.clone())
+                build_tracer(message, self.task_options, event_tx, self.hostname.clone(), self.backend.clone())
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?,
             )
         } else {
@@ -368,7 +409,7 @@ where
     /// and communicating with the broker.
     async fn try_handle_delivery(
         &self,
-        delivery: B::Delivery,
+        delivery: Br::Delivery,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         // Coerce the delivery into a protocol message.
@@ -469,7 +510,7 @@ where
     /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
     async fn handle_delivery(
         self: Arc<Self>,
-        delivery: B::Delivery,
+        delivery: Br::Delivery,
         event_tx: UnboundedSender<TaskEvent>,
     ) {
         if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
@@ -613,8 +654,9 @@ where
                     if let Some(event) = maybe_task_event {
                         debug!("Received task event {:?}", event);
                         match event {
-                            TaskEvent::StatusChange(TaskStatus::Pending) => pending_tasks += 1,
-                            TaskEvent::StatusChange(TaskStatus::Finished) => pending_tasks -= 1,
+                            TaskEvent::StatusChange(TaskState::Pending) => pending_tasks += 1,
+                            TaskEvent::StatusChange(TaskState::Success) => pending_tasks -= 1,
+                            _ => ()
                         };
                     }
                 },
@@ -650,8 +692,9 @@ where
                         if let Some(event) = maybe_event {
                             debug!("Received task event {:?}", event);
                             match event {
-                                TaskEvent::StatusChange(TaskStatus::Pending) => pending_tasks += 1,
-                                TaskEvent::StatusChange(TaskStatus::Finished) => pending_tasks -= 1,
+                                TaskEvent::StatusChange(TaskState::Pending) => pending_tasks += 1,
+                                TaskEvent::StatusChange(TaskState::Success) => pending_tasks -= 1,
+                                _ => ()
                             };
                             if pending_tasks <= 0 {
                                 break;

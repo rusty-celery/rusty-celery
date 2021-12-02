@@ -64,7 +64,11 @@ pub trait Task: Send + Sync + std::marker::Sized {
     type Params: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de>;
 
     /// The return type of the task.
+    #[cfg(not(feature = "backend_mongo"))]
     type Returns: Send + Sync + std::fmt::Debug;
+    #[cfg(feature = "backend_mongo")]
+    /// The return type of the task.
+    type Returns: Send + Sync + Unpin + std::fmt::Debug + Serialize;
 
     /// Used to initialize a task instance from a request.
     fn from_request(request: Request<Self>, options: TaskOptions) -> Self;
@@ -207,13 +211,21 @@ pub trait Task: Send + Sync + std::marker::Sized {
 
 #[derive(Clone, Debug)]
 pub(crate) enum TaskEvent {
-    StatusChange(TaskStatus),
+    StatusChange(TaskState),
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum TaskStatus {
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TaskState {
+    /// The task is waiting for execution.
     Pending,
-    Finished,
+    /// The task has been started.
+    Started,
+    /// The task is to be retried, possibly because of failure.
+    Retry,
+    /// The task failed with error, or has exceeded the retry limit.
+    Failure,
+    /// The task executed successfully.
+    Success,
 }
 
 /// Extension methods for `Result` types within a task body.
