@@ -223,12 +223,7 @@ impl Broker for AMQPBroker {
         delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError> {
-        let mut headers = delivery
-            .1
-            .properties
-            .headers()
-            .clone()
-            .unwrap_or_else(FieldTable::default);
+        let mut headers = delivery.1.properties.headers().clone().unwrap_or_default();
 
         // Increment the number of retries.
         let retries = match get_header_u32(&headers, "retries") {
