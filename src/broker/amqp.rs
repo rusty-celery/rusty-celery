@@ -14,7 +14,6 @@ use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tokio::sync::{Mutex, RwLock};
-use tokio_amqp::LapinTokioExt;
 
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
@@ -83,9 +82,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         uri.query.heartbeat = self.config.heartbeat;
         uri.query.connection_timeout = Some((connection_timeout as u64) * 1000);
 
-        let conn =
-            Connection::connect_uri(uri.clone(), ConnectionProperties::default().with_tokio())
-                .await?;
+        let conn = connect_uri(uri.clone()).await?;
         let consume_channel = conn.create_channel().await?;
         let produce_channel = conn.create_channel().await?;
 
@@ -157,7 +154,7 @@ impl AMQPBroker {
 #[async_trait]
 impl Broker for AMQPBroker {
     type Builder = AMQPBrokerBuilder;
-    type Delivery = (Channel, Delivery);
+    type Delivery = Delivery;
     type DeliveryError = lapin::Error;
     type DeliveryStream = lapin::Consumer;
 
@@ -212,7 +209,6 @@ impl Broker for AMQPBroker {
 
     async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
         delivery
-            .1
             .ack(BasicAckOptions::default())
             .await
             .map_err(|e| e.into())
@@ -224,7 +220,6 @@ impl Broker for AMQPBroker {
         eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError> {
         let mut headers = delivery
-            .1
             .properties
             .headers()
             .clone()
@@ -245,15 +240,15 @@ impl Broker for AMQPBroker {
             );
         };
 
-        let properties = delivery.1.properties.clone().with_headers(headers);
+        let properties = delivery.properties.clone().with_headers(headers);
         self.produce_channel
             .read()
             .await
             .basic_publish(
                 "",
-                delivery.1.routing_key.as_str(),
+                delivery.routing_key.as_str(),
                 BasicPublishOptions::default(),
-                delivery.1.data.clone(),
+                &delivery.data,
                 properties,
             )
             .await?;
@@ -271,7 +266,7 @@ impl Broker for AMQPBroker {
                 "",
                 queue,
                 BasicPublishOptions::default(),
-                message.raw_body.clone(),
+                &message.raw_body,
                 properties,
             )
             .await?;
@@ -340,8 +335,7 @@ impl Broker for AMQPBroker {
             debug!("Attempting to reconnect to broker");
             let mut uri = self.uri.clone();
             uri.query.connection_timeout = Some(connection_timeout as u64);
-            *conn =
-                Connection::connect_uri(uri, ConnectionProperties::default().with_tokio()).await?;
+            *conn = connect_uri(uri).await?;
 
             let mut consume_channel = self.consume_channel.write().await;
             let mut produce_channel = self.produce_channel.write().await;
@@ -361,6 +355,16 @@ impl Broker for AMQPBroker {
 
         Ok(())
     }
+}
+
+async fn connect_uri(uri: AMQPUri) -> lapin::Result<Connection> {
+    Connection::connect_uri(
+        uri,
+        ConnectionProperties::default()
+            .with_executor(tokio_executor_trait::Tokio::current())
+            .with_reactor(tokio_reactor_trait::Tokio),
+    )
+    .await
 }
 
 impl Message {
@@ -461,12 +465,6 @@ impl Message {
             );
         }
         headers
-    }
-}
-
-impl TryDeserializeMessage for (Channel, Delivery) {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
-        self.1.try_deserialize_message()
     }
 }
 
