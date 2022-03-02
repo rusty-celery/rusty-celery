@@ -139,7 +139,7 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
 ) -> Result<Bb::Broker, BrokerError> {
     let mut broker: Option<Bb::Broker> = None;
 
-    for _ in 0..connection_max_retries {
+    for _ in 0..connection_max_retries+1 {
         match broker_builder.build(connection_timeout).await {
             Err(err) => {
                 if err.is_connection_error() {
