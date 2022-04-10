@@ -485,7 +485,7 @@ where
     /// Consume tasks from the default queue.
     pub async fn consume(self: &Arc<Self>) -> Result<(), CeleryError> {
         let queues = &[&self.default_queue.clone()[..]];
-        Ok(Self::consume_from(self, queues).await?)
+        Self::consume_from(self, queues).await
     }
 
     /// Consume tasks from any number of queues.

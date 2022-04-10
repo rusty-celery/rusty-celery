@@ -160,8 +160,8 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
         };
     }
 
-    Ok(broker.ok_or_else(|| {
+    broker.ok_or_else(|| {
         error!("Failed to establish connection with broker");
         BrokerError::NotConnected
-    })?)
+    })
 }
