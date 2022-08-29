@@ -19,6 +19,8 @@ use tokio_amqp::LapinTokioExt;
 use super::{Broker, BrokerBuilder};
 use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
+use tokio_executor_trait::Tokio as TokioExecutor;
+use tokio_reactor_trait::Tokio as TokioReactor;
 
 struct Config {
     broker_url: String,
@@ -83,9 +85,13 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         uri.query.heartbeat = self.config.heartbeat;
         uri.query.connection_timeout = Some((connection_timeout as u64) * 1000);
 
-        let conn =
-            Connection::connect_uri(uri.clone(), ConnectionProperties::default().with_tokio())
-                .await?;
+        let conn = Connection::connect_uri(
+            uri.clone(), 
+            ConnectionProperties::default()
+                .with_executor(TokioExecutor::current())
+                .with_reactor(TokioReactor)
+        ).await?;
+
         let consume_channel = conn.create_channel().await?;
         let produce_channel = conn.create_channel().await?;
 
@@ -341,7 +347,10 @@ impl Broker for AMQPBroker {
             let mut uri = self.uri.clone();
             uri.query.connection_timeout = Some(connection_timeout as u64);
             *conn =
-                Connection::connect_uri(uri, ConnectionProperties::default().with_tokio()).await?;
+                Connection::connect_uri(uri, ConnectionProperties::default()
+                .with_executor(TokioExecutor::current())
+                .with_reactor(TokioReactor)
+            ).await?;
 
             let mut consume_channel = self.consume_channel.write().await;
             let mut produce_channel = self.produce_channel.write().await;
