@@ -253,7 +253,7 @@ impl Broker for AMQPBroker {
                 "",
                 delivery.1.routing_key.as_str(),
                 BasicPublishOptions::default(),
-                delivery.1.data.clone(),
+                &delivery.1.data.clone()[..],
                 properties,
             )
             .await?;
