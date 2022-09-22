@@ -359,7 +359,7 @@ impl VisitMut for Task {
 
         if self.params_type.is_none() {
             self.params_type = Some(syn::Ident::new(
-                &format!("{}Params", ident.to_string())[..],
+                &format!("{}Params", ident)[..],
                 Span::call_site(),
             ));
         }
@@ -635,7 +635,7 @@ impl ToTokens for Task {
         };
 
         let dummy_const = syn::Ident::new(
-            &format!("__IMPL_CELERY_TASK_FOR_{}", wrapper.to_string()),
+            &format!("__IMPL_CELERY_TASK_FOR_{}", wrapper),
             Span::call_site(),
         );
 
