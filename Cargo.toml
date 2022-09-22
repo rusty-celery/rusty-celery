@@ -30,7 +30,7 @@ tokio = { version = "1.2.1", features = ["full"]}
 tokio-stream = "0.1.9"
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-rmp-serde = { version = "0.15", optional = true }
+rmp-serde = { version = "1.1", optional = true }
 rmpv = { version = "1.0.0", optional = true, features = ["with-serde"] }
 serde_yaml = { version = "0.8", optional = true }
 serde-pickle = { version = "1.1", optional = true }
@@ -51,7 +51,7 @@ tokio-executor-trait = "2.1.0"
 tokio-reactor-trait = "1.1.0"
 
 [dev-dependencies]
-rmp-serde = "0.15"
+rmp-serde = "1.1"
 rmpv = { version = "1.0.0", features = ["with-serde"] }
 serde_yaml = "0.8"
 serde-pickle = "1.1"
