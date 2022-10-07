@@ -5,4 +5,4 @@ flake8
 mypy==0.910
 
 # Automatic code formatting
-black==22.8.0
+black==22.10.0
