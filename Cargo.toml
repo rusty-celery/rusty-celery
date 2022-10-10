@@ -39,7 +39,7 @@ async-trait = "0.1"
 lapin = "2.1.1"
 log = "0.4"
 futures = { version = "0.3", features = ["async-await"] }
-uuid = { version = "0.8", features = ["v4"]}
+uuid = { version = "1.2", features = ["v4"]}
 rand = "0.8"
 celery-codegen = { version = "0.4.0-rcn.11", path = "./celery-codegen", optional = true }
 colored = "2"
