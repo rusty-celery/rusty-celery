@@ -2,6 +2,7 @@ use super::Task;
 use crate::error::ProtocolError;
 use crate::protocol::Message;
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::time::SystemTime;
 use tokio::time::Duration;
@@ -47,6 +48,8 @@ where
 
     /// The time limit (in seconds) allocated for this task to execute.
     pub time_limit: Option<u32>,
+
+    pub context: HashMap<String, serde_json::Value>,
 }
 
 impl<T> Request<T>
@@ -75,6 +78,7 @@ where
             hostname: None,
             reply_to: m.properties.reply_to,
             time_limit,
+            context: m.context,
         }
     }
 

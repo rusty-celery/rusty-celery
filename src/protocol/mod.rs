@@ -9,6 +9,7 @@ use log::{debug, warn};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_slice, from_value, json, Value};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::process;
 use std::time::SystemTime;
@@ -53,7 +54,7 @@ where
     T: Task,
 {
     /// Create a new `MessageBuilder` with a given task ID.
-    pub fn new(id: String) -> Self {
+    pub fn new(id: String, context: HashMap<String, Value>) -> Self {
         Self {
             message: Message {
                 properties: MessageProperties {
@@ -69,6 +70,7 @@ where
                     ..Default::default()
                 },
                 raw_body: Vec::new(),
+                context,
             },
             params: None,
         }
@@ -244,6 +246,9 @@ pub struct Message {
 
     /// A serialized [`MessageBody`].
     pub raw_body: Vec<u8>,
+
+    /// Context
+    pub context: HashMap<String, serde_json::Value>,
 }
 
 impl Message {
@@ -475,7 +480,7 @@ where
         let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
         let id = uuid.to_owned();
 
-        let mut builder = MessageBuilder::<T>::new(id);
+        let mut builder = MessageBuilder::<T>::new(id, HashMap::new());
 
         // 'countdown' arbitrarily takes priority over 'eta'.
         if let Some(countdown) = task_sig.countdown.take() {
@@ -541,7 +546,10 @@ where
 /// A trait for attempting to deserialize a [`Message`] from `self`. This is required to be implemented
 /// on a broker's [`Delivery`](crate::broker::Broker::Delivery) type.
 pub trait TryDeserializeMessage {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError>;
+    fn try_deserialize_message(
+        &self,
+        context: HashMap<String, serde_json::Value>,
+    ) -> Result<Message, ProtocolError>;
 }
 
 /// Message meta data pertaining to the broker.
@@ -680,7 +688,10 @@ pub struct Delivery {
 }
 
 impl Delivery {
-    pub fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
+    pub fn try_deserialize_message(
+        &self,
+        context: HashMap<String, serde_json::Value>,
+    ) -> Result<Message, ProtocolError> {
         let raw_body = match self.properties.body_encoding {
             BodyEncoding::Base64 => base64::decode(self.body.clone())
                 .map_err(|e| ProtocolError::InvalidProperty(format!("body error: {}", e)))?,
@@ -710,6 +721,7 @@ impl Delivery {
                 origin: self.headers.origin.clone(),
             },
             raw_body,
+            context,
         })
     }
 }

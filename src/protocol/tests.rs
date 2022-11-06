@@ -4,6 +4,7 @@ use super::*;
 use crate::error::TaskError;
 use crate::task::{Request, Task, TaskOptions};
 use chrono::{DateTime, SecondsFormat, Utc};
+use std::collections::HashMap;
 use std::time::SystemTime;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -65,6 +66,7 @@ fn test_deserialize_body_with_args() {
             ..Default::default()
         },
         raw_body: Vec::from(JSON),
+        context: HashMap::new(),
     };
     let body = message.body::<TestTask>().unwrap();
     assert_eq!(body.1.a, 4);
@@ -94,6 +96,7 @@ fn test_yaml_deserialize_body_with_args() {
             ..Default::default()
         },
         raw_body: Vec::from(YAML),
+        context: HashMap::new(),
     };
     let body = message.body::<TestTask>().unwrap();
     assert_eq!(body.1.a, 4);
@@ -123,6 +126,7 @@ fn test_pickle_deserialize_body_with_args() {
             ..Default::default()
         },
         raw_body: PICKLE.to_vec(),
+        context: HashMap::new(),
     };
     let body = message.body::<TestTask>().unwrap();
     assert_eq!(body.1.a, 4);
@@ -152,6 +156,7 @@ fn test_msgpack_deserialize_body_with_args() {
             ..Default::default()
         },
         raw_body: MSGPACK.to_vec(),
+        context: HashMap::new(),
     };
     let body = message.body::<TestTask>().unwrap();
     assert_eq!(body.1.a, 4);
@@ -191,6 +196,7 @@ fn test_serialization() {
             origin: Some("gen123@piper".into()),
         },
         raw_body: Vec::from(JSON),
+        context: HashMap::new(),
     };
     let ser_msg_result = message.json_serialized();
     assert!(ser_msg_result.is_ok());
