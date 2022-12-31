@@ -60,7 +60,7 @@ anyhow = "1.0"
 structopt = "0.3"
 
 [features]
-default = ["codegen", "native-tls"]
+default = ["codegen", "rustls"]
 codegen = ["celery-codegen"]
 extra_content_types = ["rmp-serde", "rmpv", "serde_yaml", "serde-pickle"]
 native-tls = ["lapin/native-tls"]
