@@ -9,7 +9,7 @@ from celery import Celery
 from celery.bin.celery import main as _main
 
 
-my_app = Celery("celery", broker=os.environ.get("AMQP_ADDR", "amqp://127.0.0.1:5672/my_vhost"))
+my_app = Celery("celery", broker=os.environ.get("AMQP_ADDR", "amqp://127.0.0.1:5672"))
 my_app.conf.update(
     result_backend=None,
     task_ignore_result=True,
@@ -67,7 +67,6 @@ def main():
             "celery",
             "--app=celery_app.my_app",
             "worker",
-            "--workdir=examples",
             "-Q=celery,buggy-queue",
             "-Ofair",
             "--loglevel=info",

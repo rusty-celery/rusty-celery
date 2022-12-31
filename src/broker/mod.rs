@@ -28,7 +28,7 @@ pub trait Broker: Send + Sync + Sized {
     type Builder: BrokerBuilder<Broker = Self>;
 
     /// The type representing a successful delivery.
-    type Delivery: TryDeserializeMessage + Send + Sync + Clone + std::fmt::Debug;
+    type Delivery: TryDeserializeMessage + Send + Sync + std::fmt::Debug;
 
     /// The error type of an unsuccessful delivery.
     type DeliveryError: std::fmt::Display + Send + Sync;
@@ -160,8 +160,8 @@ pub(crate) async fn build_and_connect<Bb: BrokerBuilder>(
         };
     }
 
-    Ok(broker.ok_or_else(|| {
+    broker.ok_or_else(|| {
         error!("Failed to establish connection with broker");
         BrokerError::NotConnected
-    })?)
+    })
 }
