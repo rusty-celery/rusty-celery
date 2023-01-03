@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped Lapin to it's latest and safest version
 - Bumped black to it's latest version, since current was breaking
 
+### Added
+- Add explicit feature support for rustls/native-tls
+
 ## [v0.4.0-rcn.11](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rcn.11) - 2021-10-07
 
 ### Fixed
