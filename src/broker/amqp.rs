@@ -580,7 +580,7 @@ fn amqp_value_to_u32(v: &AMQPValue) -> Option<u32> {
         AMQPValue::ShortInt(n) => Some(*n as u32),
         AMQPValue::ShortUInt(n) => Some(*n as u32),
         AMQPValue::LongInt(n) => Some(*n as u32),
-        AMQPValue::LongUInt(n) => Some(*n as u32),
+        AMQPValue::LongUInt(n) => Some(*n),
         AMQPValue::LongLongInt(n) => Some(*n as u32),
         _ => None,
     }
