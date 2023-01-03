@@ -114,7 +114,13 @@ pub trait Task: Send + Sync + std::marker::Sized {
                 let now_millis = now.subsec_millis();
                 let eta_secs = now_secs + countdown;
                 Some(DateTime::<Utc>::from_utc(
-                    NaiveDateTime::from_timestamp(eta_secs as i64, now_millis * 1000),
+                    NaiveDateTime::from_timestamp_opt(eta_secs as i64, now_millis * 1000)
+                        .ok_or_else(|| {
+                            TaskError::UnexpectedError(format!(
+                                "Invalid countdown seconds {}",
+                                countdown
+                            ))
+                        })?,
                     Utc,
                 ))
             }
@@ -147,10 +153,8 @@ pub trait Task: Send + Sync + std::marker::Sized {
                 let now_millis = now.subsec_millis();
                 let eta_secs = now_secs + delay_secs;
                 let eta_millis = now_millis + delay_millis;
-                Some(DateTime::<Utc>::from_utc(
-                    NaiveDateTime::from_timestamp(eta_secs as i64, eta_millis * 1000),
-                    Utc,
-                ))
+                NaiveDateTime::from_timestamp_opt(eta_secs as i64, eta_millis * 1000)
+                    .map(|eta| DateTime::<Utc>::from_utc(eta, Utc))
             }
             Err(_) => None,
         }
