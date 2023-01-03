@@ -381,7 +381,7 @@ fn args_to_fields<'a>(
     skip_first: bool,
 ) -> TokenStream {
     args.into_iter()
-        .skip(if !skip_first { 0 } else { 1 })
+        .skip(usize::from(skip_first))
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Typed(cap) => {
                 let ident = match *cap.pat {
@@ -403,7 +403,7 @@ fn args_to_arg_names<'a>(
     skip_first: bool,
 ) -> TokenStream {
     args.into_iter()
-        .skip(if !skip_first { 0 } else { 1 })
+        .skip(usize::from(skip_first))
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
@@ -448,7 +448,7 @@ fn args_to_calling_args<'a>(
     skip_first: bool,
 ) -> TokenStream {
     args.into_iter()
-        .skip(if !skip_first { 0 } else { 1 })
+        .skip(usize::from(skip_first))
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Typed(cap) => match *cap.pat {
                 syn::Pat::Ident(ref pat) => {
@@ -469,7 +469,7 @@ fn args_to_typed_inputs<'a>(
     skip_first: bool,
 ) -> TokenStream {
     args.into_iter()
-        .skip(if !skip_first { 0 } else { 1 })
+        .skip(usize::from(skip_first))
         .fold(TokenStream::new(), |acc, arg| match arg {
             syn::FnArg::Typed(cap) => {
                 let ident = match *cap.pat {
