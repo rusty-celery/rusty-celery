@@ -335,8 +335,7 @@ where
         let components: Vec<_> = schedule.split_whitespace().collect();
         if components.len() != 5 {
             Err(ScheduleError::CronScheduleError(format!(
-                "'{}' is not a valid cron schedule: invalid number of elements",
-                schedule
+                "'{schedule}' is not a valid cron schedule: invalid number of elements"
             )))
         } else {
             let minutes = parse_longhand::<Minutes>(components[0])?;

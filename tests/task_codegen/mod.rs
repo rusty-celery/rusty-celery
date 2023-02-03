@@ -78,7 +78,7 @@ fn bound_task_with_other_params(t: &Self, default_time_limit: u32) -> TaskResult
 // After changing the signature of `run` to consume `self` this now works.
 #[celery::task]
 fn task_with_strings(s1: String, s2: String) -> TaskResult<String> {
-    Ok(format!("{}, {}", s1, s2))
+    Ok(format!("{s1}, {s2}"))
 }
 
 async fn task_on_failure<T: Task>(task: &T, _err: &TaskError) {

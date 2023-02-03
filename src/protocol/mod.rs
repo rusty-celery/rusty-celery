@@ -25,18 +25,13 @@ static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
 });
 
 /// Serialization formats supported for message body.
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub enum MessageContentType {
+    #[default]
     Json,
     Yaml,
     Pickle,
     MsgPack,
-}
-
-impl Default for MessageContentType {
-    fn default() -> Self {
-        MessageContentType::Json
-    }
 }
 
 /// Create a message with a custom configuration.
@@ -683,7 +678,7 @@ impl Delivery {
     pub fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
         let raw_body = match self.properties.body_encoding {
             BodyEncoding::Base64 => base64::decode(self.body.clone())
-                .map_err(|e| ProtocolError::InvalidProperty(format!("body error: {}", e)))?,
+                .map_err(|e| ProtocolError::InvalidProperty(format!("body error: {e}")))?,
         };
         Ok(Message {
             properties: MessageProperties {

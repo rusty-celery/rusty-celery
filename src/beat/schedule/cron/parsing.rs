@@ -22,8 +22,7 @@ pub fn parse_shorthand(s: &str) -> Result<Shorthand, ScheduleError> {
         "@daily" => Ok(Daily),
         "@hourly" => Ok(Hourly),
         _ => Err(ScheduleError::CronScheduleError(format!(
-            "'{}' is not a valid shorthand for a cron schedule",
-            s
+            "'{s}' is not a valid shorthand for a cron schedule"
         ))),
     }
 }

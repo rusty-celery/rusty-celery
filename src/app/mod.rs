@@ -306,7 +306,7 @@ where
         // Registered tasks.
         println!("{}", "[tasks]".bold());
         for task in self.task_trace_builders.read().await.keys() {
-            println!(" . {}", task);
+            println!(" . {task}");
         }
         println!();
     }
