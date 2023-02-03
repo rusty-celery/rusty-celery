@@ -223,7 +223,7 @@ where
 }
 
 /// A [`Beat`] app is used to send out scheduled tasks. This is the struct that is
-/// created with the [`beat!`] macro.
+/// created with the [`beat!`](crate::beat!) macro.
 ///
 /// It drives execution by making the internal scheduler "tick", and updates the list of scheduled
 /// tasks through a customizable scheduler backend.

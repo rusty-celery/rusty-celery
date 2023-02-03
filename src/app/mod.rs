@@ -235,7 +235,7 @@ where
 }
 
 /// A [`Celery`] app is used to produce or consume tasks asynchronously. This is the struct that is
-/// created with the [`app!`] macro.
+/// created with the [`app!`](crate::app!) macro.
 pub struct Celery<B: Broker> {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
