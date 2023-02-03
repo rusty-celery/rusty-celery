@@ -227,6 +227,7 @@ impl Broker for AMQPBroker {
         &self,
         delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
+        _context: HashMap<String, serde_json::Value>,
     ) -> Result<(), BrokerError> {
         let mut headers = delivery.properties.headers().clone().unwrap_or_default();
 
@@ -470,13 +471,19 @@ impl Message {
 }
 
 impl TryDeserializeMessage for (Channel, Delivery) {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
-        self.1.try_deserialize_message()
+    fn try_deserialize_message(
+        &self,
+        context: HashMap<String, serde_json::Value>,
+    ) -> Result<Message, ProtocolError> {
+        self.1.try_deserialize_message(context)
     }
 }
 
 impl TryDeserializeMessage for Delivery {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
+    fn try_deserialize_message(
+        &self,
+        context: HashMap<String, serde_json::Value>,
+    ) -> Result<Message, ProtocolError> {
         let headers = self
             .properties
             .headers()
@@ -542,6 +549,7 @@ impl TryDeserializeMessage for Delivery {
                 origin: get_header_str(headers, "origin"),
             },
             raw_body: self.data.clone(),
+            context,
         })
     }
 }
@@ -627,6 +635,7 @@ mod tests {
                 origin: Some("gen123@piper".into()),
             },
             raw_body: vec![],
+            context: HashMap::new(),
         };
 
         let delivery = Delivery {
@@ -639,7 +648,7 @@ mod tests {
             acker: Default::default(),
         };
 
-        let message2 = delivery.try_deserialize_message();
+        let message2 = delivery.try_deserialize_message(HashMap::new());
         assert!(message2.is_ok());
 
         let message2 = message2.unwrap();

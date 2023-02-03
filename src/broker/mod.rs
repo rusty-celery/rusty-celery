@@ -1,6 +1,8 @@
 //! The broker is an integral part of a [`Celery`](crate::Celery) app. It provides the transport for messages that
 //! encode tasks.
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
@@ -70,6 +72,7 @@ pub trait Broker: Send + Sync + Sized {
         &self,
         delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
+        context: HashMap<String, serde_json::Value>,
     ) -> Result<(), BrokerError>;
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.

@@ -13,7 +13,7 @@ use redis::aio::ConnectionManager;
 use redis::Client;
 use redis::RedisError;
 use std::clone::Clone;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::future::Future;
 use std::sync::atomic::{AtomicU16, Ordering};
@@ -182,8 +182,12 @@ impl Channel {
             .await?)
     }
 
-    async fn resend_task(&self, delivery: &Delivery) -> Result<(), BrokerError> {
-        let mut message = delivery.clone().try_deserialize_message()?;
+    async fn resend_task(
+        &self,
+        delivery: &Delivery,
+        context: HashMap<String, serde_json::Value>,
+    ) -> Result<(), BrokerError> {
+        let mut message = delivery.clone().try_deserialize_message(context)?;
         let retries = message.headers.retries.unwrap_or_default();
         message.headers.retries = Some(retries + 1);
         self.clone().send_task(&message).await?;
@@ -213,8 +217,11 @@ pub struct Consumer {
 }
 
 impl TryDeserializeMessage for (Channel, Delivery) {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
-        self.1.try_deserialize_message()
+    fn try_deserialize_message(
+        &self,
+        context: HashMap<String, serde_json::Value>,
+    ) -> Result<Message, ProtocolError> {
+        self.1.try_deserialize_message(context)
     }
 }
 
@@ -327,9 +334,10 @@ impl Broker for RedisBroker {
         &self,
         delivery: &Self::Delivery,
         _eta: Option<DateTime<Utc>>,
+        context: HashMap<String, serde_json::Value>,
     ) -> Result<(), BrokerError> {
         let (channel, delivery_msg) = delivery;
-        channel.resend_task(delivery_msg).await?;
+        channel.resend_task(delivery_msg, context).await?;
         // self.ack(delivery).await?;
         Ok(())
     }

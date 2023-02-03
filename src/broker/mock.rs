@@ -99,6 +99,7 @@ impl Broker for MockBroker {
         &self,
         delivery: &Self::Delivery,
         eta: Option<DateTime<Utc>>,
+        context: HashMap<String, serde_json::Value>,
     ) -> Result<(), BrokerError> {
         Ok(())
     }
@@ -134,7 +135,10 @@ impl Broker for MockBroker {
 pub struct Delivery;
 
 impl TryDeserializeMessage for Delivery {
-    fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
+    fn try_deserialize_message(
+        &self,
+        _context: HashMap<String, serde_json::Value>,
+    ) -> Result<Message, ProtocolError> {
         unimplemented!();
     }
 }

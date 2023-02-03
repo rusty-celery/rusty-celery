@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use celery::error::TaskError;
 use celery::task::{Task, TaskResult};
 
@@ -108,4 +110,10 @@ use celery::protocol::MessageContentType::MsgPack;
 #[celery::task(content_type = MsgPack)]
 fn custom_content_type() {
     println!()
+}
+
+#[celery::task(context = "context")]
+fn greet(context: HashMap<String, serde_json::Value>, name: String) -> TaskResult<String> {
+    let greet = context.get("greet").unwrap().as_str().unwrap();
+    Ok(format!("{} {}!", greet, name))
 }

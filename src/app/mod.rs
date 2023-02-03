@@ -38,6 +38,7 @@ where
     default_queue: String,
     task_options: TaskOptions,
     task_routes: Vec<(String, String)>,
+    context: HashMap<String, serde_json::Value>,
 }
 
 /// Used to create a [`Celery`] app with a custom configuration.
@@ -73,6 +74,7 @@ where
                 default_queue: "celery".into(),
                 task_options: TaskOptions::default(),
                 task_routes: vec![],
+                context: HashMap::new(),
             },
         }
     }
@@ -195,6 +197,12 @@ where
         self
     }
 
+    /// Set the context for the app. The context will be passed to all tasks if defined.
+    pub fn context(mut self, context: HashMap<String, serde_json::Value>) -> Self {
+        self.config.context = context;
+        self
+    }
+
     /// Construct a [`Celery`] app with the current configuration.
     pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
         // Declare default queue to broker.
@@ -230,6 +238,7 @@ where
             broker_connection_retry: self.config.broker_connection_retry,
             broker_connection_max_retries: self.config.broker_connection_max_retries,
             broker_connection_retry_delay: self.config.broker_connection_retry_delay,
+            context: self.config.context,
         })
     }
 }
@@ -251,6 +260,9 @@ pub struct Celery<B: Broker> {
 
     /// Default task options.
     pub task_options: TaskOptions,
+
+    /// Context to be passed to all tasks
+    pub context: HashMap<String, serde_json::Value>,
 
     /// A vector of routing rules in the order of their importance.
     task_routes: Vec<Rule>,
@@ -370,9 +382,10 @@ where
         &self,
         delivery: B::Delivery,
         event_tx: UnboundedSender<TaskEvent>,
+        context: HashMap<String, serde_json::Value>,
     ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         // Coerce the delivery into a protocol message.
-        let message = match delivery.try_deserialize_message() {
+        let message = match delivery.try_deserialize_message(context) {
             Ok(message) => message,
             Err(e) => {
                 // This is a naughty message that we can't handle, so we'll ack it with
@@ -412,7 +425,7 @@ where
                 // other deliveries if there are a high number of messages with a
                 // future ETA.
                 self.broker
-                    .retry(&delivery, None)
+                    .retry(&delivery, None, self.context.clone())
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 self.broker
@@ -441,7 +454,7 @@ where
         if let Err(TraceError::Retry(retry_eta)) = tracer.trace().await {
             // If retry error -> retry the task.
             self.broker
-                .retry(&delivery, retry_eta)
+                .retry(&delivery, retry_eta, self.context.clone())
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
@@ -472,7 +485,10 @@ where
         delivery: B::Delivery,
         event_tx: UnboundedSender<TaskEvent>,
     ) {
-        if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
+        if let Err(e) = self
+            .try_handle_delivery(delivery, event_tx, self.context.clone())
+            .await
+        {
             error!("{}", e);
         }
     }

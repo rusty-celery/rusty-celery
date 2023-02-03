@@ -31,6 +31,7 @@ enum TaskAttr {
     Bind(syn::LitBool),
     OnFailure(syn::Ident),
     OnSuccess(syn::Ident),
+    Context(syn::LitStr),
 }
 
 #[derive(Clone)]
@@ -56,6 +57,7 @@ struct Task {
     bind: bool,
     on_failure: Option<syn::Ident>,
     on_success: Option<syn::Ident>,
+    context: Option<String>,
 }
 
 impl TaskAttrs {
@@ -198,6 +200,16 @@ impl TaskAttrs {
             })
             .next()
     }
+
+    fn context(&self) -> Option<String> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::Context(s) => Some(s.value()),
+                _ => None,
+            })
+            .next()
+    }
 }
 
 impl parse::Parse for TaskAttrs {
@@ -224,6 +236,7 @@ mod kw {
     syn::custom_keyword!(bind);
     syn::custom_keyword!(on_failure);
     syn::custom_keyword!(on_success);
+    syn::custom_keyword!(context);
 }
 
 impl parse::Parse for TaskAttr {
@@ -285,6 +298,10 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::on_success>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::OnSuccess(input.parse()?))
+        } else if lookahead.peek(kw::context) {
+            input.parse::<kw::context>()?;
+            input.parse::<Token![=]>()?;
+            Ok(TaskAttr::Context(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -318,6 +335,7 @@ impl Task {
                 .unwrap_or_default(),
             on_failure: attrs.on_failure(),
             on_success: attrs.on_success(),
+            context: attrs.context(),
         }
     }
 }
@@ -534,9 +552,29 @@ impl ToTokens for Task {
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { Some(#krate::protocol::MessageContentType::Json) });
         let task_name = self.name.as_ref().unwrap();
+
+        let original_args = self.original_args.clone();
+        let args_without_context: Vec<_> = original_args
+            .iter()
+            .filter(|arg| {
+                if let Some(context_name) = &self.context {
+                    match arg {
+                        syn::FnArg::Typed(cap) => match *cap.pat {
+                            syn::Pat::Ident(ref pat) => pat.ident != context_name,
+                            _ => true,
+                        },
+                        _ => true,
+                    }
+                } else {
+                    true
+                }
+            })
+            .map(|arg| arg.clone())
+            .collect();
+
         let arg_names = args_to_arg_names(&self.original_args, self.bind);
-        let serialized_fields = args_to_fields(&self.original_args, self.bind);
-        let deserialized_bindings = args_to_bindings(&self.original_args, self.bind);
+        let serialized_fields = args_to_fields(&args_without_context, self.bind);
+        let deserialized_bindings = args_to_bindings(&args_without_context, self.bind);
         let inner_block = {
             let block = &self.inner_block;
             quote!(#block)
@@ -546,9 +584,10 @@ impl ToTokens for Task {
             .as_ref()
             .map(|ty| quote!(#ty))
             .unwrap_or_else(|| quote!(#krate::task::TaskResult<()>));
-        let typed_inputs = args_to_typed_inputs(&self.original_args, self.bind);
+
+        let typed_inputs = args_to_typed_inputs(&args_without_context, self.bind);
         let typed_run_inputs = args_to_typed_inputs(&self.original_args, false);
-        let params_args = args_to_calling_args(&self.original_args, self.bind);
+        let params_args = args_to_calling_args(&args_without_context, self.bind);
         let calling_args = args_to_calling_args(&self.original_args, false);
 
         let wrapper_struct = quote! {
@@ -612,10 +651,12 @@ impl ToTokens for Task {
 
         let call_run_implementation = if self.is_async {
             quote! {
+                let context = self.request.context.clone();
                 Ok(#wrapper::_run(#calling_args).await?)
             }
         } else {
             quote! {
+                let context = self.request.context.clone();
                 Ok(#wrapper::_run(#calling_args)?)
             }
         };
