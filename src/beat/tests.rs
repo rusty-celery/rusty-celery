@@ -20,12 +20,12 @@ use tokio::time::{self, Duration};
 #[tokio::test]
 async fn test_task_with_delta_schedule() {
     // Create a dummy broker for this test.
-    let dummy_broker = MockBroker::new();
+    let dummy_broker = Box::new(MockBroker::new());
 
     // Configure a dummy queue for the tasks.
     let task_routes = vec![Rule::new("dummy_*", "dummy_queue").unwrap()];
 
-    let mut beat: Beat<MockBroker, LocalSchedulerBackend> = Beat {
+    let mut beat: Beat<LocalSchedulerBackend> = Beat {
         name: "dummy_beat".to_string(),
         scheduler: Scheduler::new(dummy_broker),
         scheduler_backend: LocalSchedulerBackend::new(),
@@ -81,14 +81,14 @@ async fn test_task_with_delta_schedule() {
 #[tokio::test]
 async fn test_scheduling_two_tasks() {
     // Create a dummy broker for this test.
-    let dummy_broker = MockBroker::new();
+    let dummy_broker = Box::new(MockBroker::new());
 
     // Configure dummy queues for the tasks.
     let task_routes = vec![
         Rule::new("dummy_task2", "dummy_queue2").unwrap(),
         Rule::new("dummy_*", "dummy_queue").unwrap(),
     ];
-    let mut beat: Beat<MockBroker, LocalSchedulerBackend> = Beat {
+    let mut beat: Beat<LocalSchedulerBackend> = Beat {
         name: "dummy_beat".to_string(),
         scheduler: Scheduler::new(dummy_broker),
         scheduler_backend: LocalSchedulerBackend::new(),
@@ -158,9 +158,9 @@ impl Schedule for TenMillisSchedule {
 #[tokio::test]
 async fn test_task_with_delayed_first_run() {
     // Create a dummy beat for this test.
-    let dummy_broker = MockBroker::new();
+    let dummy_broker = Box::new(MockBroker::new());
     let task_routes = vec![Rule::new("*", "dummy_queue").unwrap()];
-    let mut beat: Beat<MockBroker, LocalSchedulerBackend> = Beat {
+    let mut beat: Beat<LocalSchedulerBackend> = Beat {
         name: "dummy_beat".to_string(),
         scheduler: Scheduler::new(dummy_broker),
         scheduler_backend: LocalSchedulerBackend::new(),
@@ -232,8 +232,8 @@ async fn test_beat_max_sleep_duration() {
     }
 
     // Create a dummy beat for this test.
-    let dummy_broker = MockBroker::new();
-    let mut beat: Beat<MockBroker, DummySchedulerBackend> = Beat {
+    let dummy_broker = Box::new(MockBroker::new());
+    let mut beat: Beat<DummySchedulerBackend> = Beat {
         name: "dummy_beat".to_string(),
         scheduler: Scheduler::new(dummy_broker),
         scheduler_backend: DummySchedulerBackend {

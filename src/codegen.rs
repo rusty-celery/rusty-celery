@@ -9,9 +9,9 @@ macro_rules! __app_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        async fn _build_app(mut builder: $crate::CeleryBuilder::<<$broker_type as $crate::broker::Broker>::Builder>) ->
-            $crate::export::Result<$crate::export::Arc<$crate::Celery::<$broker_type>>> {
-            let celery: $crate::Celery<$broker_type> = builder.build().await?;
+        async fn _build_app(mut builder: $crate::CeleryBuilder) ->
+            $crate::export::Result<$crate::export::Arc<$crate::Celery>> {
+            let celery: $crate::Celery = builder.build().await?;
 
             $(
                 celery.register_task::<$t>().await?;
@@ -22,7 +22,7 @@ macro_rules! __app_internal {
 
         let broker_url = $broker_url;
 
-        let mut builder = $crate::Celery::<$broker_type>::builder("celery", &broker_url);
+        let mut builder = $crate::CeleryBuilder::new("celery", &broker_url);
 
         $(
             builder = builder.$x($y);
@@ -52,8 +52,8 @@ macro_rules! __beat_internal {
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
     ) => {{
-        async fn _build_beat(mut builder: $crate::beat::BeatBuilder::<<$broker_type as $crate::broker::Broker>::Builder, $scheduler_backend_type>) ->
-            $crate::export::BeatResult<$crate::beat::Beat::<$broker_type, $scheduler_backend_type>> {
+        async fn _build_beat(mut builder: $crate::beat::BeatBuilder::<$scheduler_backend_type>) ->
+            $crate::export::BeatResult<$crate::beat::Beat::<$scheduler_backend_type>> {
             let mut beat = builder.build().await?;
 
             $(
@@ -65,7 +65,7 @@ macro_rules! __beat_internal {
 
         let broker_url = $broker_url;
 
-        let mut builder = $crate::beat::Beat::<$broker_type, $scheduler_backend_type>::custom_builder("beat", &broker_url, $scheduler_backend);
+        let mut builder = $crate::beat::Beat::<$scheduler_backend_type>::custom_builder("beat", &broker_url, $scheduler_backend);
 
         $(
             builder = builder.$x($y);

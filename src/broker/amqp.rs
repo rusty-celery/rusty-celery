@@ -14,12 +14,57 @@ use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tokio::sync::{Mutex, RwLock};
+use futures::Stream;
+use std::task::Poll;
 
-use super::{Broker, BrokerBuilder};
+use super::{Broker, BrokerBuilder, DeliveryStream, DeliveryError};
 use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
 use tokio_executor_trait::Tokio as TokioExecutor;
 use tokio_reactor_trait::Tokio as TokioReactor;
+
+struct Consumer {
+    wrapped: lapin::Consumer,
+}
+impl DeliveryStream for Consumer {}
+impl DeliveryError for lapin::Error {}
+
+#[async_trait]
+impl super::Delivery for Delivery {
+    async fn resend(&self, broker: &dyn Broker, eta: Option<DateTime<Utc>>) -> Result<(), BrokerError> {
+        let mut  message = self.try_deserialize_message()?;
+        message.headers.eta = eta;
+        // Increment the number of retries.
+        message.headers.retries = Some(message.headers.retries.map_or(1, |retry| retry + 1));
+        broker.send(&message, self.routing_key.as_str()).await
+    }
+    async fn remove(&self) -> Result<(), BrokerError> { todo!() }
+    async fn _ack(&self) -> Result<(), BrokerError> {
+        self.ack(BasicAckOptions::default()).await?;
+        Ok(())
+    }
+}
+
+impl Stream for Consumer {
+    type Item = Result<Box<dyn super::Delivery>, Box<dyn DeliveryError>>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::option::Option<<Self as futures::Stream>::Item>> {
+        use futures_lite::stream::StreamExt;
+
+        if let Poll::Ready(ret) = self.wrapped.poll_next(cx) {
+            if let Some(result) = ret {
+                match result {
+                   Ok(x) => Poll::Ready(Some(Ok(Box::new(x)))),
+                   Err(x) => Poll::Ready(Some(Err(Box::new(x))))
+                }
+
+            } else { Poll::Ready(None) }
+        } else { Poll::Pending }
+    }
+}
 
 struct Config {
     broker_url: String,
@@ -35,8 +80,6 @@ pub struct AMQPBrokerBuilder {
 
 #[async_trait]
 impl BrokerBuilder for AMQPBrokerBuilder {
-    type Broker = AMQPBroker;
-
     /// Create a new `AMQPBrokerBuilder`.
     fn new(broker_url: &str) -> Self {
         Self {
@@ -51,13 +94,13 @@ impl BrokerBuilder for AMQPBrokerBuilder {
 
     /// Set the worker [prefetch
     /// count](https://www.rabbitmq.com/confirms.html#channel-qos-prefetch).
-    fn prefetch_count(mut self, prefetch_count: u16) -> Self {
+    fn prefetch_count(mut self: Box<Self>, prefetch_count: u16) -> Box<dyn BrokerBuilder> {
         self.config.prefetch_count = prefetch_count;
         self
     }
 
     /// Declare a queue.
-    fn declare_queue(mut self, name: &str) -> Self {
+    fn declare_queue(mut self: Box<Self>, name: &str) -> Box<dyn BrokerBuilder> {
         self.config.queues.insert(
             name.into(),
             QueueDeclareOptions {
@@ -72,13 +115,13 @@ impl BrokerBuilder for AMQPBrokerBuilder {
     }
 
     /// Set the heartbeat.
-    fn heartbeat(mut self, heartbeat: Option<u16>) -> Self {
+    fn heartbeat(mut self: Box<Self>, heartbeat: Option<u16>) -> Box<dyn BrokerBuilder> {
         self.config.heartbeat = heartbeat;
         self
     }
 
     /// Build an `AMQPBroker`.
-    async fn build(&self, connection_timeout: u32) -> Result<AMQPBroker, BrokerError> {
+    async fn build(&self, connection_timeout: u32) -> Result<Box<dyn Broker>, BrokerError> {
         let mut uri = AMQPUri::from_str(&self.config.broker_url)
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
         uri.query.heartbeat = self.config.heartbeat;
@@ -115,7 +158,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         broker
             .set_prefetch_count(self.config.prefetch_count)
             .await?;
-        Ok(broker)
+        Ok(Box::new(broker))
     }
 }
 
@@ -162,11 +205,6 @@ impl AMQPBroker {
 
 #[async_trait]
 impl Broker for AMQPBroker {
-    type Builder = AMQPBrokerBuilder;
-    type Delivery = Delivery;
-    type DeliveryError = lapin::Error;
-    type DeliveryStream = lapin::Consumer;
-
     fn safe_url(&self) -> String {
         format!(
             "{}://{}:***@{}:{}/{}",
@@ -181,11 +219,11 @@ impl Broker for AMQPBroker {
         )
     }
 
-    async fn consume<E: Fn(BrokerError) + Send + Sync + 'static>(
+    async fn consume(
         &self,
         queue: &str,
-        error_handler: Box<E>,
-    ) -> Result<(String, Self::DeliveryStream), BrokerError> {
+        error_handler: Box<dyn Fn(BrokerError) + Send + Sync + 'static>,
+    ) -> Result<(String, Box<dyn DeliveryStream>), BrokerError> {
         self.conn
             .lock()
             .await
@@ -194,7 +232,8 @@ impl Broker for AMQPBroker {
         let queue = queues
             .get(queue)
             .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
-        let consumer = self
+        let consumer = Consumer{
+            wrapped: self
             .consume_channel
             .read()
             .await
@@ -204,8 +243,9 @@ impl Broker for AMQPBroker {
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )
-            .await?;
-        Ok((consumer.tag().to_string(), consumer))
+            .await?
+        };
+        Ok((consumer.wrapped.tag().to_string(), Box::new(consumer)))
     }
 
     async fn cancel(&self, consumer_tag: &str) -> Result<(), BrokerError> {
@@ -216,48 +256,17 @@ impl Broker for AMQPBroker {
         Ok(())
     }
 
-    async fn ack(&self, delivery: &Self::Delivery) -> Result<(), BrokerError> {
-        delivery
-            .ack(BasicAckOptions::default())
+    async fn ack(&self, delivery: &dyn super::Delivery) -> Result<(), BrokerError> {
+        delivery._ack()
             .await
-            .map_err(|e| e.into())
     }
 
     async fn retry(
         &self,
-        delivery: &Self::Delivery,
+        delivery: &dyn super::Delivery,
         eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError> {
-        let mut headers = delivery.properties.headers().clone().unwrap_or_default();
-
-        // Increment the number of retries.
-        let retries = match get_header_u32(&headers, "retries") {
-            Some(retries) => retries + 1,
-            None => 1,
-        };
-        headers.insert("retries".into(), AMQPValue::LongUInt(retries));
-
-        // Set the ETA.
-        if let Some(dt) = eta {
-            headers.insert(
-                "eta".into(),
-                AMQPValue::LongString(dt.to_rfc3339_opts(SecondsFormat::Millis, false).into()),
-            );
-        };
-
-        let properties = delivery.properties.clone().with_headers(headers);
-        self.produce_channel
-            .read()
-            .await
-            .basic_publish(
-                "",
-                delivery.routing_key.as_str(),
-                BasicPublishOptions::default(),
-                &delivery.data.clone()[..],
-                properties,
-            )
-            .await?;
-
+        delivery.resend(self, eta).await?;
         Ok(())
     }
 

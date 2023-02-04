@@ -21,7 +21,7 @@
 //! Here instead we have only one scheduler struct, and the different backends
 //! correspond to the different scheduler implementations in Python.
 
-use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
+use crate::broker::{build_and_connect, configure_task_routes, BrokerBuilder, broker_builder_from_url};
 use crate::routing::{self, Rule};
 use crate::{
     error::{BeatError, BrokerError},
@@ -44,12 +44,10 @@ pub use schedule::{CronSchedule, DeltaSchedule, Schedule};
 mod scheduled_task;
 pub use scheduled_task::ScheduledTask;
 
-struct Config<Bb>
-where
-    Bb: BrokerBuilder,
+struct Config
 {
     name: String,
-    broker_builder: Bb,
+    broker_builder: Box<dyn BrokerBuilder>,
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
@@ -61,18 +59,15 @@ where
 }
 
 /// Used to create a [`Beat`] app with a custom configuration.
-pub struct BeatBuilder<Bb, Sb>
+pub struct BeatBuilder<Sb>
 where
-    Bb: BrokerBuilder,
     Sb: SchedulerBackend,
 {
-    config: Config<Bb>,
+    config: Config,
     scheduler_backend: Sb,
 }
 
-impl<Bb> BeatBuilder<Bb, LocalSchedulerBackend>
-where
-    Bb: BrokerBuilder,
+impl BeatBuilder<LocalSchedulerBackend>
 {
     /// Get a `BeatBuilder` for creating a `Beat` app with a default scheduler backend
     /// and a custom configuration.
@@ -80,7 +75,7 @@ where
         Self {
             config: Config {
                 name: name.into(),
-                broker_builder: Bb::new(broker_url),
+                broker_builder: broker_builder_from_url(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
                 broker_connection_max_retries: 5,
@@ -95,9 +90,8 @@ where
     }
 }
 
-impl<Bb, Sb> BeatBuilder<Bb, Sb>
+impl<Sb> BeatBuilder<Sb>
 where
-    Bb: BrokerBuilder,
     Sb: SchedulerBackend,
 {
     /// Get a `BeatBuilder` for creating a `Beat` app with a custom scheduler backend and
@@ -110,7 +104,7 @@ where
         Self {
             config: Config {
                 name: name.into(),
-                broker_builder: Bb::new(broker_url),
+                broker_builder: broker_builder_from_url(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
                 broker_connection_max_retries: 5,
@@ -182,7 +176,7 @@ where
     }
 
     /// Construct a `Beat` app with the current configuration.
-    pub async fn build(self) -> Result<Beat<Bb::Broker, Sb>, BeatError> {
+    pub async fn build(self) -> Result<Beat<Sb>, BeatError> {
         // Declare default queue to broker.
         let broker_builder = self
             .config
@@ -227,9 +221,9 @@ where
 ///
 /// It drives execution by making the internal scheduler "tick", and updates the list of scheduled
 /// tasks through a customizable scheduler backend.
-pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
+pub struct Beat<Sb: SchedulerBackend> {
     pub name: String,
-    pub scheduler: Scheduler<Br>,
+    pub scheduler: Scheduler,
     pub scheduler_backend: Sb,
 
     task_routes: Vec<Rule>,
@@ -244,25 +238,22 @@ pub struct Beat<Br: Broker, Sb: SchedulerBackend> {
     max_sleep_duration: Option<Duration>,
 }
 
-impl<Br> Beat<Br, LocalSchedulerBackend>
-where
-    Br: Broker,
+impl Beat<LocalSchedulerBackend>
 {
     /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and a
     /// default scheduler backend.
     pub fn default_builder(
         name: &str,
         broker_url: &str,
-    ) -> BeatBuilder<Br::Builder, LocalSchedulerBackend> {
-        BeatBuilder::<Br::Builder, LocalSchedulerBackend>::with_default_scheduler_backend(
+    ) -> BeatBuilder<LocalSchedulerBackend> {
+        BeatBuilder::<LocalSchedulerBackend>::with_default_scheduler_backend(
             name, broker_url,
         )
     }
 }
 
-impl<Br, Sb> Beat<Br, Sb>
+impl< Sb> Beat< Sb>
 where
-    Br: Broker,
     Sb: SchedulerBackend,
 {
     /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and
@@ -271,8 +262,8 @@ where
         name: &str,
         broker_url: &str,
         scheduler_backend: Sb,
-    ) -> BeatBuilder<Br::Builder, Sb> {
-        BeatBuilder::<Br::Builder, Sb>::with_custom_scheduler_backend(
+    ) -> BeatBuilder<Sb> {
+        BeatBuilder::<Sb>::with_custom_scheduler_backend(
             name,
             broker_url,
             scheduler_backend,
