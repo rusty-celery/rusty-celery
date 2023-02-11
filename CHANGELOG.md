@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Changed Celery type to be broker agnostic, allowing broker to be chosen dynamically at runtime
+
 ## [v0.4.0](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0) - 2023-02-03
 
 ### Fixed
