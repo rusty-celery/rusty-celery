@@ -17,15 +17,17 @@ use tokio_stream::StreamMap;
 
 mod trace;
 
-use crate::broker::{build_and_connect, configure_task_routes, broker_builder_from_url, Delivery, Broker, BrokerBuilder};
+use crate::broker::{
+    broker_builder_from_url, build_and_connect, configure_task_routes, Broker, BrokerBuilder,
+    Delivery,
+};
 use crate::error::{BrokerError, CeleryError, TraceError};
 use crate::protocol::{Message, MessageContentType};
 use crate::routing::Rule;
 use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
-struct Config
-{
+struct Config {
     name: String,
     hostname: String,
     broker_builder: Box<dyn BrokerBuilder>,
@@ -39,13 +41,11 @@ struct Config
 }
 
 /// Used to create a [`Celery`] app with a custom configuration.
-pub struct CeleryBuilder
-{
+pub struct CeleryBuilder {
     config: Config,
 }
 
-impl CeleryBuilder
-{
+impl CeleryBuilder {
     /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
     pub fn new(name: &str, broker_url: &str) -> Self {
         Self {
@@ -259,8 +259,7 @@ pub struct Celery {
     broker_connection_retry_delay: u32,
 }
 
-impl Celery
-{
+impl Celery {
     /// Print a pretty ASCII art logo and configuration settings.
     ///
     /// This is useful and fun to print from a worker application right after

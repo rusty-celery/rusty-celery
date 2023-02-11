@@ -26,7 +26,11 @@ use std::any::Any;
 /// The type representing a successful delivery.
 #[async_trait]
 pub trait Delivery: TryDeserializeMessage + Send + Sync + std::fmt::Debug {
-    async fn resend(&self, broker: &dyn Broker, eta: Option<DateTime<Utc>>) -> Result<(), BrokerError>;
+    async fn resend(
+        &self,
+        broker: &dyn Broker,
+        eta: Option<DateTime<Utc>>,
+    ) -> Result<(), BrokerError>;
     async fn remove(&self) -> Result<(), BrokerError>;
     async fn _ack(&self) -> Result<(), BrokerError>;
 }
@@ -35,7 +39,10 @@ pub trait Delivery: TryDeserializeMessage + Send + Sync + std::fmt::Debug {
 pub trait DeliveryError: std::fmt::Display + Send + Sync {}
 
 /// The stream type that the [`Celery`](crate::Celery) app will consume deliveries from.
-pub trait DeliveryStream: Stream<Item = Result<Box<dyn Delivery>, Box<dyn DeliveryError>>> + Unpin {}
+pub trait DeliveryStream:
+    Stream<Item = Result<Box<dyn Delivery>, Box<dyn DeliveryError>>> + Unpin
+{
+}
 
 /// A message [`Broker`] is used as the transport for producing or consuming tasks.
 #[async_trait]
@@ -96,7 +103,9 @@ pub trait Broker: Send + Sync {
 #[async_trait]
 pub trait BrokerBuilder {
     /// Create a new `BrokerBuilder`.
-    fn new(broker_url: &str) -> Self where Self: Sized;
+    fn new(broker_url: &str) -> Self
+    where
+        Self: Sized;
 
     /// Set the prefetch count.
     fn prefetch_count(self: Box<Self>, prefetch_count: u16) -> Box<dyn BrokerBuilder>;
@@ -111,7 +120,7 @@ pub trait BrokerBuilder {
     async fn build(&self, connection_timeout: u32) -> Result<Box<dyn Broker>, BrokerError>;
 }
 
-pub(crate) fn broker_builder_from_url(broker_url: &str) -> Box<dyn BrokerBuilder>{
+pub(crate) fn broker_builder_from_url(broker_url: &str) -> Box<dyn BrokerBuilder> {
     match broker_url.split_once("://") {
         Some(("amqp", _)) => Box::new(AMQPBrokerBuilder::new(broker_url)),
         Some(("redis", _)) => Box::new(RedisBrokerBuilder::new(broker_url)),

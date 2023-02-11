@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
+use futures::Stream;
 use lapin::message::Delivery;
 use lapin::options::{
     BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions,
@@ -13,11 +14,10 @@ use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, Queue};
 use log::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
-use tokio::sync::{Mutex, RwLock};
-use futures::Stream;
 use std::task::Poll;
+use tokio::sync::{Mutex, RwLock};
 
-use super::{Broker, BrokerBuilder, DeliveryStream, DeliveryError};
+use super::{Broker, BrokerBuilder, DeliveryError, DeliveryStream};
 use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
 use tokio_executor_trait::Tokio as TokioExecutor;
@@ -34,14 +34,20 @@ impl DeliveryError for lapin::Error {}
 
 #[async_trait]
 impl super::Delivery for Delivery {
-    async fn resend(&self, broker: &dyn Broker, eta: Option<DateTime<Utc>>) -> Result<(), BrokerError> {
-        let mut  message = self.try_deserialize_message()?;
+    async fn resend(
+        &self,
+        broker: &dyn Broker,
+        eta: Option<DateTime<Utc>>,
+    ) -> Result<(), BrokerError> {
+        let mut message = self.try_deserialize_message()?;
         message.headers.eta = eta;
         // Increment the number of retries.
         message.headers.retries = Some(message.headers.retries.map_or(1, |retry| retry + 1));
         broker.send(&message, self.routing_key.as_str()).await
     }
-    async fn remove(&self) -> Result<(), BrokerError> { todo!() }
+    async fn remove(&self) -> Result<(), BrokerError> {
+        todo!()
+    }
     async fn _ack(&self) -> Result<(), BrokerError> {
         self.ack(BasicAckOptions::default()).await?;
         Ok(())
@@ -60,12 +66,15 @@ impl Stream for Consumer {
         if let Poll::Ready(ret) = self.wrapped.poll_next(cx) {
             if let Some(result) = ret {
                 match result {
-                   Ok(x) => Poll::Ready(Some(Ok(Box::new(x)))),
-                   Err(x) => Poll::Ready(Some(Err(Box::new(x))))
+                    Ok(x) => Poll::Ready(Some(Ok(Box::new(x)))),
+                    Err(x) => Poll::Ready(Some(Err(Box::new(x)))),
                 }
-
-            } else { Poll::Ready(None) }
-        } else { Poll::Pending }
+            } else {
+                Poll::Ready(None)
+            }
+        } else {
+            Poll::Pending
+        }
     }
 }
 
@@ -235,18 +244,18 @@ impl Broker for AMQPBroker {
         let queue = queues
             .get(queue)
             .ok_or_else::<BrokerError, _>(|| BrokerError::UnknownQueue(queue.into()))?;
-        let consumer = Consumer{
+        let consumer = Consumer {
             wrapped: self
-            .consume_channel
-            .read()
-            .await
-            .basic_consume(
-                queue.name().as_str(),
-                "",
-                BasicConsumeOptions::default(),
-                FieldTable::default(),
-            )
-            .await?
+                .consume_channel
+                .read()
+                .await
+                .basic_consume(
+                    queue.name().as_str(),
+                    "",
+                    BasicConsumeOptions::default(),
+                    FieldTable::default(),
+                )
+                .await?,
         };
         Ok((consumer.wrapped.tag().to_string(), Box::new(consumer)))
     }
@@ -260,8 +269,7 @@ impl Broker for AMQPBroker {
     }
 
     async fn ack(&self, delivery: &dyn super::Delivery) -> Result<(), BrokerError> {
-        delivery._ack()
-            .await
+        delivery._ack().await
     }
 
     async fn retry(
@@ -380,7 +388,9 @@ impl Broker for AMQPBroker {
     }
 
     #[cfg(test)]
-    fn into_any(self: Box<Self>) -> Box<dyn Any> { self }
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
 }
 
 impl Message {

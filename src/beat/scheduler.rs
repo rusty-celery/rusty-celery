@@ -20,8 +20,7 @@ pub struct Scheduler {
     pub broker: Box<dyn Broker>,
 }
 
-impl Scheduler
-{
+impl Scheduler {
     /// Create a new scheduler which uses the given `broker`.
     pub fn new(broker: Box<dyn Broker>) -> Scheduler {
         Scheduler {

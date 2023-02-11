@@ -126,7 +126,9 @@ impl Broker for MockBroker {
     }
 
     #[cfg(test)]
-    fn into_any(self: Box<Self>) -> Box<dyn Any> { self }
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
 }
 
 #[derive(Debug, Clone)]

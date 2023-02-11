@@ -21,7 +21,9 @@
 //! Here instead we have only one scheduler struct, and the different backends
 //! correspond to the different scheduler implementations in Python.
 
-use crate::broker::{build_and_connect, configure_task_routes, BrokerBuilder, broker_builder_from_url};
+use crate::broker::{
+    broker_builder_from_url, build_and_connect, configure_task_routes, BrokerBuilder,
+};
 use crate::routing::{self, Rule};
 use crate::{
     error::{BeatError, BrokerError},
@@ -44,8 +46,7 @@ pub use schedule::{CronSchedule, DeltaSchedule, Schedule};
 mod scheduled_task;
 pub use scheduled_task::ScheduledTask;
 
-struct Config
-{
+struct Config {
     name: String,
     broker_builder: Box<dyn BrokerBuilder>,
     broker_connection_timeout: u32,
@@ -67,8 +68,7 @@ where
     scheduler_backend: Sb,
 }
 
-impl BeatBuilder<LocalSchedulerBackend>
-{
+impl BeatBuilder<LocalSchedulerBackend> {
     /// Get a `BeatBuilder` for creating a `Beat` app with a default scheduler backend
     /// and a custom configuration.
     pub fn with_default_scheduler_backend(name: &str, broker_url: &str) -> Self {
@@ -238,36 +238,22 @@ pub struct Beat<Sb: SchedulerBackend> {
     max_sleep_duration: Option<Duration>,
 }
 
-impl Beat<LocalSchedulerBackend>
-{
+impl Beat<LocalSchedulerBackend> {
     /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and a
     /// default scheduler backend.
-    pub fn default_builder(
-        name: &str,
-        broker_url: &str,
-    ) -> BeatBuilder<LocalSchedulerBackend> {
-        BeatBuilder::<LocalSchedulerBackend>::with_default_scheduler_backend(
-            name, broker_url,
-        )
+    pub fn default_builder(name: &str, broker_url: &str) -> BeatBuilder<LocalSchedulerBackend> {
+        BeatBuilder::<LocalSchedulerBackend>::with_default_scheduler_backend(name, broker_url)
     }
 }
 
-impl< Sb> Beat< Sb>
+impl<Sb> Beat<Sb>
 where
     Sb: SchedulerBackend,
 {
     /// Get a `BeatBuilder` for creating a `Beat` app with a custom configuration and
     /// a custom scheduler backend.
-    pub fn custom_builder(
-        name: &str,
-        broker_url: &str,
-        scheduler_backend: Sb,
-    ) -> BeatBuilder<Sb> {
-        BeatBuilder::<Sb>::with_custom_scheduler_backend(
-            name,
-            broker_url,
-            scheduler_backend,
-        )
+    pub fn custom_builder(name: &str, broker_url: &str, scheduler_backend: Sb) -> BeatBuilder<Sb> {
+        BeatBuilder::<Sb>::with_custom_scheduler_backend(name, broker_url, scheduler_backend)
     }
 
     /// Schedule the execution of a task.

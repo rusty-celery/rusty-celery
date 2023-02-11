@@ -1,6 +1,6 @@
 //! Redis broker.
 #![allow(dead_code)]
-use super::{Broker, BrokerBuilder, DeliveryStream, DeliveryError};
+use super::{Broker, BrokerBuilder, DeliveryError, DeliveryStream};
 use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::Delivery;
 use crate::protocol::Message;
@@ -217,17 +217,21 @@ impl DeliveryStream for Consumer {}
 
 #[async_trait]
 impl super::Delivery for (Channel, Delivery) {
-    async fn resend(&self, _broker: &dyn Broker, _eta: Option<DateTime<Utc>>) -> Result<(), BrokerError> {
+    async fn resend(
+        &self,
+        _broker: &dyn Broker,
+        _eta: Option<DateTime<Utc>>,
+    ) -> Result<(), BrokerError> {
         self.0.resend_task(&self.1).await?;
         Ok(())
     }
 
-    async fn remove(&self) -> Result<(), BrokerError>{
+    async fn remove(&self) -> Result<(), BrokerError> {
         self.0.remove_task(&self.1).await?;
         Ok(())
     }
 
-    async fn _ack(&self) -> Result<(), BrokerError>{
+    async fn _ack(&self) -> Result<(), BrokerError> {
         todo!()
     }
 }
@@ -426,5 +430,7 @@ impl Broker for RedisBroker {
     }
 
     #[cfg(test)]
-    fn into_any(self: Box<Self>) -> Box<dyn Any> { self }
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
 }
