@@ -13,6 +13,9 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use tokio::sync::RwLock;
 
+#[cfg(test)]
+use std::any::Any;
+
 pub struct MockBrokerBuilder;
 
 #[async_trait]
@@ -121,6 +124,9 @@ impl Broker for MockBroker {
     async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError> {
         Ok(())
     }
+
+    #[cfg(test)]
+    fn into_any(self: Box<Self>) -> Box<dyn Any> { self }
 }
 
 #[derive(Debug, Clone)]

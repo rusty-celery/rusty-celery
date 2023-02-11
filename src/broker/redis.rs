@@ -23,6 +23,9 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+#[cfg(test)]
+use std::any::Any;
+
 struct Config {
     broker_url: String,
     prefetch_count: u16,
@@ -421,4 +424,7 @@ impl Broker for RedisBroker {
             }
         }
     }
+
+    #[cfg(test)]
+    fn into_any(self: Box<Self>) -> Box<dyn Any> { self }
 }

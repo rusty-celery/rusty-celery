@@ -20,6 +20,9 @@ pub use amqp::{AMQPBroker, AMQPBrokerBuilder};
 
 #[cfg(test)]
 pub mod mock;
+#[cfg(test)]
+use std::any::Any;
+
 /// The type representing a successful delivery.
 #[async_trait]
 pub trait Delivery: TryDeserializeMessage + Send + Sync + std::fmt::Debug {
@@ -84,6 +87,9 @@ pub trait Broker: Send + Sync {
 
     /// Try reconnecting in the event of some sort of connection error.
     async fn reconnect(&self, connection_timeout: u32) -> Result<(), BrokerError>;
+
+    #[cfg(test)]
+    fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
 /// A [`BrokerBuilder`] is used to create a type of broker with a custom configuration.

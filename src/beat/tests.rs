@@ -52,6 +52,9 @@ async fn test_task_with_delta_schedule() {
     let mut tasks: Vec<_> = beat
         .scheduler
         .broker
+        .into_any()
+        .downcast::<MockBroker>()
+        .unwrap()
         .sent_tasks
         .write()
         .await
@@ -119,6 +122,9 @@ async fn test_scheduling_two_tasks() {
     let (task1, task2): (Vec<_>, Vec<_>) = beat
         .scheduler
         .broker
+        .into_any()
+        .downcast::<MockBroker>()
+        .unwrap()
         .sent_tasks
         .write()
         .await
@@ -184,6 +190,9 @@ async fn test_task_with_delayed_first_run() {
     let task_count = beat
         .scheduler
         .broker
+        .into_any()
+        .downcast::<MockBroker>()
+        .unwrap()
         .sent_tasks
         .write()
         .await

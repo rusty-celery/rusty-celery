@@ -23,6 +23,9 @@ use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserialize
 use tokio_executor_trait::Tokio as TokioExecutor;
 use tokio_reactor_trait::Tokio as TokioReactor;
 
+#[cfg(test)]
+use std::any::Any;
+
 struct Consumer {
     wrapped: lapin::Consumer,
 }
@@ -375,6 +378,9 @@ impl Broker for AMQPBroker {
 
         Ok(())
     }
+
+    #[cfg(test)]
+    fn into_any(self: Box<Self>) -> Box<dyn Any> { self }
 }
 
 impl Message {
