@@ -1,5 +1,3 @@
-use celery::prelude::*;
-
 #[tokio::test]
 async fn test_basic_use() {
     let _beat = celery::beat!(
