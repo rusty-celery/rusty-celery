@@ -231,7 +231,7 @@ impl super::Delivery for (Channel, Delivery) {
         Ok(())
     }
 
-    async fn _ack(&self) -> Result<(), BrokerError> {
+    async fn ack(&self) -> Result<(), BrokerError> {
         todo!()
     }
 }

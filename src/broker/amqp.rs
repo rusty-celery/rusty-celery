@@ -48,8 +48,8 @@ impl super::Delivery for Delivery {
     async fn remove(&self) -> Result<(), BrokerError> {
         todo!()
     }
-    async fn _ack(&self) -> Result<(), BrokerError> {
-        self.ack(BasicAckOptions::default()).await?;
+    async fn ack(&self) -> Result<(), BrokerError> {
+        lapin::acker::Acker::ack(self, BasicAckOptions::default()).await?;
         Ok(())
     }
 }
@@ -269,7 +269,7 @@ impl Broker for AMQPBroker {
     }
 
     async fn ack(&self, delivery: &dyn super::Delivery) -> Result<(), BrokerError> {
-        delivery._ack().await
+        delivery.ack().await
     }
 
     async fn retry(

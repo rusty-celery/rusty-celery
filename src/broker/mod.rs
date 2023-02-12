@@ -32,7 +32,7 @@ pub trait Delivery: TryDeserializeMessage + Send + Sync + std::fmt::Debug {
         eta: Option<DateTime<Utc>>,
     ) -> Result<(), BrokerError>;
     async fn remove(&self) -> Result<(), BrokerError>;
-    async fn _ack(&self) -> Result<(), BrokerError>;
+    async fn ack(&self) -> Result<(), BrokerError>;
 }
 
 /// The error type of an unsuccessful delivery.
