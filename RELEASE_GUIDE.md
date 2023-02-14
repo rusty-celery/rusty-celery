@@ -1,22 +1,10 @@
 # Publishing a new release
 
-1. Set the environment variable `TAG`, which should be of the form `v{VERSION}`, where `VERSION` is the target version of the release.
+1. Install `toml-cli` if you haven't already (just run `cargo install toml-cli`).
 
-2. Change version in all subcrate `Cargo.toml` files and in the root `Cargo.toml` to the target version. Also change the version of the subcrate dependencies in the root `Cargo.toml`. All versions should now match the target version.
+2. Change the version in all sub-crate `Cargo.toml` files and in the root `Cargo.toml` to the target version. Also change the version of the sub-crate dependencies in the root `Cargo.toml`. All versions should now match the target version.
 
-3. Update the [CHANGELOG]("CHANGELOG.md") by creating a new release section header right the `## Unreleased` header.
-
-4. Commit and push these changes:
-
-    ```bash
-    git commit -a -m "(cargo-release) $TAG" && git push
-    ```
-
-5. Add a tag in git to mark the release:
-
-    ```bash
-    git tag "$TAG" -m "Adds tag $TAG for release" && git push --tags
-    ```
+3. Run the script `./scripts/release.sh` and follow the prompts.
 
 # Fixing a failed release
 
