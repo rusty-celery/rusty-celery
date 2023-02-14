@@ -1,4 +1,4 @@
-use super::Celery;
+use super::{Celery, CeleryBuilder};
 use crate::broker::mock::MockBroker;
 use crate::protocol::MessageContentType;
 use crate::task::{Request, Signature, Task, TaskOptions, TaskResult};
@@ -7,8 +7,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
-async fn build_basic_app() -> Celery<MockBroker> {
-    let celery = Celery::<MockBroker>::builder("mock-app", "mock://localhost:8000")
+async fn build_basic_app() -> Celery {
+    let celery = CeleryBuilder::new("mock-app", "mock://localhost:8000")
         .build()
         .await
         .unwrap();
@@ -17,8 +17,8 @@ async fn build_basic_app() -> Celery<MockBroker> {
     celery
 }
 
-async fn build_configured_app() -> Celery<MockBroker> {
-    let celery = Celery::<MockBroker>::builder("mock-app", "mock://localhost:8000")
+async fn build_configured_app() -> Celery {
+    let celery = CeleryBuilder::new("mock-app", "mock://localhost:8000")
         .task_time_limit(10)
         .task_max_retries(100)
         .task_content_type(MessageContentType::Yaml)
@@ -143,7 +143,8 @@ async fn test_add_task_registered() {
 async fn test_send_task() {
     let app = build_basic_app().await;
     let result = app.send_task(AddTask::new(1, 2)).await.unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.task == "add");
 }
@@ -155,7 +156,8 @@ async fn test_send_task_with_countdown() {
         .send_task(AddTask::new(1, 2).with_countdown(2))
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.eta.is_some());
 }
@@ -167,7 +169,8 @@ async fn test_send_task_with_eta() {
         .send_task(AddTask::new(1, 2).with_eta(DateTime::<Utc>::from(SystemTime::now())))
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.eta.is_some());
 }
@@ -179,7 +182,8 @@ async fn test_send_task_with_expires_in() {
         .send_task(AddTask::new(1, 2).with_expires_in(10))
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.expires.is_some());
 }
@@ -192,7 +196,8 @@ async fn test_send_task_with_expires() {
         .send_task(AddTask::new(1, 2).with_expires(dt))
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.expires.is_some());
 }
@@ -204,7 +209,8 @@ async fn test_send_task_with_content_type() {
         .send_task(AddTask::new(1, 2).with_content_type(MessageContentType::Yaml))
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.properties.content_type == "application/x-yaml");
 }
@@ -216,7 +222,8 @@ async fn test_send_task_with_time_limit() {
         .send_task(AddTask::new(1, 2).with_time_limit(5))
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.timelimit == (None, Some(5)));
 }
@@ -228,7 +235,8 @@ async fn test_send_task_with_hard_time_limit() {
         .send_task(AddTask::new(1, 2).with_hard_time_limit(5))
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.timelimit == (Some(5), None));
 }
@@ -237,7 +245,8 @@ async fn test_send_task_with_hard_time_limit() {
 async fn test_configured_app_send_task_app_defaults() {
     let app = build_configured_app().await;
     let result = app.send_task(AddTask::new(1, 2)).await.unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.timelimit == (None, Some(10)));
     assert!(message.properties.content_type == "application/x-yaml");
@@ -247,7 +256,8 @@ async fn test_configured_app_send_task_app_defaults() {
 async fn test_configured_app_send_task_task_defaults() {
     let app = build_configured_app().await;
     let result = app.send_task(MultiplyTask::new(1, 2)).await.unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.timelimit == (Some(10), Some(5)));
     assert!(message.properties.content_type == "application/x-yaml");
@@ -264,7 +274,8 @@ async fn test_configured_app_send_task_request_overrides() {
         )
         .await
         .unwrap();
-    let sent_tasks = app.broker.sent_tasks.read().await;
+    let mock_broker = app.broker.into_any().downcast::<MockBroker>().unwrap();
+    let sent_tasks = mock_broker.sent_tasks.read().await;
     let message = &sent_tasks.get(&result.task_id).unwrap().0;
     assert!(message.headers.timelimit == (Some(10), Some(2)));
     assert!(message.properties.content_type == "application/json");

@@ -1,7 +1,6 @@
 #![allow(non_upper_case_globals)]
 
 use async_trait::async_trait;
-use celery::broker::{AMQPBroker, Broker};
 use celery::error::TaskError;
 use celery::task::{Request, Signature, Task, TaskOptions};
 use once_cell::sync::Lazy;

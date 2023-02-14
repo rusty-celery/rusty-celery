@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use celery::beat::{CronSchedule, DeltaSchedule};
-use celery::broker::AMQPBroker;
 use celery::task::TaskResult;
 use env_logger::Env;
 use tokio::time::Duration;
