@@ -70,7 +70,8 @@ fn test_deserialize_body_with_args() {
     assert_eq!(body.1.a, 4);
 }
 
-const YAML: &str = "---\n- []\n- a: 4\n- callbacks: ~\n  errbacks: ~\n  chain: ~\n  chord: ~\n";
+const YAML: &str =
+    "- []\n- a: 4\n- callbacks: null\n  errbacks: null\n  chain: null\n  chord: null\n";
 
 #[test]
 fn test_yaml_serialize_body() {
@@ -227,7 +228,9 @@ fn test_serialization() {
     assert_eq!(ser_msg_json["headers"]["argsrepr"], "(1)");
     assert_eq!(ser_msg_json["headers"]["kwargsrepr"], "{'y': 2}");
     assert_eq!(ser_msg_json["headers"]["origin"], "gen123@piper");
-    let body = base64::decode(ser_msg_json["body"].as_str().unwrap()).unwrap();
+    let body = ENGINE
+        .decode(ser_msg_json["body"].as_str().unwrap())
+        .unwrap();
     assert_eq!(body.len(), 73);
     assert_eq!(&body, JSON.as_bytes());
 }
