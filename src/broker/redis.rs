@@ -310,7 +310,7 @@ impl Broker for RedisBroker {
 
         // Create unique consumer tag.
         let mut buffer = Uuid::encode_buffer();
-        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let uuid = Uuid::new_v4().hyphenated().encode_lower(&mut buffer);
         let consumer_tag = uuid.to_owned();
 
         Ok((consumer_tag, Box::new(consumer)))

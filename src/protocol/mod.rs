@@ -4,6 +4,11 @@
 //! top of the protocol for a broker. This is why a broker's [`Delivery`](crate::broker::Broker::Delivery)
 //! type must implement [`TryCreateMessage`].
 
+use base64::{
+    alphabet,
+    engine::{general_purpose::PAD, GeneralPurpose},
+    Engine,
+};
 use chrono::{DateTime, Duration, Utc};
 use log::{debug, warn};
 use once_cell::sync::Lazy;
@@ -16,6 +21,8 @@ use uuid::Uuid;
 
 use crate::error::{ContentTypeError, ProtocolError};
 use crate::task::{Signature, Task};
+
+pub(crate) const ENGINE: GeneralPurpose = GeneralPurpose::new(&alphabet::STANDARD, PAD);
 
 static ORIGIN: Lazy<Option<String>> = Lazy::new(|| {
     hostname::get()
@@ -204,7 +211,11 @@ where
             let raw_body = match self.message.properties.content_type.as_str() {
                 "application/json" => serde_json::to_vec(&body)?,
                 #[cfg(any(test, feature = "extra_content_types"))]
-                "application/x-yaml" => serde_yaml::to_vec(&body)?,
+                "application/x-yaml" => {
+                    let mut vec = Vec::with_capacity(128);
+                    serde_yaml::to_writer(&mut vec, &body)?;
+                    vec
+                }
                 #[cfg(any(test, feature = "extra_content_types"))]
                 "application/x-python-serialize" => {
                     serde_pickle::to_vec(&body, serde_pickle::SerOptions::new())?
@@ -422,10 +433,10 @@ impl Message {
             None => Value::Null,
         };
         let mut buffer = Uuid::encode_buffer();
-        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let uuid = Uuid::new_v4().hyphenated().encode_lower(&mut buffer);
         let delivery_tag = uuid.to_owned();
         let msg_json_value = json!({
-            "body": base64::encode(self.raw_body.clone()),
+            "body": ENGINE.encode(self.raw_body.clone()),
             "content-encoding": self.properties.content_encoding.clone(),
             "content-type": self.properties.content_type.clone(),
             "headers": {
@@ -467,7 +478,7 @@ where
     fn try_from(mut task_sig: Signature<T>) -> Result<Self, Self::Error> {
         // Create random correlation id.
         let mut buffer = Uuid::encode_buffer();
-        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut buffer);
+        let uuid = Uuid::new_v4().hyphenated().encode_lower(&mut buffer);
         let id = uuid.to_owned();
 
         let mut builder = MessageBuilder::<T>::new(id);
@@ -677,7 +688,8 @@ pub struct Delivery {
 impl TryDeserializeMessage for Delivery {
     fn try_deserialize_message(&self) -> Result<Message, ProtocolError> {
         let raw_body = match self.properties.body_encoding {
-            BodyEncoding::Base64 => base64::decode(self.body.clone())
+            BodyEncoding::Base64 => ENGINE
+                .decode(self.body.clone())
                 .map_err(|e| ProtocolError::InvalidProperty(format!("body error: {e}")))?,
         };
         Ok(Message {

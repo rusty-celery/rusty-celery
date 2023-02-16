@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Bumped base64 to it's latest and safest version
+- Bumped tokio to it's latest version
+- Bumped rmp-serde to it's latest version
+- Bumped serde_yaml to it's latest version
+- Bumped uuid to it's latest version
+- Bumped once_cell to it's latest version
+- Bumped redis to it's latest version
+- Bumped env_logger to it's latest version
+- Bumped mypy to it's latest version
+- Bumped black to it's latest version
+- Bumped flake8 to it's latest version
+
 ## [v0.5.0](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.0) - 2023-02-14
 
 ### Changed
