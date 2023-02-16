@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+
 - Bumped base64 to it's latest and safest version
 - Bumped tokio to it's latest version
 - Bumped rmp-serde to it's latest version
