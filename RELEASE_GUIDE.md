@@ -1,10 +1,8 @@
 # Publishing a new release
 
-1. Install `toml-cli` if you haven't already (just run `cargo install toml-cli`).
+1. Install `toml-cli` if you haven't already (`cargo install toml-cli --version 0.2.3`).
 
-2. Change the version in all sub-crate `Cargo.toml` files and in the root `Cargo.toml` to the target version. Also change the version of the sub-crate dependencies in the root `Cargo.toml`. All versions should now match the target version.
-
-3. Run the script `./scripts/release.sh` and follow the prompts.
+2. Run the script `./scripts/release.sh` and follow the prompts.
 
 # Fixing a failed release
 
