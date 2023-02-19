@@ -21,7 +21,6 @@ use super::{Broker, BrokerBuilder, DeliveryError, DeliveryStream};
 use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::{Message, MessageHeaders, MessageProperties, TryDeserializeMessage};
 use tokio_executor_trait::Tokio as TokioExecutor;
-use tokio_reactor_trait::Tokio as TokioReactor;
 
 #[cfg(test)]
 use std::any::Any;
@@ -90,6 +89,20 @@ pub struct AMQPBrokerBuilder {
     config: Config,
 }
 
+fn create_base_connection_properties() -> ConnectionProperties {
+    // See https://github.com/amqp-rs/reactor-trait/issues/1#issuecomment-1033473197
+    ConnectionProperties::default().with_executor(TokioExecutor::current())
+}
+
+#[cfg(unix)]
+fn create_connection_properties() -> ConnectionProperties {
+    create_base_connection_properties().with_reactor(tokio_reactor_trait::Tokio)
+}
+#[cfg(windows)]
+fn create_connection_properties() -> ConnectionProperties {
+    create_base_connection_properties()
+}
+
 #[async_trait]
 impl BrokerBuilder for AMQPBrokerBuilder {
     /// Create a new `AMQPBrokerBuilder`.
@@ -139,13 +152,7 @@ impl BrokerBuilder for AMQPBrokerBuilder {
         uri.query.heartbeat = self.config.heartbeat;
         uri.query.connection_timeout = Some((connection_timeout as u64) * 1000);
 
-        let conn = Connection::connect_uri(
-            uri.clone(),
-            ConnectionProperties::default()
-                .with_executor(TokioExecutor::current())
-                .with_reactor(TokioReactor),
-        )
-        .await?;
+        let conn = Connection::connect_uri(uri.clone(), create_connection_properties()).await?;
 
         let consume_channel = conn.create_channel().await?;
         let produce_channel = conn.create_channel().await?;
@@ -360,13 +367,7 @@ impl Broker for AMQPBroker {
             debug!("Attempting to reconnect to broker");
             let mut uri = self.uri.clone();
             uri.query.connection_timeout = Some(connection_timeout as u64);
-            *conn = Connection::connect_uri(
-                uri,
-                ConnectionProperties::default()
-                    .with_executor(TokioExecutor::current())
-                    .with_reactor(TokioReactor),
-            )
-            .await?;
+            *conn = Connection::connect_uri(uri, create_connection_properties()).await?;
 
             let mut consume_channel = self.consume_channel.write().await;
             let mut produce_channel = self.produce_channel.write().await;
