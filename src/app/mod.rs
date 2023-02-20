@@ -332,16 +332,20 @@ impl Celery {
     }
 
     async fn get_task_tracer(
-        &self,
+        self: &Arc<Self>,
         message: Message,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Box<dyn TracerTrait>, Box<dyn Error + Send + Sync + 'static>> {
         let task_trace_builders = self.task_trace_builders.read().await;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
-            Ok(
-                build_tracer(message, self.task_options, event_tx, self.hostname.clone())
-                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?,
+            Ok(build_tracer(
+                self.clone(),
+                message,
+                self.task_options,
+                event_tx,
+                self.hostname.clone(),
             )
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?)
         } else {
             Err(
                 Box::new(CeleryError::UnregisteredTaskError(message.headers.task))
@@ -353,7 +357,7 @@ impl Celery {
     /// Tries converting a delivery into a `Message`, executing the corresponding task,
     /// and communicating with the broker.
     async fn try_handle_delivery(
-        &self,
+        self: &Arc<Self>,
         delivery: Box<dyn Delivery>,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
