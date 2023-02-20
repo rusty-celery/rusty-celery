@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
 - Store a reference to the Celery app in Request.
 
 ## [v0.5.1](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.1) - 2023-02-16
