@@ -2,7 +2,7 @@ name: CI
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # cancel-in-progress: true
 
 on:
   push:
@@ -11,8 +11,8 @@ on:
   pull_request:
     branches:
       - main
-  schedule:
-    - cron: '0 10 * * *' # run at 10 AM UTC
+  # schedule:
+  #   - cron: '0 10 * * *' # run at 10 AM UTC
 
 jobs:
   changelog:
