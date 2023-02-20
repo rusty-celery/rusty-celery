@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Store a reference to the Celery app in Request.
 
+### Fixed
+
+- Fixed compilation issue on Windows.
+
 ## [v0.5.1](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.1) - 2023-02-16
 
 ### Fixed
