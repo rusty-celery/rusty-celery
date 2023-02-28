@@ -22,8 +22,9 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
-    # Note that checkout@v2 will not work with the git command below!
     - uses: actions/checkout@v3
+      with:
+        fetch-deptch: 0
 
     - name: Check if source files have changed
       run: |
