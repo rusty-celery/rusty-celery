@@ -101,7 +101,7 @@ pub trait Broker: Send + Sync {
 
 /// A [`BrokerBuilder`] is used to create a type of broker with a custom configuration.
 #[async_trait]
-pub trait BrokerBuilder {
+pub trait BrokerBuilder: Send + Sync {
     /// Create a new `BrokerBuilder`.
     fn new(broker_url: &str) -> Self
     where
