@@ -25,7 +25,7 @@ name = "celery_app"
 
 [dependencies]
 base64 = "0.21"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4.23", features = ["serde"] }
 tokio = { version = "1.25", features = ["full"]}
 tokio-stream = "0.1.9"
 serde = { version = "1.0", features = ["derive"]}
