@@ -54,5 +54,5 @@ build-docs :
 .PHONY : check-minimal-versions
 check-minimal-versions :
 	rm -f Cargo.lock
-	cargo +nightly build -Z minimal-versions
+	cargo +nightly build -Z minimal-versions --tests
 
