@@ -94,6 +94,13 @@ jobs:
           - os: macos-latest
             services: {}
 
+          - os: ubuntu-latest
+            rust: nightly
+            services: {}
+            task:
+              name: Check minimal versions
+              run: make check-minimal-versions   
+
     steps:
       - uses: actions/checkout@v3
 
