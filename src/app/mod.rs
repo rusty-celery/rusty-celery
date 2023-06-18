@@ -17,20 +17,20 @@ use tokio_stream::StreamMap;
 
 mod trace;
 
-use crate::broker::{build_and_connect, configure_task_routes, Broker, BrokerBuilder};
+use crate::broker::{
+    broker_builder_from_url, build_and_connect, configure_task_routes, Broker, BrokerBuilder,
+    Delivery,
+};
 use crate::error::{BrokerError, CeleryError, TraceError};
-use crate::protocol::{Message, MessageContentType, TryDeserializeMessage};
+use crate::protocol::{Message, MessageContentType};
 use crate::routing::Rule;
 use crate::task::{AsyncResult, Signature, Task, TaskEvent, TaskOptions, TaskStatus};
 use trace::{build_tracer, TraceBuilder, TracerTrait};
 
-struct Config<Bb>
-where
-    Bb: BrokerBuilder,
-{
+struct Config {
     name: String,
     hostname: String,
-    broker_builder: Bb,
+    broker_builder: Box<dyn BrokerBuilder>,
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
@@ -41,17 +41,11 @@ where
 }
 
 /// Used to create a [`Celery`] app with a custom configuration.
-pub struct CeleryBuilder<Bb>
-where
-    Bb: BrokerBuilder,
-{
-    config: Config<Bb>,
+pub struct CeleryBuilder {
+    config: Config,
 }
 
-impl<Bb> CeleryBuilder<Bb>
-where
-    Bb: BrokerBuilder,
-{
+impl CeleryBuilder {
     /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
     pub fn new(name: &str, broker_url: &str) -> Self {
         Self {
@@ -65,7 +59,7 @@ where
                         .and_then(|sys_hostname| sys_hostname.into_string().ok())
                         .unwrap_or_else(|| "unknown".into())
                 ),
-                broker_builder: Bb::new(broker_url),
+                broker_builder: broker_builder_from_url(broker_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
                 broker_connection_max_retries: 5,
@@ -196,7 +190,7 @@ where
     }
 
     /// Construct a [`Celery`] app with the current configuration.
-    pub async fn build(self) -> Result<Celery<Bb::Broker>, CeleryError> {
+    pub async fn build(self) -> Result<Celery, CeleryError> {
         // Declare default queue to broker.
         let broker_builder = self
             .config
@@ -235,8 +229,8 @@ where
 }
 
 /// A [`Celery`] app is used to produce or consume tasks asynchronously. This is the struct that is
-/// created with the [`app!`] macro.
-pub struct Celery<B: Broker> {
+/// created with the [`app!`](crate::app!) macro.
+pub struct Celery {
     /// An arbitrary, human-readable name for the app.
     pub name: String,
 
@@ -244,7 +238,7 @@ pub struct Celery<B: Broker> {
     pub hostname: String,
 
     /// The app's broker.
-    pub broker: B,
+    pub broker: Box<dyn Broker>,
 
     /// The default queue to send and receive from.
     pub default_queue: String,
@@ -265,15 +259,7 @@ pub struct Celery<B: Broker> {
     broker_connection_retry_delay: u32,
 }
 
-impl<B> Celery<B>
-where
-    B: Broker + 'static,
-{
-    /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
-    pub fn builder(name: &str, broker_url: &str) -> CeleryBuilder<B::Builder> {
-        CeleryBuilder::<B::Builder>::new(name, broker_url)
-    }
-
+impl Celery {
     /// Print a pretty ASCII art logo and configuration settings.
     ///
     /// This is useful and fun to print from a worker application right after
@@ -306,7 +292,7 @@ where
         // Registered tasks.
         println!("{}", "[tasks]".bold());
         for task in self.task_trace_builders.read().await.keys() {
-            println!(" . {}", task);
+            println!(" . {task}");
         }
         println!();
     }
@@ -346,16 +332,20 @@ where
     }
 
     async fn get_task_tracer(
-        &self,
+        self: &Arc<Self>,
         message: Message,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<Box<dyn TracerTrait>, Box<dyn Error + Send + Sync + 'static>> {
         let task_trace_builders = self.task_trace_builders.read().await;
         if let Some(build_tracer) = task_trace_builders.get(&message.headers.task) {
-            Ok(
-                build_tracer(message, self.task_options, event_tx, self.hostname.clone())
-                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?,
+            Ok(build_tracer(
+                self.clone(),
+                message,
+                self.task_options,
+                event_tx,
+                self.hostname.clone(),
             )
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?)
         } else {
             Err(
                 Box::new(CeleryError::UnregisteredTaskError(message.headers.task))
@@ -367,8 +357,8 @@ where
     /// Tries converting a delivery into a `Message`, executing the corresponding task,
     /// and communicating with the broker.
     async fn try_handle_delivery(
-        &self,
-        delivery: B::Delivery,
+        self: &Arc<Self>,
+        delivery: Box<dyn Delivery>,
         event_tx: UnboundedSender<TaskEvent>,
     ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         // Coerce the delivery into a protocol message.
@@ -378,7 +368,7 @@ where
                 // This is a naughty message that we can't handle, so we'll ack it with
                 // the broker so it gets deleted.
                 self.broker
-                    .ack(&delivery)
+                    .ack(delivery.as_ref())
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 return Err(Box::new(e));
@@ -395,7 +385,7 @@ where
                 // the body of the message for some reason, so ack it with the broker
                 // to delete it and return an error.
                 self.broker
-                    .ack(&delivery)
+                    .ack(delivery.as_ref())
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 return Err(e);
@@ -412,11 +402,11 @@ where
                 // other deliveries if there are a high number of messages with a
                 // future ETA.
                 self.broker
-                    .retry(&delivery, None)
+                    .retry(delivery.as_ref(), None)
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 self.broker
-                    .ack(&delivery)
+                    .ack(delivery.as_ref())
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
                 return Err(Box::new(e));
@@ -429,7 +419,7 @@ where
         // If acks_late is false, we acknowledge the message before tracing it.
         if !tracer.acks_late() {
             self.broker
-                .ack(&delivery)
+                .ack(delivery.as_ref())
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
@@ -441,7 +431,7 @@ where
         if let Err(TraceError::Retry(retry_eta)) = tracer.trace().await {
             // If retry error -> retry the task.
             self.broker
-                .retry(&delivery, retry_eta)
+                .retry(delivery.as_ref(), retry_eta)
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
@@ -449,7 +439,7 @@ where
         // If we have not done it before, we have to acknowledge the message now.
         if tracer.acks_late() {
             self.broker
-                .ack(&delivery)
+                .ack(delivery.as_ref())
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
         }
@@ -469,7 +459,7 @@ where
     /// Wraps `try_handle_delivery` to catch any and all errors that might occur.
     async fn handle_delivery(
         self: Arc<Self>,
-        delivery: B::Delivery,
+        delivery: Box<dyn Delivery>,
         event_tx: UnboundedSender<TaskEvent>,
     ) {
         if let Err(e) = self.try_handle_delivery(delivery, event_tx).await {
@@ -567,7 +557,7 @@ where
                     }),
                 )
                 .await?;
-            stream_map.insert(queue, Box::pin(consumer));
+            stream_map.insert(queue, consumer);
             consumer_tags.push(consumer_tag);
         }
 

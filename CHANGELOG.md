@@ -7,11 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [v0.5.3](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.3) - 2023-02-28
+
 ### Fixed
+
+- `BrokerBuilder` is now `Send + Sync`.
+
+## [v0.5.2](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.2) - 2023-02-20
+
+### Changed
+
+- Store a reference to the Celery app in Request.
+
+### Fixed
+
+- Fixed compilation issue on Windows.
+
+## [v0.5.1](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.1) - 2023-02-16
+
+### Fixed
+
+- Bumped base64 to it's latest and safest version
+- Bumped tokio to it's latest version
+- Bumped rmp-serde to it's latest version
+- Bumped serde_yaml to it's latest version
+- Bumped uuid to it's latest version
+- Bumped once_cell to it's latest version
+- Bumped redis to it's latest version
+- Bumped env_logger to it's latest version
+- Bumped mypy to it's latest version
+- Bumped black to it's latest version
+- Bumped flake8 to it's latest version
+
+## [v0.5.0](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.0) - 2023-02-14
+
+### Changed
+
+- Changed Celery type to be broker agnostic, allowing broker to be chosen dynamically at runtime.
+
+## [v0.4.0](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0) - 2023-02-03
+
+### Fixed
+
 - Bumped Lapin to it's latest and safest version
 - Bumped black to it's latest version, since current was breaking
 
 ### Added
+
 - Add explicit feature support for rustls/native-tls
 
 ## [v0.4.0-rcn.11](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.4.0-rcn.11) - 2021-10-07

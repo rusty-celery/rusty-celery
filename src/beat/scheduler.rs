@@ -14,18 +14,15 @@ const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_millis(500);
 ///
 /// Internally it uses a min-heap to store tasks and efficiently retrieve the ones
 /// that are due for execution.
-pub struct Scheduler<B: Broker> {
+pub struct Scheduler {
     heap: BinaryHeap<ScheduledTask>,
     default_sleep_interval: Duration,
-    pub broker: B,
+    pub broker: Box<dyn Broker>,
 }
 
-impl<B> Scheduler<B>
-where
-    B: Broker,
-{
+impl Scheduler {
     /// Create a new scheduler which uses the given `broker`.
-    pub fn new(broker: B) -> Scheduler<B> {
+    pub fn new(broker: Box<dyn Broker>) -> Scheduler {
         Scheduler {
             heap: BinaryHeap::new(),
             default_sleep_interval: DEFAULT_SLEEP_INTERVAL,

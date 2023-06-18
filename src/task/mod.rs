@@ -117,8 +117,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
                     NaiveDateTime::from_timestamp_opt(eta_secs as i64, now_millis * 1000)
                         .ok_or_else(|| {
                             TaskError::UnexpectedError(format!(
-                                "Invalid countdown seconds {}",
-                                countdown
+                                "Invalid countdown seconds {countdown}",
                             ))
                         })?,
                     Utc,

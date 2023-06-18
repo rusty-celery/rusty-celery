@@ -1,7 +1,5 @@
 //! These tests should be compiled but not run.
 
-use celery::prelude::*;
-
 #[tokio::test]
 async fn test_basic_use() {
     let _app = celery::app!(

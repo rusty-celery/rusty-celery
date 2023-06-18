@@ -2,7 +2,7 @@ name: CI
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # cancel-in-progress: true
 
 on:
   push:
@@ -11,8 +11,8 @@ on:
   pull_request:
     branches:
       - main
-  schedule:
-    - cron: '0 10 * * *' # run at 10 AM UTC
+  # schedule:
+  #   - cron: '0 10 * * *' # run at 10 AM UTC
 
 jobs:
   changelog:
@@ -22,8 +22,9 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
-    # Note that checkout@v2 will not work with the git command below!
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
+      with:
+        fetch-deptch: 0
 
     - name: Check if source files have changed
       run: |
@@ -93,8 +94,15 @@ jobs:
           - os: macos-latest
             services: {}
 
+          - os: ubuntu-latest
+            rust: nightly
+            services: {}
+            task:
+              name: Check minimal versions
+              run: make check-minimal-versions   
+
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Prepare environment (ubuntu-latest)
         run: |
@@ -141,7 +149,7 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
 
       - name: Cache cargo registry and sccache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         continue-on-error: false
         with:
           path: |
@@ -166,15 +174,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Setup Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.9
 
     - name: Cache pip
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: ~/.cache/pip # This path is specific to Ubuntu
         key: pip ${{ runner.os }} ${{ env.pythonLocation }} ${{ hashFiles('requirements.txt') }} ${{ hashFiles('dev-requirements.txt') }}

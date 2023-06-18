@@ -50,3 +50,9 @@ run-all-tests :
 .PHONY : build-docs
 build-docs :
 	cargo doc --all-features --workspace --no-deps
+
+.PHONY : check-minimal-versions
+check-minimal-versions :
+	rm -f Cargo.lock
+	cargo +nightly build -Z minimal-versions --tests
+
