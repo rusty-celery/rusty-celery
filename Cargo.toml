@@ -1,5 +1,5 @@
 [workspace]
-members = ["./", "celery-codegen"]
+members = ["./", "celery-codegen", "examples/*"]
 
 [package]
 name = "celery"
@@ -20,8 +20,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 name = "celery"
 path = "src/lib.rs"
 
-[[example]]
-name = "celery_app"
+# [[example]]
+# name = "celery_app"
 
 [dependencies]
 base64 = "0.21"

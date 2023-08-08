@@ -10,7 +10,9 @@ use tokio::time::{self, Duration};
 // This generates the task struct and impl with the name set to the function name "add"
 #[celery::task]
 fn add(x: i32, y: i32) -> TaskResult<i32> {
-    Ok(x + y)
+    let output = x + y;
+    println!("Output: {output}");
+    Ok(output)
 }
 
 // Demonstrates a task that raises an error, and also how to customize task options.
