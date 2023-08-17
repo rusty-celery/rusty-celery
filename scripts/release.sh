@@ -29,6 +29,15 @@ toml_set Cargo.toml package.version "$version"
 toml_set Cargo.toml dependencies.celery-codegen.version "$version"
 toml_set celery-codegen/Cargo.toml package.version "$version"
 
+# Examples
+examples_dir="examples"
+for dir in "$examples_dir"/*/; do
+    cargo_toml="${dir}Cargo.toml"
+    if [ -f "$cargo_toml" ]; then
+        toml_set "$cargo_toml" dependencies.celery.version "$version"
+    fi
+done
+
 # Make sure sub-crate versions match.
 if [[ "$version" != $(toml_get celery-codegen/Cargo.toml package.version) ]]; then
     echo 'Version in celery-codegen/Cargo.toml does not match!'

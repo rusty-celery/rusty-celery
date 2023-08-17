@@ -21,3 +21,4 @@ AMQP_ADDR=amqp://127.0.0.1:5672
 cargo run 
 ```
 
+And then you can consume tasks from Rust or Python as mentioned in the advanced examples folder.

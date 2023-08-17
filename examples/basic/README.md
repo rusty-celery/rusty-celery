@@ -21,7 +21,7 @@ AMQP_ADDR=amqp://127.0.0.1:5672
 ```
 
 
-## Running the consumer
+## Running the Consumer
 (make sure to run the consumer before producer)
 ```bash
 # This will listens for incoming tasks on the celery queue

@@ -74,9 +74,10 @@ my_app.consume().await?;
 
 The [`examples/`](https://github.com/rusty-celery/rusty-celery/tree/main/examples) directory contains:
 
-- a simple Celery app implemented in Rust using an AMQP broker ([`examples/celery_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/main/examples/celery_app.rs)),
-- the same Celery app implemented in Python ([`examples/celery_app.py`](https://github.com/rusty-celery/rusty-celery/blob/main/examples/celery_app.py)),
-- and a Beat app implemented in Rust ([`examples/beat_app.rs`](https://github.com/rusty-celery/rusty-celery/blob/main/examples/beat_app.rs)).
+- a simple Celery app implemented in Rust using an AMQP broker ([`examples/basic`](https://github.com/rusty-celery/rusty-celery/tree/main/examples/basic)),
+- an advanced Celery app implemented in Rust using an AMQP broker ([`examples/advanced`](https://github.com/rusty-celery/rusty-celery/tree/main/examples/advanced/)).
+- and a Beat app implemented in Rust ([`examples/beat_app`](https://github.com/rusty-celery/rusty-celery/tree/main/examples/beat_app/)).
+- the same Celery app implemented in Python ([`examples/advanced/celery_app.py`](https://github.com/rusty-celery/rusty-celery/blob/main/examples/advanced/celery_app.py)),
 
 ### Prerequisites
 
@@ -94,48 +95,7 @@ This will download and run the official [RabbitMQ](https://www.rabbitmq.com/) im
 
 ![](./img/demo.gif)
 
-#### Run Rust Celery app
-
-You can consume tasks with:
-
-```bash
-cargo run --example celery_app consume
-```
-
-And you can produce tasks with:
-
-```bash
-cargo run --example celery_app produce [task_name]
-```
-
-Current supported tasks for this example are: `add`, `buggy_task`, `long_running_task` and `bound_task`
-
-#### Run Python Celery app
-
-Similarly, you can consume or produce tasks from Python by running
-
-
-```bash
-python examples/celery_app.py consume [task_name]
-```
-
-or
-
-```bash
-python examples/celery_app.py produce
-```
-
-You'll need to have Python 3 installed, along with the requirements listed in the `requirements.txt` file.  You'll also have to provide a task name. This example implements 4 tasks: `add`, `buggy_task`, `long_running_task` and `bound_task`
-
-#### Run Rust Beat app
-
-You can start the Rust beat with:
-
-```bash
-cargo run --example beat_app
-```
-
-And then you can consume tasks from Rust or Python as explained above.
+The example folder contains various example projects. You can follow the Readme file in those folders and run example programs.
 
 ## Road map and current state
 

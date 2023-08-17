@@ -1,4 +1,4 @@
-# Generic Example for Rusty Celery
+# Advanced Example for Rusty Celery
 
 ## Prerequisites
 Before running the example, make sure you have the following prerequisites installed:
@@ -27,3 +27,20 @@ cargo run -- consume
 cargo run -- produce add
 ```
 
+
+#### Run Python Celery app
+
+Similarly, you can consume or produce tasks from Python by running
+
+
+```bash
+python celery_app.py consume [task_name]
+```
+
+or
+
+```bash
+python celery_app.py produce
+```
+
+You'll need to have Python 3 installed, along with the requirements listed in the `requirements.txt` file.  You'll also have to provide a task name. This example implements 4 tasks: `add`, `buggy_task`, `long_running_task` and `bound_task
