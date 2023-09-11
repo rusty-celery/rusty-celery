@@ -473,7 +473,7 @@ mod tests {
     use chrono::{DateTime, NaiveDateTime};
 
     fn make_utc_date(s: &str) -> DateTime<Utc> {
-        DateTime::<Utc>::from_utc(
+        DateTime::<Utc>::from_naive_utc_and_offset(
             NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S %z").unwrap(),
             Utc,
         )

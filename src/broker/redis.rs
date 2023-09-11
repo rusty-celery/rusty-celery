@@ -65,7 +65,9 @@ impl BrokerBuilder for RedisBrokerBuilder {
 
     /// Set the heartbeat.
     fn heartbeat(mut self: Box<Self>, heartbeat: Option<u16>) -> Box<dyn BrokerBuilder> {
-        warn!("Setting heartbeat on redis broker has no effect on anything");
+        if heartbeat.is_some() {
+            warn!("Setting heartbeat on redis broker has no effect on anything");
+        }
         self.config.heartbeat = heartbeat;
         self
     }
