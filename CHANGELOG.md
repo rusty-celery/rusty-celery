@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [v0.5.4](https://github.com/rusty-celery/rusty-celery/releases/tag/v0.5.4) - 2023-09-11
+
 ### Fixed
 
 - Skip warning about redis heartbeat when not necessary.
