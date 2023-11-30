@@ -3,6 +3,7 @@
 use super::{Broker, BrokerBuilder, DeliveryError, DeliveryStream};
 use crate::error::{BrokerError, ProtocolError};
 use crate::protocol::Delivery;
+use crate::protocol::DeliveryInfo;
 use crate::protocol::Message;
 use crate::protocol::TryDeserializeMessage;
 use async_trait::async_trait;
@@ -99,6 +100,7 @@ impl BrokerBuilder for RedisBrokerBuilder {
             pending_tasks: Arc::new(AtomicU16::new(0)),
             waker_rx: Mutex::new(rx),
             waker_tx: tx,
+            delivery_info: DeliveryInfo::for_redis_default(),
         }))
     }
 }
@@ -117,12 +119,15 @@ pub struct RedisBroker {
     pending_tasks: Arc<AtomicU16>,
     waker_rx: Mutex<Receiver<Waker>>,
     waker_tx: Sender<Waker>,
+
+    delivery_info: DeliveryInfo,
 }
 
 #[derive(Clone)]
 pub struct Channel {
     connection: ConnectionManager,
     queue_name: String,
+    delivery_info: DeliveryInfo,
 }
 
 impl fmt::Debug for Channel {
@@ -132,10 +137,11 @@ impl fmt::Debug for Channel {
 }
 
 impl Channel {
-    fn new(connection: ConnectionManager, queue_name: String) -> Self {
+    fn new(connection: ConnectionManager, queue_name: String, delivery_info: DeliveryInfo) -> Self {
         Self {
             connection,
             queue_name,
+            delivery_info,
         }
     }
 
@@ -180,7 +186,7 @@ impl Channel {
     async fn send_task(mut self, message: &Message) -> Result<(), BrokerError> {
         Ok(redis::cmd("LPUSH")
             .arg(&self.queue_name)
-            .arg(message.json_serialized()?)
+            .arg(message.json_serialized(Some(self.delivery_info))?)
             .query_async(&mut self.connection)
             .await?)
     }
@@ -302,6 +308,7 @@ impl Broker for RedisBroker {
             channel: Channel {
                 connection: self.manager.clone(),
                 queue_name: queue.to_string(),
+                delivery_info: self.delivery_info.clone(),
             },
             error_handler,
             polled_pop: None,
@@ -349,9 +356,13 @@ impl Broker for RedisBroker {
 
     /// Send a [`Message`](protocol/struct.Message.html) into a queue.
     async fn send(&self, message: &Message, queue: &str) -> Result<(), BrokerError> {
-        Channel::new(self.manager.clone(), queue.to_string())
-            .send_task(message)
-            .await?;
+        Channel::new(
+            self.manager.clone(),
+            queue.to_string(),
+            self.delivery_info.clone(),
+        )
+        .send_task(message)
+        .await?;
         Ok(())
     }
 
