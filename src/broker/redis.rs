@@ -65,7 +65,9 @@ impl BrokerBuilder for RedisBrokerBuilder {
 
     /// Set the heartbeat.
     fn heartbeat(mut self: Box<Self>, heartbeat: Option<u16>) -> Box<dyn BrokerBuilder> {
-        warn!("Setting heartbeat on redis broker has no effect on anything");
+        if heartbeat.is_some() {
+            warn!("Setting heartbeat on redis broker has no effect on anything");
+        }
         self.config.heartbeat = heartbeat;
         self
     }
@@ -76,18 +78,18 @@ impl BrokerBuilder for RedisBrokerBuilder {
         for queue_name in &self.config.queues {
             queues.insert(queue_name.into());
         }
-        println!("Creating client");
+        log::info!("Creating client");
         let client = Client::open(&self.config.broker_url[..])
             .map_err(|_| BrokerError::InvalidBrokerUrl(self.config.broker_url.clone()))?;
 
         // let blocking_conn = client.get_connection().unwrap();
 
-        println!("Creating tokio manager");
+        log::info!("Creating tokio manager");
         let manager = client.get_tokio_connection_manager().await?;
 
-        println!("Creating mpsc channel");
+        log::info!("Creating mpsc channel");
         let (tx, rx) = channel(1);
-        println!("Creating broker");
+        log::info!("Creating broker");
         Ok(Box::new(RedisBroker {
             uri: self.config.broker_url.clone(),
             queues,
