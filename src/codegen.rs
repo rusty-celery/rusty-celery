@@ -5,6 +5,7 @@ pub use celery_codegen::task;
 macro_rules! __app_internal {
     (
         $broker_type:ty { $broker_url:expr },
+        $backend_url:expr,
         [ $( $t:ty ),* ],
         [ $( $pattern:expr => $queue:expr ),* ],
         $( $x:ident = $y:expr, )*
@@ -22,7 +23,7 @@ macro_rules! __app_internal {
 
         let broker_url = $broker_url;
 
-        let mut builder = $crate::CeleryBuilder::new("celery", &broker_url);
+        let mut builder = $crate::CeleryBuilder::new("celery", &broker_url, $backend_url);
 
         $(
             builder = builder.$x($y);
@@ -158,6 +159,23 @@ macro_rules! app {
     ) => {
         $crate::__app_internal!(
             $broker_type { $broker_url },
+            Option::<&str>::None,
+            [ $( $t ),* ],
+            [ $( $pattern => $queue ),* ],
+            $( $x = $y, )*
+        );
+    };
+
+    (
+        broker = $broker_type:ty { $broker_url:expr },
+        backend = $backend_type:ty { $backend_url:expr },
+        tasks = [ $( $t:ty ),* $(,)? ],
+        task_routes = [ $( $pattern:expr => $queue:expr ),* $(,)? ]
+        $(, $x:ident = $y:expr )* $(,)?
+    ) => {
+        $crate::__app_internal!(
+            $broker_type { $broker_url },
+            Some($backend_url),
             [ $( $t ),* ],
             [ $( $pattern => $queue ),* ],
             $( $x = $y, )*
