@@ -22,6 +22,8 @@ enum TaskAttr {
     ParamsType(syn::Ident),
     TimeLimit(syn::LitInt),
     HardTimeLimit(syn::LitInt),
+    ExpiresIn(syn::LitInt),
+    Expires(syn::Expr),
     MaxRetries(syn::LitInt),
     MinRetryDelay(syn::LitInt),
     MaxRetryDelay(syn::LitInt),
@@ -42,6 +44,8 @@ struct Task {
     params_type: Option<syn::Ident>,
     time_limit: Option<syn::LitInt>,
     hard_time_limit: Option<syn::LitInt>,
+    expires_in: Option<syn::LitInt>,
+    expires: Option<syn::Expr>,
     max_retries: Option<syn::LitInt>,
     min_retry_delay: Option<syn::LitInt>,
     max_retry_delay: Option<syn::LitInt>,
@@ -104,6 +108,26 @@ impl TaskAttrs {
             .iter()
             .filter_map(|a| match a {
                 TaskAttr::HardTimeLimit(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
+    fn expires_in(&self) -> Option<syn::LitInt> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::ExpiresIn(r) => Some(r.clone()),
+                _ => None,
+            })
+            .next()
+    }
+
+    fn expires(&self) -> Option<syn::Expr> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                TaskAttr::Expires(r) => Some(r.clone()),
                 _ => None,
             })
             .next()
@@ -215,6 +239,7 @@ mod kw {
     syn::custom_keyword!(params_type);
     syn::custom_keyword!(time_limit);
     syn::custom_keyword!(hard_time_limit);
+    syn::custom_keyword!(expires);
     syn::custom_keyword!(max_retries);
     syn::custom_keyword!(min_retry_delay);
     syn::custom_keyword!(max_retry_delay);
@@ -249,6 +274,14 @@ impl parse::Parse for TaskAttr {
             input.parse::<kw::hard_time_limit>()?;
             input.parse::<Token![=]>()?;
             Ok(TaskAttr::HardTimeLimit(input.parse()?))
+        } else if lookahead.peek(kw::expires) {
+            input.parse::<kw::expires>()?;
+            input.parse::<Token![=]>()?;
+            if let Ok(parsed) = syn::LitInt::parse(input) {
+                Ok(TaskAttr::ExpiresIn(parsed))
+            } else {
+                Ok(TaskAttr::Expires(input.parse()?))
+            }
         } else if lookahead.peek(kw::max_retries) {
             input.parse::<kw::max_retries>()?;
             input.parse::<Token![=]>()?;
@@ -301,6 +334,8 @@ impl Task {
             params_type: attrs.params_type(),
             time_limit: attrs.time_limit(),
             hard_time_limit: attrs.hard_time_limit(),
+            expires_in: attrs.expires_in(),
+            expires: attrs.expires(),
             max_retries: attrs.max_retries(),
             min_retry_delay: attrs.min_retry_delay(),
             max_retry_delay: attrs.max_retry_delay(),
@@ -503,6 +538,16 @@ impl ToTokens for Task {
             .as_ref()
             .map(|r| quote! { Some(#r) })
             .unwrap_or_else(|| quote! { None });
+        let expires = self
+            .expires
+            .as_ref()
+            .map(|r| quote! { Some(#r) })
+            .or_else(|| {
+                self.expires_in
+                    .as_ref()
+                    .map(|r| quote! { Some(::std::time::Duration::from_secs(#r)) })
+            })
+            .unwrap_or_else(|| quote! { None });
         let max_retries = self
             .max_retries
             .as_ref()
@@ -660,6 +705,7 @@ impl ToTokens for Task {
                     const DEFAULTS: #krate::task::TaskOptions = #krate::task::TaskOptions {
                         time_limit: #time_limit,
                         hard_time_limit: #hard_time_limit,
+                        expires: #expires,
                         max_retries: #max_retries,
                         min_retry_delay: #min_retry_delay,
                         max_retry_delay: #max_retry_delay,

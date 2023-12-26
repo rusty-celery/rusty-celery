@@ -64,6 +64,16 @@ fn bound_task_with_other_params(t: &Self, default_time_limit: u32) -> TaskResult
     Ok(t.time_limit().unwrap_or(default_time_limit))
 }
 
+#[celery::task(expires = 2)]
+fn bound_task_with_expires_as_seconds() -> TaskResult<()> {
+    Ok(())
+}
+
+#[celery::task(expires = std::time::Duration::from_millis(150))]
+fn bound_task_with_expires_as_duration() -> TaskResult<()> {
+    Ok(())
+}
+
 // This didn't work before since Task::run took a reference to self
 // instead of consuming self, so it was like
 //
