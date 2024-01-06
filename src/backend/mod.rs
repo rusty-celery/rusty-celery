@@ -43,6 +43,9 @@ pub trait Backend: Send + Sync {
     /// Get task meta from backend.
     async fn get_task_meta(&self, task_id: &str) -> Result<TaskMeta, BackendError>;
 
+    /// Delete task meta from backend.
+    async fn delete_task_meta(&self, task_id: &str) -> Result<(), BackendError>;
+
     async fn store_result(
         &self,
         task_id: &str,

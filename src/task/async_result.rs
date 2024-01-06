@@ -12,6 +12,7 @@ pub struct AsyncResultGetBuilder<T> {
     backend: Option<Arc<dyn Backend>>,
     timeout: Option<Duration>,
     interval: Duration,
+    cleanup: bool,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -25,6 +26,7 @@ where
             backend,
             timeout: None,
             interval: Duration::from_millis(500),
+            cleanup: false,
             _marker: std::marker::PhantomData,
         }
     }
@@ -43,6 +45,13 @@ where
     #[must_use]
     pub fn interval(mut self, interval: Duration) -> Self {
         self.interval = interval;
+        self
+    }
+
+    /// Whether to remove the result from the backend after retrieving it.
+    #[must_use]
+    pub fn cleanup(mut self, cleanup: bool) -> Self {
+        self.cleanup = cleanup;
         self
     }
 
@@ -71,7 +80,7 @@ where
             }
         };
 
-        match (meta.status, meta.result) {
+        let result = match (meta.status, meta.result) {
             (_, None) => {
                 log::error!("task {} has no result", self.task_id);
                 Err(TaskError::unexpected(
@@ -110,7 +119,14 @@ where
                 log::trace!("task {} succeeded", self.task_id);
                 T::from_json(val).map_err(|e| BackendError::Json(e).into())
             }
+        };
+
+        if self.cleanup {
+            log::trace!("deleting task meta");
+            backend.delete_task_meta(&self.task_id).await?;
         }
+
+        result
     }
 }
 

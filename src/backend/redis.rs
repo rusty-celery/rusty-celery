@@ -108,4 +108,13 @@ impl Backend for RedisBackend {
             .await?;
         Ok(serde_json::from_str(&raw)?)
     }
+
+    /// Delete task metadata from redis.
+    async fn delete_task_meta(&self, task_id: &str) -> Result<(), BackendError> {
+        let key = format!("{}-{}", self.taskmeta_collection, task_id);
+        Ok(redis::cmd("DEL")
+            .arg(key)
+            .query_async(&mut self.manager.clone())
+            .await?)
+    }
 }
