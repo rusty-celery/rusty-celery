@@ -23,7 +23,7 @@ use chrono::{DateTime, Utc};
 #[derive(Clone)]
 pub struct Signature<T>
 where
-    T: Task,
+    T: Task + 'static,
 {
     /// The parameters for the task invocation.
     pub(crate) params: T::Params,

@@ -16,7 +16,7 @@ use async_trait::async_trait;
 
 /// A [`BackendBuilder`] is used to create a type of results [`Backend`] with a custom configuration.
 #[async_trait]
-pub trait BackendBuilder {
+pub trait BackendBuilder: 'static + Send + Sync {
     /// Create a new `BackendBuilder`.
     fn new(broker_url: &str) -> Self
     where
