@@ -49,7 +49,7 @@ pub struct TaskOptions {
     /// - [`with_hard_time_limit`](crate::task::Signature::method.with_hard_time_limit) at the request / signature level.
     pub hard_time_limit: Option<u32>,
 
-    /// Time in seconds in the future for the task should expire. The task won’t be
+    /// Time in seconds for when the task should expire. The task won’t be
     /// executed after the expiration time. This can be overridden when calling the task, see
     /// [`Signature::with_expires`](crate::task::Signature::with_expires) and
     /// [`Signature::with_expires_in`](crate::task::Signature::with_expires_in).
