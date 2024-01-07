@@ -533,6 +533,7 @@ impl TryDeserializeMessage for Delivery {
                         ProtocolError::MissingRequiredProperty("content_encoding".into())
                     })?,
                 reply_to: self.properties.reply_to().as_ref().map(|v| v.to_string()),
+                delivery_info: None,
             },
             headers: MessageHeaders {
                 id: get_header_str_required(headers, "id")?,
@@ -634,6 +635,7 @@ mod tests {
                 content_type: "application/json".into(),
                 content_encoding: "utf-8".into(),
                 reply_to: Some("bbb".into()),
+                delivery_info: None,
             },
             headers: MessageHeaders {
                 id: "aaa".into(),

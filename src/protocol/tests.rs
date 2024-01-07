@@ -58,6 +58,7 @@ fn test_deserialize_body_with_args() {
             content_type: "application/json".into(),
             content_encoding: "utf-8".into(),
             reply_to: None,
+            delivery_info: None,
         },
         headers: MessageHeaders {
             id: "aaa".into(),
@@ -88,6 +89,7 @@ fn test_yaml_deserialize_body_with_args() {
             content_type: "application/x-yaml".into(),
             content_encoding: "utf-8".into(),
             reply_to: None,
+            delivery_info: None,
         },
         headers: MessageHeaders {
             id: "aaa".into(),
@@ -117,6 +119,7 @@ fn test_pickle_deserialize_body_with_args() {
             content_type: "application/x-python-serialize".into(),
             content_encoding: "utf-8".into(),
             reply_to: None,
+            delivery_info: None,
         },
         headers: MessageHeaders {
             id: "aaa".into(),
@@ -146,6 +149,7 @@ fn test_msgpack_deserialize_body_with_args() {
             content_type: "application/x-msgpack".into(),
             content_encoding: "utf-8".into(),
             reply_to: None,
+            delivery_info: None,
         },
         headers: MessageHeaders {
             id: "aaa".into(),
@@ -173,6 +177,7 @@ fn test_serialization() {
             content_type: "application/json".into(),
             content_encoding: "utf-8".into(),
             reply_to: Some("bbb".into()),
+            delivery_info: None,
         },
         headers: MessageHeaders {
             id: "aaa".into(),
@@ -193,7 +198,7 @@ fn test_serialization() {
         },
         raw_body: Vec::from(JSON),
     };
-    let ser_msg_result = message.json_serialized();
+    let ser_msg_result = message.json_serialized(None);
     assert!(ser_msg_result.is_ok());
     let ser_msg = ser_msg_result.unwrap();
     let ser_msg_json: serde_json::Value = serde_json::from_slice(&ser_msg[..]).unwrap();

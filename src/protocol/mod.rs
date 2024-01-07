@@ -63,6 +63,7 @@ where
                     content_type: "application/json".into(),
                     content_encoding: "utf-8".into(),
                     reply_to: None,
+                    delivery_info: None,
                 },
                 headers: MessageHeaders {
                     id,
@@ -103,6 +104,11 @@ where
 
     pub fn reply_to(mut self, reply_to: String) -> Self {
         self.message.properties.reply_to = Some(reply_to);
+        self
+    }
+
+    pub fn delivery_info(mut self, delivery_info: DeliveryInfo) -> Self {
+        self.message.properties.delivery_info = Some(delivery_info);
         self
     }
 
@@ -415,7 +421,10 @@ impl Message {
         &self.headers.id
     }
 
-    pub fn json_serialized(&self) -> Result<Vec<u8>, ProtocolError> {
+    pub fn json_serialized(
+        &self,
+        delivery_info: Option<DeliveryInfo>,
+    ) -> Result<Vec<u8>, ProtocolError> {
         let root_id = match &self.headers.root_id {
             Some(root_id) => json!(root_id.clone()),
             None => Value::Null,
@@ -461,6 +470,7 @@ impl Message {
                 "reply_to": reply_to,
                 "delivery_tag": delivery_tag,
                 "body_encoding": "base64",
+                "delivery_info": self.properties.delivery_info.clone().or(delivery_info).and_then(|i| serde_json::to_value(i).ok()).unwrap_or(Value::Null)
             })
         });
         let res = serde_json::to_string(&msg_json_value)?;
@@ -564,6 +574,27 @@ pub struct MessageProperties {
 
     /// Used by the RPC backend when failures are reported by the parent process.
     pub reply_to: Option<String>,
+
+    /// Additional message delivery information.
+    pub delivery_info: Option<DeliveryInfo>,
+}
+
+/// Additional message delivery information. This is a mapping containing the
+/// exchange and routing key used to deliver this task. Availability of keys in
+/// this dict depends on the message broker used.
+#[derive(Eq, PartialEq, Debug, Clone, Serialize)]
+pub struct DeliveryInfo {
+    pub exchange: String,
+    pub routing_key: String,
+}
+
+impl DeliveryInfo {
+    pub fn for_redis_default() -> Self {
+        Self {
+            exchange: String::new(),
+            routing_key: "celery".to_string(),
+        }
+    }
 }
 
 /// Additional meta data pertaining to the Celery protocol.
@@ -698,6 +729,7 @@ impl TryDeserializeMessage for Delivery {
                 content_type: self.content_type.clone(),
                 content_encoding: self.content_encoding.clone(),
                 reply_to: self.properties.reply_to.clone(),
+                delivery_info: None,
             },
             headers: MessageHeaders {
                 id: self.headers.id.clone(),
