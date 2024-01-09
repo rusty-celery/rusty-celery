@@ -198,9 +198,9 @@ where
         self
     }
 
-    pub fn expires_in(self, expires_in: u32) -> Self {
+    pub fn expires_in(self, expires_in: Duration) -> Self {
         let now = DateTime::<Utc>::from(SystemTime::now());
-        let expires = now + Duration::seconds(expires_in as i64);
+        let expires = now + expires_in;
         self.expires(expires)
     }
 
@@ -506,18 +506,32 @@ where
             builder = builder.eta(eta);
         }
 
-        // 'expires_in' arbitrarily takes priority over 'expires'.
-        if let Some(expires_in) = task_sig.expires_in.take() {
-            builder = builder.expires_in(expires_in);
-            if task_sig.expires.is_some() {
+        // 'expires_in' arbitrarily takes priority over 'expires' which takes
+        // priority over the default 'expires' property of the task options.
+        match (
+            task_sig.expires_in.take(),
+            task_sig.expires.take(),
+            task_sig.options.expires,
+        ) {
+            (Some(expires_in), None, None) => {
+                builder = builder.expires_in(Duration::seconds(expires_in as i64));
+            }
+            (Some(_), Some(expires), None) => {
                 warn!(
                     "Task {} specified both 'expires_in' and 'expires'. Ignoring 'expires'.",
                     T::NAME
-                )
+                );
+                builder = builder.expires(expires);
             }
-        } else if let Some(expires) = task_sig.expires.take() {
-            builder = builder.expires(expires);
-        }
+            (None, Some(expires), None) => {
+                builder = builder.expires(expires);
+            }
+            (None, None, Some(expires)) => {
+                builder =
+                    builder.expires_in(Duration::from_std(expires).unwrap_or(Duration::zero()))
+            }
+            _ => {}
+        };
 
         #[cfg(any(test, feature = "extra_content_types"))]
         if let Some(content_type) = task_sig.options.content_type {

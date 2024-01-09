@@ -93,6 +93,7 @@ impl Task for MultiplyTask {
     const DEFAULTS: TaskOptions = TaskOptions {
         time_limit: Some(5),
         hard_time_limit: Some(10),
+        expires: None,
         max_retries: Some(1000),
         min_retry_delay: None,
         max_retry_delay: None,

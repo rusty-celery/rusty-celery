@@ -52,6 +52,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
     const DEFAULTS: TaskOptions = TaskOptions {
         time_limit: None,
         hard_time_limit: None,
+        expires: None,
         max_retries: None,
         min_retry_delay: None,
         max_retry_delay: None,
