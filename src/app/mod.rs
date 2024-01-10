@@ -17,6 +17,7 @@ use tokio_stream::StreamMap;
 
 mod trace;
 
+use crate::backend::{backend_builder_from_url, Backend, BackendBuilder};
 use crate::broker::{
     broker_builder_from_url, build_and_connect, configure_task_routes, Broker, BrokerBuilder,
     Delivery,
@@ -31,6 +32,7 @@ struct Config {
     name: String,
     hostname: String,
     broker_builder: Box<dyn BrokerBuilder>,
+    backend_builder: Option<Box<dyn BackendBuilder>>,
     broker_connection_timeout: u32,
     broker_connection_retry: bool,
     broker_connection_max_retries: u32,
@@ -47,7 +49,7 @@ pub struct CeleryBuilder {
 
 impl CeleryBuilder {
     /// Get a [`CeleryBuilder`] for creating a [`Celery`] app with a custom configuration.
-    pub fn new(name: &str, broker_url: &str) -> Self {
+    pub fn new(name: &str, broker_url: &str, backend_url: Option<impl AsRef<str>>) -> Self {
         Self {
             config: Config {
                 name: name.into(),
@@ -60,6 +62,7 @@ impl CeleryBuilder {
                         .unwrap_or_else(|| "unknown".into())
                 ),
                 broker_builder: broker_builder_from_url(broker_url),
+                backend_builder: backend_url.map(backend_builder_from_url),
                 broker_connection_timeout: 2,
                 broker_connection_retry: true,
                 broker_connection_max_retries: 5,
@@ -189,6 +192,24 @@ impl CeleryBuilder {
         self
     }
 
+    /// Set connection timeout for backend.
+    pub fn backend_connection_timeout(mut self, timeout: u32) -> Self {
+        self.config.backend_builder = self
+            .config
+            .backend_builder
+            .map(|builder| builder.connection_timeout(timeout));
+        self
+    }
+
+    /// Set backend task meta collection name.
+    pub fn backend_taskmeta_collection(mut self, collection_name: &str) -> Self {
+        self.config.backend_builder = self
+            .config
+            .backend_builder
+            .map(|builder| builder.taskmeta_collection(collection_name));
+        self
+    }
+
     /// Construct a [`Celery`] app with the current configuration.
     pub async fn build(self) -> Result<Celery, CeleryError> {
         // Declare default queue to broker.
@@ -212,10 +233,16 @@ impl CeleryBuilder {
         )
         .await?;
 
+        let backend = match self.config.backend_builder {
+            Some(backend_builder) => Some(backend_builder.build().await?),
+            None => None,
+        };
+
         Ok(Celery {
             name: self.config.name,
             hostname: self.config.hostname,
             broker,
+            backend,
             default_queue: self.config.default_queue,
             task_options: self.config.task_options,
             task_routes,
@@ -239,6 +266,9 @@ pub struct Celery {
 
     /// The app's broker.
     pub broker: Box<dyn Broker>,
+
+    /// The backend to use for storing task results.
+    pub backend: Option<Arc<dyn Backend>>,
 
     /// The default queue to send and receive from.
     pub default_queue: String,
@@ -302,7 +332,7 @@ impl Celery {
     pub async fn send_task<T: Task>(
         &self,
         mut task_sig: Signature<T>,
-    ) -> Result<AsyncResult, CeleryError> {
+    ) -> Result<AsyncResult<T::Returns>, CeleryError> {
         task_sig.options.update(&self.task_options);
         let maybe_queue = task_sig.queue.take();
         let queue = maybe_queue.as_deref().unwrap_or_else(|| {
@@ -316,7 +346,15 @@ impl Celery {
             queue,
         );
         self.broker.send(&message, queue).await?;
-        Ok(AsyncResult::new(message.task_id()))
+
+        if let Some(backend) = &self.backend {
+            backend.add_task(message.task_id()).await?;
+        }
+
+        Ok(AsyncResult::<T::Returns>::new(
+            message.task_id(),
+            self.backend.clone(),
+        ))
     }
 
     /// Register a task.
@@ -428,12 +466,26 @@ impl Celery {
         // NOTE: we don't need to log errors from the trace here since the tracer
         // handles all errors at it's own level or the task level. In this function
         // we only log errors at the broker and delivery level.
-        if let Err(TraceError::Retry(retry_eta)) = tracer.trace().await {
-            // If retry error -> retry the task.
-            self.broker
-                .retry(delivery.as_ref(), retry_eta)
-                .await
-                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
+        match tracer.trace().await {
+            Err(TraceError::Retry(retry_eta)) => {
+                // If retry error -> retry the task.
+                self.broker
+                    .retry(delivery.as_ref(), retry_eta)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
+            }
+
+            result => {
+                if let Some(backend) = self.backend.as_ref() {
+                    backend
+                        .store_result(
+                            tracer.task_id(),
+                            result.map_err(|err| err.into_task_error()),
+                        )
+                        .await
+                        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync + 'static>)?;
+                }
+            }
         }
 
         // If we have not done it before, we have to acknowledge the message now.

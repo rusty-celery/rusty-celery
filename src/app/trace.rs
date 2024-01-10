@@ -5,8 +5,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::{self, Duration, Instant};
 
 use crate::error::{ProtocolError, TaskError, TraceError};
+use crate::prelude::TaskErrorType;
 use crate::protocol::Message;
-use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskStatus};
+use crate::task::{Request, Task, TaskEvent, TaskOptions, TaskReturns, TaskStatus};
 use crate::Celery;
 
 /// A `Tracer` provides the API through which a `Celery` application interacts with its tasks.
@@ -48,7 +49,7 @@ impl<T> TracerTrait for Tracer<T>
 where
     T: Task,
 {
-    async fn trace(&mut self) -> Result<(), TraceError> {
+    async fn trace(&mut self) -> Result<Box<dyn TaskReturns>, TraceError> {
         if self.is_expired() {
             warn!(
                 "Task {}[{}] expired, discarding",
@@ -60,10 +61,10 @@ where
 
         self.event_tx
             .send(TaskEvent::StatusChange(TaskStatus::Pending))
-            .unwrap_or_else(|_| {
+            .unwrap_or_else(|err| {
                 // This really shouldn't happen. If it does, there's probably much
                 // bigger things to worry about like running out of memory.
-                error!("Failed sending task event");
+                error!("Failed sending task event {err:?}");
             });
 
         let start = Instant::now();
@@ -73,7 +74,7 @@ where
                 let duration = Duration::from_secs(secs as u64);
                 time::timeout(duration, self.task.run(self.task.request().params.clone()))
                     .await
-                    .unwrap_or(Err(TaskError::TimeoutError))
+                    .unwrap_or(Err(TaskError::timeout()))
             }
             None => self.task.run(self.task.request().params.clone()).await,
         };
@@ -94,49 +95,27 @@ where
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
-                    .unwrap_or_else(|_| {
-                        error!("Failed sending task event");
+                    .unwrap_or_else(|err| {
+                        error!("Failed sending task event {err:?}");
                     });
 
-                Ok(())
+                Ok(Box::new(returned))
             }
+
             Err(e) => {
-                let (should_retry, retry_eta) = match e {
-                    TaskError::ExpectedError(ref reason) => {
-                        warn!(
-                            "Task {}[{}] failed with expected error: {}",
-                            self.task.name(),
-                            &self.task.request().id,
-                            reason
-                        );
-                        (true, None)
-                    }
-                    TaskError::UnexpectedError(ref reason) => {
-                        error!(
-                            "Task {}[{}] failed with unexpected error: {}",
-                            self.task.name(),
-                            &self.task.request().id,
-                            reason
-                        );
-                        (self.task.retry_for_unexpected(), None)
-                    }
-                    TaskError::TimeoutError => {
-                        error!(
-                            "Task {}[{}] timed out after {}s",
-                            self.task.name(),
-                            &self.task.request().id,
-                            duration.as_secs_f32(),
-                        );
-                        (true, None)
-                    }
-                    TaskError::Retry(eta) => {
-                        error!(
-                            "Task {}[{}] triggered retry",
-                            self.task.name(),
-                            &self.task.request().id,
-                        );
-                        (true, eta)
-                    }
+                error!(
+                    "Task {}[{}] failed: {e}",
+                    self.task.name(),
+                    &self.task.request().id
+                );
+
+                let (should_retry, retry_eta) = match e.kind {
+                    TaskErrorType::Retry(eta) => (true, eta),
+                    TaskErrorType::MaxRetriesExceeded => (false, None),
+                    TaskErrorType::Expected => (true, None),
+                    TaskErrorType::Unexpected => (self.task.retry_for_unexpected(), None),
+                    TaskErrorType::Timeout => (true, None),
+                    TaskErrorType::Other => (true, None),
                 };
 
                 // Run failure callback.
@@ -144,8 +123,8 @@ where
 
                 self.event_tx
                     .send(TaskEvent::StatusChange(TaskStatus::Finished))
-                    .unwrap_or_else(|_| {
-                        error!("Failed sending task event");
+                    .unwrap_or_else(|err| {
+                        error!("Failed sending task event {err:?}");
                     });
 
                 if !should_retry {
@@ -160,7 +139,10 @@ where
                             self.task.name(),
                             &self.task.request().id,
                         );
-                        return Err(TraceError::TaskError(e));
+                        return Err(TraceError::TaskError(TaskError::max_retries_exceeded(
+                            self.task.name(),
+                            &self.task.request().id,
+                        )));
                     }
                     info!(
                         "Task {}[{}] retrying ({} / {})",
@@ -202,13 +184,17 @@ where
     fn acks_late(&self) -> bool {
         self.task.acks_late()
     }
+
+    fn task_id(&self) -> &str {
+        &self.task.request().id
+    }
 }
 
 #[async_trait]
 pub(super) trait TracerTrait: Send + Sync {
     /// Wraps the execution of a task, catching and logging errors and then running
     /// the appropriate post-execution functions.
-    async fn trace(&mut self) -> Result<(), TraceError>;
+    async fn trace(&mut self) -> Result<Box<dyn TaskReturns>, TraceError>;
 
     /// Wait until the task is due.
     async fn wait(&self);
@@ -218,6 +204,8 @@ pub(super) trait TracerTrait: Send + Sync {
     fn is_expired(&self) -> bool;
 
     fn acks_late(&self) -> bool;
+
+    fn task_id(&self) -> &str;
 }
 
 pub(super) type TraceBuilderResult = Result<Box<dyn TracerTrait>, ProtocolError>;

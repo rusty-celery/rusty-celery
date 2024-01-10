@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
 async fn build_basic_app() -> Celery {
-    let celery = CeleryBuilder::new("mock-app", "mock://localhost:8000")
+    let celery = CeleryBuilder::new("mock-app", "mock://localhost:8000", Option::<&str>::None)
         .build()
         .await
         .unwrap();
@@ -18,7 +18,7 @@ async fn build_basic_app() -> Celery {
 }
 
 async fn build_configured_app() -> Celery {
-    let celery = CeleryBuilder::new("mock-app", "mock://localhost:8000")
+    let celery = CeleryBuilder::new("mock-app", "mock://localhost:8000", Option::<&str>::None)
         .task_time_limit(10)
         .task_max_retries(100)
         .task_content_type(MessageContentType::Yaml)

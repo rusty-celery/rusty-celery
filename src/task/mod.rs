@@ -33,6 +33,27 @@ where
     type Returns = R;
 }
 
+pub trait TaskReturns: std::fmt::Debug + Send + Sync + 'static {
+    fn to_json(&self) -> serde_json::Result<serde_json::Value>;
+
+    fn from_json(json: serde_json::Value) -> serde_json::Result<Self>
+    where
+        Self: Sized;
+}
+
+impl<T> TaskReturns for T
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + std::fmt::Debug + Send + Sync + 'static,
+{
+    fn to_json(&self) -> serde_json::Result<serde_json::Value> {
+        serde_json::to_value(self)
+    }
+
+    fn from_json(json: serde_json::Value) -> serde_json::Result<Self> {
+        serde_json::from_value(json)
+    }
+}
+
 /// A `Task` represents a unit of work that a `Celery` app can produce or consume.
 ///
 /// The recommended way to create tasks is through the [`task`](../attr.task.html) attribute macro, not by directly implementing
@@ -65,7 +86,7 @@ pub trait Task: Send + Sync + std::marker::Sized {
     type Params: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de>;
 
     /// The return type of the task.
-    type Returns: Send + Sync + std::fmt::Debug;
+    type Returns: TaskReturns;
 
     /// Used to initialize a task instance from a request.
     fn from_request(request: Request<Self>, options: TaskOptions) -> Self;
@@ -117,21 +138,19 @@ pub trait Task: Send + Sync + std::marker::Sized {
                 Some(DateTime::<Utc>::from_naive_utc_and_offset(
                     NaiveDateTime::from_timestamp_opt(eta_secs as i64, now_millis * 1000)
                         .ok_or_else(|| {
-                            TaskError::UnexpectedError(format!(
-                                "Invalid countdown seconds {countdown}",
-                            ))
+                            TaskError::unexpected(format!("Invalid countdown seconds {countdown}",))
                         })?,
                     Utc,
                 ))
             }
             Err(_) => None,
         };
-        Err(TaskError::Retry(eta))
+        Err(TaskError::retry(eta))
     }
 
     /// This can be called from within a task function to trigger a retry at the specified `eta`.
     fn retry_with_eta(&self, eta: DateTime<Utc>) -> TaskResult<Self::Returns> {
-        Err(TaskError::Retry(Some(eta)))
+        Err(TaskError::retry(Some(eta)))
     }
 
     /// Get a future ETA at which time the task should be retried. By default this
@@ -220,6 +239,25 @@ pub(crate) enum TaskStatus {
     Finished,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum TaskState {
+    /// The task is waiting for execution.
+    Pending,
+    /// The task has been started.
+    Started,
+    /// The task is to be retried, possibly because of failure.
+    Retry,
+    /// The task failed with error, or has exceeded the retry limit.
+    Failure,
+    /// The task executed successfully.
+    Success,
+    /// Task was received by a worker (only used in events).
+    Received,
+    /// Task was revoked.
+    Revoked,
+}
+
 /// Extension methods for `Result` types within a task body.
 ///
 /// These methods can be used to convert a `Result<T, E>` to a `Result<T, TaskError>` with the
@@ -255,10 +293,10 @@ where
     C: std::fmt::Display + Send + Sync + 'static,
 {
     fn with_expected_err(self, f: F) -> Result<T, TaskError> {
-        self.map_err(|e| TaskError::ExpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
+        self.map_err(|e| TaskError::expected(format!("{} ➥ Cause: {:?}", f(), e)))
     }
 
     fn with_unexpected_err(self, f: F) -> Result<T, TaskError> {
-        self.map_err(|e| TaskError::UnexpectedError(format!("{} ➥ Cause: {:?}", f(), e)))
+        self.map_err(|e| TaskError::unexpected(format!("{} ➥ Cause: {:?}", f(), e)))
     }
 }

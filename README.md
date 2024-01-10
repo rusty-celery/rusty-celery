@@ -51,6 +51,7 @@ and register your tasks with it:
 ```rust
 let my_app = celery::app!(
     broker = AMQPBroker { std::env::var("AMQP_ADDR").unwrap() },
+    backend = RedisBackend { std::env::var("REDIS_ADDR").unwrap() },
     tasks = [add],
     task_routes = [
         "*" => "celery",
@@ -61,13 +62,21 @@ let my_app = celery::app!(
 Then send tasks to a queue with
 
 ```rust
-my_app.send_task(add::new(1, 2)).await?;
+let result = my_app.send_task(add::new(1, 2)).await?;
 ```
 
 And consume tasks as a worker from a queue with
 
 ```rust
 my_app.consume().await?;
+```
+
+In a Rust client you can wait for the result of a task with
+
+
+``` rust
+let result = result.get().fetch().await.expect("get task");
+assert_eq!(3, result);
 ```
 
 ## Examples
@@ -152,7 +161,7 @@ And then you can consume tasks from Rust or Python as explained above.
 | Consumers        | ✅      | |
 | Brokers          | ✅      | |
 | Beat             | ✅      | |
-| Backends         | 🔴      | |
+| Backends         | ⚠️      | |
 | [Baskets](https://github.com/rusty-celery/rusty-celery/issues/53) | 🔴      | |
 
 ### Brokers
@@ -167,4 +176,4 @@ And then you can consume tasks from Rust or Python as explained above.
 |             | Status | Tracking |
 | ----------- |:------:| -------- |
 | RPC         | 🔴     | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Backend%3A%20RPC?label=Issues)](https://github.com/rusty-celery/rusty-celery/labels/Backend%3A%20RPC) |
-| Redis       | 🔴     | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Backend%3A%20Redis?label=Issues)](https://github.com/rusty-celery/rusty-celery/labels/Backend%3A%20Redis) |
+| Redis       | ✅     | [![](https://img.shields.io/github/issues/rusty-celery/rusty-celery/Backend%3A%20Redis?label=Issues)](https://github.com/rusty-celery/rusty-celery/labels/Backend%3A%20Redis) |

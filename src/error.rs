@@ -20,6 +20,11 @@ pub enum CeleryError {
     #[error("broker error")]
     BrokerError(#[from] BrokerError),
 
+    /// Any other backend-level error that could happen when initializing or with an open
+    /// connection.
+    #[error("backend error")]
+    BackendError(#[from] BackendError),
+
     /// Any other IO error that could occur.
     #[error("IO error")]
     IoError(#[from] std::io::Error),
@@ -27,6 +32,10 @@ pub enum CeleryError {
     /// A protocol error.
     #[error("protocol error")]
     ProtocolError(#[from] ProtocolError),
+
+    /// Task error.
+    #[error("task error")]
+    TaskError(#[from] TaskError),
 
     /// There is already a task registered to this name.
     #[error("there is already a task registered as '{0}'")]
@@ -61,8 +70,117 @@ pub enum ScheduleError {
 }
 
 /// Errors that can occur at the task level.
-#[derive(Error, Debug, Serialize, Deserialize)]
-pub enum TaskError {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskError {
+    /// Distinguish the error in Rust
+    #[serde(default)]
+    pub kind: TaskErrorType,
+    /// The Python exception type. For errors generated in Rust this will
+    /// default to `Exception`.
+    pub exc_type: String,
+    /// The module in which the exception type can be found. Will be `builtins` for
+    /// errors raised in Rust.
+    pub exc_module: String,
+    /// Error message
+    pub exc_message: TaskErrorMessage,
+    pub exc_cause: Option<String>,
+    pub exc_traceback: Option<String>,
+}
+
+impl std::error::Error for TaskError {}
+
+impl std::fmt::Display for TaskError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let TaskError {
+            kind,
+            exc_type,
+            exc_message,
+            exc_module,
+            exc_cause: _,
+            exc_traceback,
+        } = self;
+
+        match kind {
+            TaskErrorType::Expected => writeln!(f, "expected error:")?,
+            TaskErrorType::Unexpected => writeln!(f, "unexpected error:")?,
+            TaskErrorType::MaxRetriesExceeded => writeln!(f, "max retries exceeded:")?,
+            TaskErrorType::Other => writeln!(f, "{exc_type}:")?,
+            _ => {}
+        }
+
+        if !exc_module.is_empty() && exc_module != "rust" {
+            writeln!(f, "in module {exc_module}")?;
+        }
+
+        exc_message.print(f, 0)?;
+
+        if let Some(trace) = exc_traceback {
+            writeln!(f, "exc traceback: {trace}")?;
+        }
+        Ok(())
+    }
+}
+
+impl TaskError {
+    pub fn expected(msg: impl ToString) -> Self {
+        TaskError {
+            kind: TaskErrorType::Expected,
+            exc_type: "Exception".to_string(),
+            exc_module: "builtins".to_string(),
+            exc_message: TaskErrorMessage::Text(msg.to_string()),
+            exc_cause: None,
+            exc_traceback: None,
+        }
+    }
+
+    pub fn unexpected(msg: impl ToString) -> Self {
+        TaskError {
+            kind: TaskErrorType::Unexpected,
+            exc_type: "Exception".to_string(),
+            exc_module: "builtins".to_string(),
+            exc_message: TaskErrorMessage::Text(msg.to_string()),
+            exc_cause: None,
+            exc_traceback: None,
+        }
+    }
+
+    pub fn timeout() -> Self {
+        TaskError {
+            kind: TaskErrorType::Timeout,
+            exc_type: "Exception".to_string(),
+            exc_module: "builtins".to_string(),
+            exc_message: TaskErrorMessage::Text("task timed out".to_string()),
+            exc_cause: None,
+            exc_traceback: None,
+        }
+    }
+
+    pub fn retry(eta: Option<DateTime<Utc>>) -> Self {
+        TaskError {
+            kind: TaskErrorType::Retry(eta),
+            exc_type: "Exception".to_string(),
+            exc_module: "builtins".to_string(),
+            exc_message: TaskErrorMessage::Text("task retry triggered".to_string()),
+            exc_cause: None,
+            exc_traceback: None,
+        }
+    }
+
+    pub fn max_retries_exceeded(name: &str, id: &str) -> Self {
+        TaskError {
+            kind: TaskErrorType::MaxRetriesExceeded,
+            exc_type: "MaxRetriesExceededError".to_string(),
+            exc_module: "celery.exceptions".to_string(),
+            exc_message: TaskErrorMessage::Text(format!("Can't retry {name}[{id}]")),
+            exc_cause: None,
+            exc_traceback: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskErrorType {
     /// An error that is expected to happen every once in a while.
     ///
     /// These errors will only be logged at the `WARN` level and will always trigger a task
@@ -73,17 +191,14 @@ pub enum TaskError {
     /// If that service is temporarily unavailable the task should raise an `ExpectedError`.
     ///
     /// Tasks are always retried with capped exponential backoff.
-    #[error("task raised expected error: {0}")]
-    ExpectedError(String),
-
+    Expected,
     /// Should be used when a task encounters an error that is unexpected.
     ///
     /// These errors will always be logged at the `ERROR` level. The retry behavior
     /// when this error is encountered is determined by the
     /// [`TaskOptions::retry_for_unexpected`](../task/struct.TaskOptions.html#structfield.retry_for_unexpected)
     /// setting.
-    #[error("task raised unexpected error: {0}")]
-    UnexpectedError(String),
+    Unexpected,
 
     /// Raised when a task runs over its time limit specified by the
     /// [`TaskOptions::time_limit`](../task/struct.TaskOptions.html#structfield.time_limit) setting.
@@ -94,16 +209,52 @@ pub enum TaskError {
     /// Typically a task implementation doesn't need to return these errors directly
     /// because they will be raised automatically when the task runs over it's `time_limit`,
     /// provided the task yields control at some point (like with non-blocking IO).
-    #[error("task timed out")]
-    TimeoutError,
+    Timeout,
 
     /// A task can return this error variant to manually trigger a retry.
     ///
     /// This error variant should generally not be used directly. Instead, you should
     /// call the `Task::retry_with_countdown` or `Task::retry_with_eta` trait methods
     /// to manually trigger a retry from within a task.
-    #[error("task retry triggered")]
     Retry(Option<DateTime<Utc>>),
+
+    MaxRetriesExceeded,
+
+    #[default]
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TaskErrorMessage {
+    Text(String),
+    List(Vec<TaskErrorMessage>),
+    Other(serde_json::Value),
+}
+
+impl std::fmt::Display for TaskErrorMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.print(f, 0)
+    }
+}
+
+impl TaskErrorMessage {
+    fn print(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
+        match self {
+            TaskErrorMessage::Text(it) => {
+                writeln!(f, "{}{it}", " ".repeat(indent))?;
+            }
+            TaskErrorMessage::List(it) => {
+                for item in it {
+                    item.print(f, indent + 2)?;
+                }
+            }
+            TaskErrorMessage::Other(it) => {
+                writeln!(f, "{}{it}", " ".repeat(indent))?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Errors that can occur while tracing a task.
@@ -120,6 +271,16 @@ pub(crate) enum TraceError {
     /// Raised when a task should be retried.
     #[error("retrying task")]
     Retry(Option<DateTime<Utc>>),
+}
+
+impl TraceError {
+    pub(crate) fn into_task_error(self) -> TaskError {
+        match self {
+            TraceError::TaskError(e) => e,
+            TraceError::ExpirationError => TaskError::timeout(),
+            TraceError::Retry(_eta) => unreachable!("retry should not be returned as error"),
+        }
+    }
 }
 
 /// Errors that can occur at the broker level.
@@ -277,4 +438,18 @@ pub enum ContentTypeError {
 
     #[error("Unknown content type error")]
     Unknown,
+}
+
+/// Errors that can occur at the broker level.
+#[derive(Error, Debug)]
+pub enum BackendError {
+    #[error("invalid broker URL '{0}'")]
+    InvalidBrokerUrl(String),
+
+    /// Any other Redis error that could happen.
+    #[error("Redis error \"{0}\"")]
+    RedisError(#[from] ::redis::RedisError),
+
+    #[error("JSON serialization error")]
+    Json(#[from] serde_json::Error),
 }

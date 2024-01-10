@@ -111,11 +111,17 @@ async fn main() -> Result<()> {
             } else {
                 for task in tasks {
                     match task.as_str() {
-                        "add" => my_app.send_task(add::new(1, 2)).await?,
-                        "bound_task" => my_app.send_task(bound_task::new()).await?,
-                        "buggy_task" => my_app.send_task(buggy_task::new()).await?,
+                        "add" => {
+                            my_app.send_task(add::new(1, 2)).await?;
+                        }
+                        "bound_task" => {
+                            my_app.send_task(bound_task::new()).await?;
+                        }
+                        "buggy_task" => {
+                            my_app.send_task(buggy_task::new()).await?;
+                        }
                         "long_running_task" => {
-                            my_app.send_task(long_running_task::new(Some(3))).await?
+                            my_app.send_task(long_running_task::new(Some(3))).await?;
                         }
                         _ => panic!("unknown task"),
                     };
