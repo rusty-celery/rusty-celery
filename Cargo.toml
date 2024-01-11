@@ -46,7 +46,7 @@ colored = "2"
 once_cell = { version = "1.17" }
 globset = "0.4"
 hostname = "0.3"
-redis = { version = "0.22", features=["connection-manager", "tokio-comp"] }
+redis = { version = "0.23", features=["connection-manager", "tokio-comp"] }
 tokio-executor-trait = "2.1"
 tokio-reactor-trait = "1.1"
 futures-lite = "1.12"
