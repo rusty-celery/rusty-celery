@@ -679,11 +679,6 @@ impl ToTokens for Task {
             None => quote! {},
         };
 
-        let dummy_const = syn::Ident::new(
-            &format!("__IMPL_CELERY_TASK_FOR_{wrapper}"),
-            Span::call_site(),
-        );
-
         let output = quote! {
             #wrapper_struct
 
@@ -695,7 +690,7 @@ impl ToTokens for Task {
                 #serialized_fields
             }
 
-            const #dummy_const: () = {
+            const _: () = {
                 use #export::async_trait;
 
                 #[async_trait]
